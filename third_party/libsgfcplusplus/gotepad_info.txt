@@ -1,0 +1,27 @@
+库名称：libsgfcplusplus（libsgfc++）
+
+用途：
+读取、校验和保存 SGF 棋谱；该库封装了 SGFC。
+
+本项目使用的版本：
+- CMake 项目版本：3.0.0
+- 上游分支：develop
+- 精确提交：e10f3f23db5b7a286146c2eeff348da249114ccd
+
+上游项目：
+https://github.com/herzbube/libsgfcplusplus
+
+许可证：
+Apache License 2.0
+该项目包含的 SGFC、Catch2、win-iconv 等子模块各自采用其上游许可证。
+
+获取方式（在项目根目录执行）：
+git clone --recurse-submodules https://github.com/herzbube/libsgfcplusplus.git third_party/libsgfcplusplus
+git -C third_party/libsgfcplusplus checkout e10f3f23db5b7a286146c2eeff348da249114ccd
+git -C third_party/libsgfcplusplus submodule update --init --recursive
+
+注意：
+- 必须初始化子模块，否则 SGFC 等依赖不完整，项目将无法正常构建。
+- 为保证行为与本项目一致，请使用上述精确提交。
+- 依赖源码应直接位于 third_party/libsgfcplusplus 下，使该目录中的 CMakeLists.txt 可被项目顶层 CMakeLists.txt 引用。
+- 上游及其子模块的许可证全文请从对应提交中获取并按要求保留。

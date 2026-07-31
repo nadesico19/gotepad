@@ -1,0 +1,31 @@
+库名称：miniz
+
+用途：
+为 gotepad 的 PPTX 导出功能提供 ZIP 压缩和归档支持。
+
+本项目使用的版本：
+- miniz 发布版本：3.1.2
+- 上游标签：3.1.2
+- miniz.h 中的 MZ_VERSION：11.3.2（这是兼容 API 的版本字符串，不是上游发布标签）
+
+上游项目：
+https://github.com/richgel999/miniz
+
+下载页面：
+https://github.com/richgel999/miniz/releases/tag/3.1.2
+
+许可证：
+MIT License
+
+获取方式（在项目根目录执行）：
+git clone --depth 1 --branch 3.1.2 https://github.com/richgel999/miniz.git third_party/miniz
+
+本项目直接编译下列上游源文件：
+- miniz.c
+- miniz_tdef.c
+- miniz_tinfl.c
+- miniz_zip.c
+
+注意：
+- 上述源文件及配套头文件应直接位于 third_party/miniz 下。
+- 上游许可证全文请从 3.1.2 标签中的 LICENSE 文件获取，并按其要求保留。

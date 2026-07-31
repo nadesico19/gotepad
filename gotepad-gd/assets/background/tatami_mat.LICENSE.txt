@@ -1,0 +1,5 @@
+Asset: Tatami Mat (4K diffuse JPG)
+Author: Charlotte Baglioni
+Source: https://polyhaven.com/a/tatami_mat
+License: CC0 1.0 Universal
+License URL: https://creativecommons.org/publicdomain/zero/1.0/

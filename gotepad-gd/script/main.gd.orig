@@ -1,0 +1,160 @@
+extends Node2D
+
+const kBoardToolbarGap: float = 8.0
+
+@onready var board_: GoBoardView = $Board
+@onready var board_size_dialog_: BoardSizeDialog = $Interface/BoardSizeDialog
+@onready var board_toolbar_: VBoxContainer = $Interface/BoardToolBar
+@onready var undo_button_: Button = $Interface/BoardToolBar/UndoButton
+@onready var redo_button_: Button = $Interface/BoardToolBar/RedoButton
+@onready var board_lock_checkbox_: CheckBox = \
+	$Interface/BoardToolBar/BoardLockControl/CheckBox
+
+var go_notes_: GoNotes
+
+
+func _enter_tree() -> void:
+	go_notes_ = GoNotes.new()
+	var board: GoBoardView = get_node("Board") as GoBoardView
+	if board == null or not board.bind_go_notes(go_notes_):
+		push_error("Failed to bind the main board to GoNotes.")
+
+
+func _ready() -> void:
+	board_size_dialog_.create_requested.connect(on_create_requested_)
+	board_size_dialog_.sgf_load_requested.connect(on_sgf_load_requested_)
+	undo_button_.pressed.connect(on_undo_requested_)
+	redo_button_.pressed.connect(on_redo_requested_)
+	var changed_callback: Callable = Callable(
+		self, "on_go_notes_history_changed_"
+	)
+	go_notes_.connect(&"changed", changed_callback)
+	board_lock_checkbox_.toggled.connect(on_board_lock_toggled_)
+	get_window().size_changed.connect(on_board_layout_changed_)
+	board_.board_texture_changed.connect(on_board_layout_changed_)
+	board_.set_interactions_locked(
+		board_lock_checkbox_.button_pressed
+	)
+	update_history_buttons_()
+	on_board_layout_changed_()
+
+
+func _input(event: InputEvent) -> void:
+	if event is not InputEventKey:
+		return
+	var key_event: InputEventKey = event as InputEventKey
+	if not key_event.pressed or key_event.echo \
+			or not key_event.ctrl_pressed or key_event.shift_pressed \
+			or key_event.alt_pressed or key_event.meta_pressed:
+		return
+
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	if focus_owner is LineEdit or focus_owner is TextEdit:
+		return
+
+	var handled: bool = false
+	match key_event.keycode:
+		KEY_Z:
+			handled = perform_undo_()
+		KEY_Y:
+			handled = perform_redo_()
+		_:
+			return
+	if handled:
+		get_viewport().set_input_as_handled()
+
+
+func on_undo_requested_() -> void:
+	var _succeeded: bool = perform_undo_()
+
+
+func on_redo_requested_() -> void:
+	var _succeeded: bool = perform_redo_()
+
+
+func perform_undo_() -> bool:
+	if board_.is_interactions_locked() or not go_notes_.can_undo():
+		return false
+	var result: int = int(go_notes_.undo())
+	if result != 0:
+		push_warning(go_notes_.get_message())
+		update_history_buttons_()
+		return false
+	return true
+
+
+func perform_redo_() -> bool:
+	if board_.is_interactions_locked() or not go_notes_.can_redo():
+		return false
+	var result: int = int(go_notes_.redo())
+	if result != 0:
+		push_warning(go_notes_.get_message())
+		update_history_buttons_()
+		return false
+	return true
+
+
+func on_go_notes_history_changed_() -> void:
+	update_history_buttons_()
+
+
+func update_history_buttons_() -> void:
+	var interactions_locked: bool = board_.is_interactions_locked()
+	undo_button_.disabled = interactions_locked or not go_notes_.can_undo()
+	redo_button_.disabled = interactions_locked or not go_notes_.can_redo()
+
+
+func get_go_notes() -> GoNotes:
+	return go_notes_
+
+
+func bind_board_view(board_view: GoBoardView, view_uid: int = -1) -> bool:
+	if board_view == null:
+		return false
+	return board_view.bind_go_notes(go_notes_, view_uid)
+
+
+func on_create_requested_(board_size: int) -> void:
+	if board_.initialize_board(board_size):
+		board_size_dialog_.hide()
+	else:
+		board_size_dialog_.show_dialog()
+
+
+func on_board_lock_toggled_(locked: bool) -> void:
+	board_.set_interactions_locked(locked)
+	update_history_buttons_()
+
+
+func on_board_layout_changed_() -> void:
+	call_deferred(&"position_board_toolbar_")
+
+
+func position_board_toolbar_() -> void:
+	if board_.texture == null:
+		return
+	var board_rect: Rect2 = board_.get_rect()
+	var canvas_transform: Transform2D = \
+		board_.get_global_transform_with_canvas()
+	var board_top_left: Vector2 = canvas_transform * board_rect.position
+	var board_top_right: Vector2 = canvas_transform * Vector2(
+		board_rect.end.x,
+		board_rect.position.y
+	)
+	board_toolbar_.position = Vector2(
+		board_top_right.x + kBoardToolbarGap,
+		board_top_left.y
+	)
+
+
+func on_sgf_load_requested_(path: String) -> void:
+	var load_succeeded: bool = bool(
+		go_notes_.call(&"load_sgf_file", path)
+	)
+	if load_succeeded:
+		board_lock_checkbox_.set_pressed_no_signal(true)
+		board_.set_interactions_locked(true)
+		update_history_buttons_()
+		board_size_dialog_.hide()
+	else:
+		board_size_dialog_.show_load_error(go_notes_.get_message())

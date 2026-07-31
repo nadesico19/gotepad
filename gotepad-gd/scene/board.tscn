@@ -1,0 +1,169 @@
+[gd_scene load_steps=8 format=3]
+[ext_resource type="Script" path="res://script/board_view.gd" id="2_board_script"]
+[ext_resource type="Script" path="res://script/playback_button.gd" id="3_playback_button"]
+[ext_resource type="Texture2D" path="res://assets/ui/find_hover.svg" id="4_find_hover"]
+[ext_resource type="Texture2D" path="res://assets/ui/history_unavailable.svg" id="5_history_unavailable"]
+[ext_resource type="Texture2D" path="res://assets/ui/cut_branch_hover.svg" id="6_cut_branch_hover"]
+[ext_resource type="Script" path="res://script/setup_branch_preview_overlay.gd" id="7_setup_preview"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_playback_hover"]
+bg_color = Color(0.055, 0.045, 0.035, 0.72)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.9, 0.7, 0.32)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="Board" type="Sprite2D"]
+script = ExtResource("2_board_script")
+
+[node name="Stones" type="Node2D" parent="."]
+show_behind_parent = false
+
+[node name="HoverStone" type="Sprite2D" parent="."]
+visible = false
+z_index = 10
+
+[node name="FindHover" type="Sprite2D" parent="."]
+visible = false
+z_index = 11
+texture = ExtResource("4_find_hover")
+
+[node name="CutBranchHover" type="Sprite2D" parent="."]
+visible = false
+z_index = 12
+texture = ExtResource("6_cut_branch_hover")
+
+[node name="SetupBranchPreview" type="Node2D" parent="."]
+visible = false
+z_index = 13
+script = ExtResource("7_setup_preview")
+
+[node name="PresetButton" type="Button" parent="."]
+z_index = 20
+offset_left = -492.0
+offset_top = 520.0
+offset_right = -424.0
+offset_bottom = 560.0
+focus_mode = 0
+flat = true
+toggle_mode = true
+mouse_default_cursor_shape = 2
+tooltip_text = "预置棋子（Ctrl+H）"
+theme_override_colors/font_color = Color(0.96, 0.96, 0.92, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.82, 0.32, 1)
+theme_override_colors/font_disabled_color = Color(1, 1, 1, 0.55)
+theme_override_font_sizes/font_size = 28
+text = "预置"
+
+[node name="UnavailableMark" type="TextureRect" parent="PresetButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = -6.0
+mouse_filter = 2
+texture = ExtResource("5_history_unavailable")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PlaybackBar" type="HSlider" parent="."]
+z_index = 20
+offset_left = -416.0
+offset_top = 524.0
+offset_right = 360.0
+offset_bottom = 564.0
+mouse_default_cursor_shape = 2
+min_value = 0.0
+max_value = 0.0
+step = 1.0
+rounded = true
+tick_count = 0
+tooltip_text = "拖动以浏览棋局"
+
+[node name="PlaybackHoverBubble" type="PanelContainer" parent="."]
+visible = false
+z_index = 21
+custom_minimum_size = Vector2(72, 36)
+offset_right = 72.0
+offset_bottom = 36.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_playback_hover")
+
+[node name="Label" type="Label" parent="PlaybackHoverBubble"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.96, 0.86, 1)
+theme_override_font_sizes/font_size = 18
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PlaybackPreviousButton" type="Button" parent="."]
+z_index = 20
+offset_left = 368.0
+offset_top = 524.0
+offset_right = 400.0
+offset_bottom = 564.0
+focus_mode = 0
+flat = true
+mouse_default_cursor_shape = 2
+tooltip_text = "向棋局开始方向漫游一手"
+script = ExtResource("3_playback_button")
+step_direction = -1
+
+[node name="PlaybackNextButton" type="Button" parent="."]
+z_index = 20
+offset_left = 404.0
+offset_top = 524.0
+offset_right = 436.0
+offset_bottom = 564.0
+focus_mode = 0
+flat = true
+mouse_default_cursor_shape = 2
+tooltip_text = "向棋局结束方向漫游一手"
+script = ExtResource("3_playback_button")
+step_direction = 1
+
+[node name="PlaybackButton" type="Button" parent="."]
+z_index = 20
+offset_left = 448.0
+offset_top = 524.0
+offset_right = 492.0
+offset_bottom = 564.0
+focus_mode = 0
+flat = true
+mouse_default_cursor_shape = 2
+tooltip_text = "播放棋局"
+script = ExtResource("3_playback_button")
+
+[node name="PlaybackTimer" type="Timer" parent="."]
+wait_time = 1.0
+one_shot = true
+
+[node name="TakebackConfirmation" type="ConfirmationDialog" parent="."]
+title = "确认悔棋"
+exclusive = true
+dialog_text = "确定要撤销上一手棋吗？"
+ok_button_text = "确定"
+cancel_button_text = "取消"
+
+[node name="CutBranchConfirmation" type="ConfirmationDialog" parent="."]
+title = "确认剪切分支"
+exclusive = true
+dialog_text = "确定要剪掉所选节点及其全部后续节点吗？\n此操作可以通过 Undo 恢复。"
+ok_button_text = "剪切"
+cancel_button_text = "取消"
+
+[node name="FindResultDialog" type="AcceptDialog" parent="."]
+title = "找子"
+exclusive = true
+dialog_text = "没有在指定方向找到这颗棋子。"
+ok_button_text = "确定"

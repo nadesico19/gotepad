@@ -1,0 +1,78 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://script/branch_visualization_view.gd" id="1_script"]
+
+[node name="BranchVisualization" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_script")
+
+[node name="ThumbnailLayer" type="Node2D" parent="."]
+
+[node name="ExitButton" type="Button" parent="."]
+z_index = 2
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -108.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 66.0
+grow_horizontal = 0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.92, 1)
+theme_override_colors/font_hover_color = Color(1, 0.84, 0.42, 1)
+theme_override_font_sizes/font_size = 18
+text = "退出"
+
+[node name="LoadingOverlay" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.055, 0.065, 0.062, 0.9)
+
+[node name="Center" type="CenterContainer" parent="LoadingOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Content" type="VBoxContainer" parent="LoadingOverlay/Center"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ProgressLabel" type="Label" parent="LoadingOverlay/Center/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.94, 0.9, 1)
+theme_override_font_sizes/font_size = 18
+text = "正在分析棋谱分支……"
+horizontal_alignment = 1
+
+[node name="ProgressBar" type="ProgressBar" parent="LoadingOverlay/Center/Content"]
+visible = false
+custom_minimum_size = Vector2(420, 24)
+layout_mode = 2
+show_percentage = false
+
+[node name="DeleteBranchConfirmation" type="ConfirmationDialog" parent="."]
+title = "确认删除分支"
+exclusive = true
+dialog_text = "确定要删除所选局面及其全部后续分支吗？\n此操作可以通过 Undo 恢复。"
+ok_button_text = "删除"
+cancel_button_text = "取消"

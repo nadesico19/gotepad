@@ -1,0 +1,256 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://script/settings_panel.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
+[ext_resource type="Texture2D" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroupMoveNumbers"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
+bg_color = Color(0.075, 0.075, 0.085, 0.5)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.34, 0.38, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 8
+
+[node name="SettingsUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="SettingsButton" type="Button" parent="."]
+layout_mode = 0
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 48.0
+grow_horizontal = 0
+mouse_filter = 0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+tooltip_text = "显示设置（Ctrl+O）"
+text = "设置"
+
+[node name="SettingsPanel" type="PanelContainer" parent="."]
+layout_mode = 0
+anchor_left = 1.0
+anchor_bottom = 1.0
+anchor_right = 1.0
+offset_left = -444.0
+offset_top = 12.0
+offset_right = -84.0
+offset_bottom = -12.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("StyleBoxPanel")
+
+[node name="Margin" type="MarginContainer" parent="SettingsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="Options" type="VBoxContainer" parent="SettingsPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Version" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.72, 0.75, 1)
+theme_override_font_sizes/font_size = 14
+text = "Gotepad 版本"
+
+[node name="Title" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "显示设置"
+
+[node name="BoardLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "棋盘纹理"
+
+[node name="BoardOption" type="OptionButton" parent="SettingsPanel/Margin/Options"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="StoneLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "棋子纹理"
+
+[node name="StoneOption" type="OptionButton" parent="SettingsPanel/Margin/Options"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="MoveNumberHeader" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+
+[node name="MoveNumberLabel" type="Label" parent="SettingsPanel/Margin/Options/MoveNumberHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "显示手数"
+
+[node name="HeaderSpacer" type="Control" parent="SettingsPanel/Margin/Options/MoveNumberHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="AbsoluteMoveNumbers" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberHeader"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+tooltip_text = "勾选后使用当前分支中的绝对落子手数"
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+text = "绝对手数"
+
+[node name="MoveNumberOptions" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="OneMove" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberOptions"]
+layout_mode = 2
+button_pressed = true
+button_group = SubResource("ButtonGroupMoveNumbers")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "1手"
+
+[node name="TenMoves" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberOptions"]
+layout_mode = 2
+button_group = SubResource("ButtonGroupMoveNumbers")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "10手"
+
+[node name="AllMoves" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberOptions"]
+layout_mode = 2
+button_group = SubResource("ButtonGroupMoveNumbers")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "所有"
+
+[node name="CustomMoveNumberRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CustomMoves" type="CheckBox" parent="SettingsPanel/Margin/Options/CustomMoveNumberRow"]
+layout_mode = 2
+button_group = SubResource("ButtonGroupMoveNumbers")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "指定手数"
+
+[node name="CustomMoveCount" type="SpinBox" parent="SettingsPanel/Margin/Options/CustomMoveNumberRow"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+min_value = 1.0
+max_value = 9999.0
+value = 20.0
+allow_greater = true
+suffix = " 手"
+editable = false
+
+[node name="PlaybackIntervalRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/PlaybackIntervalRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "播放间隔"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/PlaybackIntervalRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Seconds" type="SpinBox" parent="SettingsPanel/Margin/Options/PlaybackIntervalRow"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+min_value = 0.1
+max_value = 60.0
+step = 0.1
+value = 1.0
+suffix = " 秒"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ErrorLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+text = "保存设置失败"
+autowrap_mode = 2
+
+[node name="ActionBar" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 8
+
+[node name="ConfirmButton" type="Button" parent="SettingsPanel/Margin/Options/ActionBar"]
+layout_mode = 2
+text = "确认"
+
+[node name="RestoreButton" type="Button" parent="SettingsPanel/Margin/Options/ActionBar"]
+layout_mode = 2
+text = "还原"
+
+[node name="CancelButton" type="Button" parent="SettingsPanel/Margin/Options/ActionBar"]
+layout_mode = 2
+text = "取消"

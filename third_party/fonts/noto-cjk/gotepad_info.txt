@@ -1,0 +1,44 @@
+名称：Noto Sans CJK SC / Noto Serif CJK SC
+用途：Gotepad 导出的 PPTX 使用这两套字体进行中文排版。
+
+使用方式：
+- 字体文件随项目提供，供用户或构建者安装到操作系统。
+- Gotepad 生成的 PPTX 只按字体族名称引用字体，不把字体数据嵌入 PPTX。
+- 在未安装这些字体的设备上打开 PPTX 时，演示软件可能使用其他字体替代，排版可能略有变化。
+
+版本：
+- Noto Sans CJK：2.004（Sans2.004）
+- Noto Serif CJK：2.003（Serif2.003）
+
+包含文件：
+- NotoSansCJKsc-Regular.otf
+- NotoSansCJKsc-Bold.otf
+- NotoSerifCJKsc-Regular.otf
+- NotoSerifCJKsc-Bold.otf
+
+上游项目：
+https://github.com/notofonts/noto-cjk
+
+版本发布页：
+https://github.com/notofonts/noto-cjk/releases/tag/Sans2.004
+https://github.com/notofonts/noto-cjk/releases/tag/Serif2.003
+
+下载位置：
+https://github.com/notofonts/noto-cjk/tree/Sans2.004/Sans/OTF/SimplifiedChinese
+https://github.com/notofonts/noto-cjk/tree/Serif2.003/Serif/OTF/SimplifiedChinese
+
+许可证：SIL Open Font License 1.1（OFL-1.1）
+完整许可证文本见同目录 OFL.txt。
+
+授权说明：
+- OFL 允许使用、研究、修改和再分发字体，也允许将字体用于商业作品。
+- 字体软件本身不得单独出售。
+- 修改、再分发字体时仍须遵守 OFL，包括许可证和保留字体名称方面的要求。
+- 随项目或发行包分发这些字体时，应同时保留 OFL.txt 和本说明文件。
+
+SHA-256：
+- NotoSansCJKsc-Regular.otf：2C76254F6FC379FDDFCE0A7E84FB5385BB135D3E399294F6EEB6680D0365B74B
+- NotoSansCJKsc-Bold.otf：B5F0D1A190A7F9B43C310A8850630AF12553DF32C4C050543F9059732D9B4C0A
+- NotoSerifCJKsc-Regular.otf：2A2EAE2628DF83556C54018C41E20FA532C1B862C5256AE8B3F23FEB918D12CA
+- NotoSerifCJKsc-Bold.otf：8AF07D4B6C2E82BCC72A30E066EAF295F11B9424F4AAD2EAA9FE0E9C3B38FC73
+- OFL.txt：6A73F9541C2DE74158C0E7CF6B0A58EF774F5A780BF191F2D7EC9CC53EFE2BF2

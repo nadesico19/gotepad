@@ -1,0 +1,188 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://script/notes_panel.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
+bg_color = Color(0.075, 0.075, 0.085, 0.5)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.34, 0.38, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 8
+
+[node name="NotesPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="UnsavedConfirmation" type="ConfirmationDialog" parent="."]
+title = "笔记内容已修改"
+dialog_text = "标题或评论已经发生改变，是否保留编辑内容？"
+ok_button_text = "保留"
+cancel_button_text = "放弃"
+
+[node name="Panel" type="PanelContainer" parent="."]
+offset_right = 360.0
+offset_bottom = 480.0
+mouse_filter = 0
+theme_override_styles/panel = SubResource("StyleBoxPanel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TabScroll" type="ScrollContainer" parent="Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+horizontal_scroll_mode = 2
+vertical_scroll_mode = 0
+
+[node name="Tabs" type="HBoxContainer" parent="Panel/Margin/Content/TabScroll"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="TitleRow" type="HBoxContainer" parent="Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TitleEdit" type="LineEdit" parent="Panel/Margin/Content/TitleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "输入节点标题"
+max_length = 256
+theme_override_colors/font_uneditable_color = Color(1, 0.82, 0.32, 1)
+theme_override_font_sizes/font_size = 17
+
+[node name="ActionSlot" type="Control" parent="Panel/Margin/Content/TitleRow"]
+custom_minimum_size = Vector2(82, 38)
+layout_mode = 2
+
+[node name="CommentActions" type="HBoxContainer" parent="Panel/Margin/Content/TitleRow/ActionSlot"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 4
+
+[node name="Accept" type="Button" parent="Panel/Margin/Content/TitleRow/ActionSlot/CommentActions"]
+custom_minimum_size = Vector2(38, 36)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "接受标题和评论修改"
+theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_font_sizes/font_size = 22
+text = "✓"
+
+[node name="Cancel" type="Button" parent="Panel/Margin/Content/TitleRow/ActionSlot/CommentActions"]
+custom_minimum_size = Vector2(38, 36)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "取消标题和评论修改"
+theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_font_sizes/font_size = 22
+text = "✕"
+
+[node name="CommentArea" type="Control" parent="Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 230)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CommentEdit" type="TextEdit" parent="Panel/Margin/Content/CommentArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+wrap_mode = 1
+theme_override_colors/font_readonly_color = Color(0.78, 0.78, 0.82, 1)
+
+[node name="MarkButtons" type="HBoxContainer" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Sequential" type="Button" parent="Panel/Margin/Content/MarkButtons"]
+custom_minimum_size = Vector2(52, 42)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "按 A-Z、a-z 顺序标记"
+text = "ABC"
+
+[node name="Triangle" type="Button" parent="Panel/Margin/Content/MarkButtons"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "三角标记（TR）"
+theme_override_font_sizes/font_size = 24
+text = "△"
+
+[node name="Square" type="Button" parent="Panel/Margin/Content/MarkButtons"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "方框标记（SQ）"
+theme_override_font_sizes/font_size = 24
+text = "□"
+
+[node name="Circle" type="Button" parent="Panel/Margin/Content/MarkButtons"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "圆圈标记（CR）"
+theme_override_font_sizes/font_size = 24
+text = "○"
+
+[node name="Cross" type="Button" parent="Panel/Margin/Content/MarkButtons"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "叉号标记（MA）"
+theme_override_font_sizes/font_size = 24
+text = "×"
+
+[node name="Erase" type="Button" parent="Panel/Margin/Content/MarkButtons"]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "擦除符号标记"
+theme_override_colors/font_color = Color(0.96, 0.3, 0.3, 1)
+theme_override_font_sizes/font_size = 20
+text = "🗑"
+
+[node name="NumberingRow" type="HBoxContainer" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="Panel/Margin/Content/NumberingRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 16
+text = "棋子编号"
+
+[node name="Option" type="OptionButton" parent="Panel/Margin/Content/NumberingRow"]
+custom_minimum_size = Vector2(180, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+fit_to_longest_item = false

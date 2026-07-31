@@ -1,0 +1,25 @@
+库名称：godot-cpp
+
+用途：
+为 gotepad-gd 的 GDExtension 提供 Godot C++ 绑定。
+
+本项目使用的版本：
+- 上游分支：master
+- 精确提交：ba0edfed90512ec64aba51d4295a3e7e30112f86
+- 内置 Extension API：Godot 4.7 stable
+- 本项目使用的 Godot：4.7.1（非 .NET 版本）
+
+上游项目：
+https://github.com/godotengine/godot-cpp
+
+许可证：
+MIT License
+
+获取方式（在项目根目录执行）：
+git clone https://github.com/godotengine/godot-cpp.git third_party/godot-cpp
+git -C third_party/godot-cpp checkout ba0edfed90512ec64aba51d4295a3e7e30112f86
+
+注意：
+- 为保证生成的绑定与本项目一致，请使用上述精确提交，不要直接使用上游最新提交。
+- 依赖源码应直接位于 third_party/godot-cpp 下，使该目录中的 CMakeLists.txt 可被项目顶层 CMakeLists.txt 引用。
+- 上游许可证全文请从上述提交的 LICENSE.md 获取，并按其要求保留。

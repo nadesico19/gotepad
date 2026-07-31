@@ -1,0 +1,235 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://script/sgf_metadata_panel.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
+bg_color = Color(0.075, 0.075, 0.085, 0.5)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.34, 0.38, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 8
+
+[node name="SgfMetadataPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="UnsavedConfirmation" type="ConfirmationDialog" parent="."]
+title = "棋谱信息已修改"
+dialog_text = "棋谱信息已经发生改变，是否保留编辑内容？"
+ok_button_text = "保留"
+cancel_button_text = "放弃"
+
+[node name="ErrorDialog" type="AcceptDialog" parent="."]
+title = "更新失败"
+ok_button_text = "确定"
+
+[node name="Panel" type="PanelContainer" parent="."]
+offset_right = 360.0
+offset_bottom = 480.0
+mouse_filter = 0
+theme_override_styles/panel = SubResource("StyleBoxPanel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Panel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "棋谱信息"
+vertical_alignment = 1
+
+[node name="ActionSlot" type="Control" parent="Panel/Margin/Content/Header"]
+custom_minimum_size = Vector2(82, 38)
+layout_mode = 2
+
+[node name="Actions" type="HBoxContainer" parent="Panel/Margin/Content/Header/ActionSlot"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 4
+
+[node name="Accept" type="Button" parent="Panel/Margin/Content/Header/ActionSlot/Actions"]
+custom_minimum_size = Vector2(38, 36)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "接受全部棋谱信息修改"
+theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_font_sizes/font_size = 22
+text = "✓"
+
+[node name="Cancel" type="Button" parent="Panel/Margin/Content/Header/ActionSlot/Actions"]
+custom_minimum_size = Vector2(38, 36)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "取消全部棋谱信息修改"
+theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_font_sizes/font_size = 22
+text = "✕"
+
+[node name="Scroll" type="ScrollContainer" parent="Panel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Form" type="VBoxContainer" parent="Panel/Margin/Content/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="GameNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "棋局名称"
+[node name="GameName" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="EventLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "赛事名称"
+[node name="Event" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="RoundLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "轮次"
+[node name="Round" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="DateLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "日期"
+[node name="Date" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+placeholder_text = "例如 2026-07-31"
+
+[node name="PlaceLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "地点"
+[node name="Place" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="BlackNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "黑方姓名"
+[node name="BlackName" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="BlackRankLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "黑方段位"
+[node name="BlackRank" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="WhiteNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "白方姓名"
+[node name="WhiteName" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="WhiteRankLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "白方段位"
+[node name="WhiteRank" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="ResultLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "结果"
+[node name="Result" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+placeholder_text = "例如 B+R、W+2.5、0"
+
+[node name="RulesLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "规则"
+[node name="Rules" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="KomiLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "贴目"
+[node name="Komi" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+placeholder_text = "例如 6.5"
+
+[node name="HandicapLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "让子数"
+[node name="Handicap" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+placeholder_text = "非负整数"
+
+[node name="TimeLimitLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "基本用时（秒）"
+[node name="TimeLimit" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+placeholder_text = "非负数"
+
+[node name="OvertimeLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "读秒信息"
+[node name="Overtime" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="OpeningLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "布局名称"
+[node name="Opening" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="AnnotatorLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "解说者 / 记录者"
+[node name="Annotator" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="SourceLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "棋谱来源"
+[node name="Source" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="CopyrightLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "版权信息"
+[node name="Copyright" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+
+[node name="GameCommentLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+layout_mode = 2
+text = "棋局总评"
+[node name="GameComment" type="TextEdit" parent="Panel/Margin/Content/Scroll/Form"]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+wrap_mode = 1

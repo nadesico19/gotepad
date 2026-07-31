@@ -1,0 +1,232 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://script/board_size_dialog.gd" id="1_dialog_script"]
+[ext_resource type="Texture2D" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
+[ext_resource type="Texture2D" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_sizes"]
+resource_name = "BoardSizeGroup"
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dialog"]
+bg_color = Color(0.12, 0.105, 0.08, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.72, 0.57, 0.31, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 12
+
+[node name="BoardSizeDialog" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_dialog_script")
+
+[node name="DimBackground" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.48)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_dialog")
+
+[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.88, 0.7, 1)
+theme_override_font_sizes/font_size = 24
+text = "创建棋盘"
+horizontal_alignment = 1
+
+[node name="Description" type="Label" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.8, 0.75, 1)
+theme_override_font_sizes/font_size = 15
+text = "请选择棋盘路数"
+horizontal_alignment = 1
+
+[node name="Separator" type="HSeparator" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+
+[node name="Options" type="GridContainer" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/h_separation = 22
+theme_override_constants/v_separation = 10
+columns = 3
+
+[node name="Size9" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+button_group = SubResource("ButtonGroup_sizes")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "9 路"
+metadata/board_size = 9
+
+[node name="Size11" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+button_group = SubResource("ButtonGroup_sizes")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "11 路"
+metadata/board_size = 11
+
+[node name="Size13" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+button_group = SubResource("ButtonGroup_sizes")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "13 路"
+metadata/board_size = 13
+
+[node name="Size15" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+button_group = SubResource("ButtonGroup_sizes")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "15 路"
+metadata/board_size = 15
+
+[node name="Size19" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+button_pressed = true
+button_group = SubResource("ButtonGroup_sizes")
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/checked = ExtResource("3_radio_checked")
+text = "19 路"
+metadata/board_size = 19
+
+[node name="CreateButton" type="Button" parent="Center/Panel/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 17
+text = "创建"
+
+[node name="LoadSeparator" type="HSeparator" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+
+[node name="LoadDescription" type="Label" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.8, 0.75, 1)
+theme_override_font_sizes/font_size = 15
+text = "或者从本地 SGF 棋谱创建"
+horizontal_alignment = 1
+
+[node name="LoadSgfButton" type="Button" parent="Center/Panel/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "加载 SGF 棋谱"
+
+[node name="SgfFileDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true
+title = "加载 SGF 棋谱"
+initial_position = 2
+size = Vector2i(760, 520)
+ok_button_text = "加载"
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.sgf ; SGF 棋谱")
+use_native_dialog = true
+
+[node name="LoadErrorDialog" type="AcceptDialog" parent="."]
+unique_name_in_owner = true
+title = "加载失败"
+dialog_text = "无法加载 SGF 棋谱。"
+ok_button_text = "确定"

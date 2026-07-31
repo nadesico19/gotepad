@@ -1,0 +1,606 @@
+[gd_scene format=3 uid="uid://bs3j88recurjb"]
+
+[ext_resource type="PackedScene" path="res://scene/board.tscn" id="1_board"]
+[ext_resource type="Texture2D" uid="uid://c8uwkiog71lea" path="res://assets/background/tatami_mat.jpg" id="2_tatami"]
+[ext_resource type="Script" uid="uid://dsyhvouxiob0o" path="res://script/fit_board_camera.gd" id="7_camera_script"]
+[ext_resource type="PackedScene" path="res://scene/board_size_dialog.tscn" id="8_board_size_dialog"]
+[ext_resource type="Script" uid="uid://bltn3jvae73y6" path="res://script/main.gd" id="9_main_script"]
+[ext_resource type="PackedScene" path="res://scene/settings_panel.tscn" id="10_settings_panel"]
+[ext_resource type="Texture2D" uid="uid://w7vvh56w5w0t" path="res://assets/ui/board_lock.png" id="11_board_lock"]
+[ext_resource type="Texture2D" uid="uid://bkiui5yi5ednu" path="res://assets/ui/undo.svg" id="12_undo"]
+[ext_resource type="Texture2D" uid="uid://di2ym25ntl4gu" path="res://assets/ui/redo.svg" id="13_redo"]
+[ext_resource type="Texture2D" uid="uid://dyobdutbpxdug" path="res://assets/ui/history_unavailable.svg" id="14_history_unavailable"]
+[ext_resource type="Texture2D" uid="uid://c2enr5qx1todl" path="res://assets/ui/find_previous.svg" id="15_find_previous"]
+[ext_resource type="Texture2D" uid="uid://75aq6v412p26" path="res://assets/ui/find_next.svg" id="16_find_next"]
+[ext_resource type="Texture2D" uid="uid://dn7fyx3ptxjvt" path="res://assets/ui/cut_branch.svg" id="17_cut_branch"]
+[ext_resource type="Texture2D" uid="uid://ckr6lsc2t27id" path="res://assets/ui/branch_visualization.svg" id="18_branch_visualization"]
+[ext_resource type="PackedScene" path="res://scene/branch_visualization.tscn" id="19_branch_visualization_scene"]
+[ext_resource type="Texture2D" uid="uid://cogmm8vkwpaam" path="res://assets/ui/setup_branch.svg" id="20_setup_branch"]
+[ext_resource type="PackedScene" path="res://scene/setup_branch_popup.tscn" id="21_setup_branch_popup"]
+[ext_resource type="Script" uid="uid://cwa151gja1uxs" path="res://script/adaptive_toolbar.gd" id="22_adaptive_toolbar"]
+[ext_resource type="Script" uid="uid://bc2by2a15em48" path="res://script/document_tab_bar.gd" id="23_document_tab_bar"]
+[ext_resource type="Texture2D" uid="uid://cyjupy2ba3rnx" path="res://assets/ui/variation.svg" id="24_variation"]
+[ext_resource type="Texture2D" uid="uid://wfcn3w88excc" path="res://assets/ui/notes.svg" id="25_notes"]
+[ext_resource type="PackedScene" path="res://scene/notes_panel.tscn" id="26_notes_panel"]
+[ext_resource type="Texture2D" uid="uid://dt1bo6a4ybwnu" path="res://assets/ui/reorder_branch.svg" id="27_reorder_branch"]
+[ext_resource type="PackedScene" path="res://scene/branch_order_popup.tscn" id="28_branch_order_popup"]
+[ext_resource type="Texture2D" path="res://assets/ui/sgf_info.svg" id="29_sgf_info"]
+[ext_resource type="PackedScene" path="res://scene/sgf_metadata_panel.tscn" id="30_sgf_metadata_panel"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
+bg_color = Color(0.22, 0.17, 0.055, 0.82)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.78, 0.22, 1)
+corner_radius_top_left = 9
+corner_radius_top_right = 9
+corner_radius_bottom_right = 9
+corner_radius_bottom_left = 9
+
+[node name="Main" type="Node2D" unique_id=1542382779]
+script = ExtResource("9_main_script")
+
+[node name="Background" type="CanvasLayer" parent="." unique_id=1567642454]
+layer = -10
+
+[node name="ViewportRoot" type="Control" parent="Background" unique_id=650352934]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Tatami" type="TextureRect" parent="Background/ViewportRoot" unique_id=1076875920]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_tatami")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Board" parent="." unique_id=946950171 instance=ExtResource("1_board")]
+position = Vector2(576, 324)
+scale = Vector2(0.56, 0.56)
+
+[node name="Camera" type="Camera2D" parent="." unique_id=1204028844]
+position = Vector2(576, 324)
+script = ExtResource("7_camera_script")
+target_path = NodePath("../Board")
+margin = 12.0
+
+[node name="Interface" type="CanvasLayer" parent="." unique_id=97103342]
+layer = 10
+
+[node name="DocumentTabBar" type="Control" parent="Interface" unique_id=566912696]
+layout_mode = 3
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -96.0
+offset_bottom = 42.0
+grow_horizontal = 2
+mouse_filter = 1
+script = ExtResource("23_document_tab_bar")
+
+[node name="BoardToolBar" type="Container" parent="Interface" unique_id=1515244774]
+offset_right = 56.0
+offset_bottom = 56.0
+mouse_filter = 2
+script = ExtResource("22_adaptive_toolbar")
+
+[node name="SetupBranchButton" type="Button" parent="Interface/BoardToolBar" unique_id=578342120]
+visible = false
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "选择下一步的预置棋子分支"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+icon = ExtResource("20_setup_branch")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="CountBadge" type="Label" parent="Interface/BoardToolBar/SetupBranchButton" unique_id=361674875]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -22.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = 22.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(0.16, 0.1, 0.04, 1)
+theme_override_colors/font_outline_color = Color(1, 0.89, 0.62, 1)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 14
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="UndoButton" type="Button" parent="Interface/BoardToolBar" unique_id=475614578]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "Undo (Ctrl+Z)"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.55)
+disabled = true
+icon = ExtResource("12_undo")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="UnavailableMark" type="TextureRect" parent="Interface/BoardToolBar/UndoButton" unique_id=1310185807]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 11.0
+offset_top = 11.0
+offset_right = -11.0
+offset_bottom = -11.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("14_history_unavailable")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="RedoButton" type="Button" parent="Interface/BoardToolBar" unique_id=1155353421]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "Redo (Ctrl+R)"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.55)
+disabled = true
+icon = ExtResource("13_redo")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="UnavailableMark" type="TextureRect" parent="Interface/BoardToolBar/RedoButton" unique_id=1115305733]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 11.0
+offset_top = 11.0
+offset_right = -11.0
+offset_bottom = -11.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("14_history_unavailable")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="FindPreviousButton" type="Button" parent="Interface/BoardToolBar" unique_id=1642699617]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "向棋局开始方向找子（Ctrl+G）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+toggle_mode = true
+icon = ExtResource("15_find_previous")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="FindNextButton" type="Button" parent="Interface/BoardToolBar" unique_id=820134549]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "向棋局结束方向找子（Ctrl+F）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+toggle_mode = true
+icon = ExtResource("16_find_next")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="ReorderBranchButton" type="Button" parent="Interface/BoardToolBar" unique_id=733566542]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "调整下一手分支顺序"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.42)
+disabled = true
+icon = ExtResource("27_reorder_branch")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="CutBranchButton" type="Button" parent="Interface/BoardToolBar" unique_id=908501091]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "剪切下一手分支（Ctrl+X）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.55)
+toggle_mode = true
+icon = ExtResource("17_cut_branch")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="VariationButton" type="Button" parent="Interface/BoardToolBar" unique_id=168141905]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "进入变化图（Ctrl+T，Esc 退出）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+icon = ExtResource("24_variation")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="BoardLockControl" type="Control" parent="Interface/BoardToolBar" unique_id=766133968]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Icon" type="TextureRect" parent="Interface/BoardToolBar/BoardLockControl" unique_id=249913466]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.4
+offset_top = 8.4
+offset_right = -8.4
+offset_bottom = -8.4
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("11_board_lock")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CheckBox" type="CheckBox" parent="Interface/BoardToolBar/BoardLockControl" unique_id=201874174]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+tooltip_text = "锁定棋盘：禁止落子和悔棋，可继续浏览棋局（Ctrl+E）"
+mouse_default_cursor_shape = 2
+theme_override_constants/check_v_offset = 15
+
+[node name="NextColorButton" type="Button" parent="Interface/BoardToolBar" unique_id=1717400525]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "当前黑方落子；点击或按 Ctrl+Q 切换为白方"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="PresetAcceptButton" type="Button" parent="Interface/BoardToolBar" unique_id=191586066]
+visible = false
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "接受预置棋子"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
+theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
+theme_override_font_sizes/font_size = 32
+text = "✓"
+flat = true
+
+[node name="PresetCancelButton" type="Button" parent="Interface/BoardToolBar" unique_id=1872815718]
+visible = false
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "取消预置棋子"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
+theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 32
+text = "✕"
+flat = true
+
+[node name="BranchVisualizationButton" type="Button" parent="Interface/BoardToolBar" unique_id=1140945239]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "棋局分支可视化（Ctrl+W）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+icon = ExtResource("18_branch_visualization")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="NotesButton" type="Button" parent="Interface/BoardToolBar" unique_id=1693586599]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "笔记（Ctrl+M）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+toggle_mode = true
+icon = ExtResource("25_notes")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="SgfMetadataButton" type="Button" parent="Interface/BoardToolBar"]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "棋谱信息"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+toggle_mode = true
+icon = ExtResource("29_sgf_info")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="NotesPanel" parent="Interface" unique_id=441855980 instance=ExtResource("26_notes_panel")]
+
+[node name="SgfMetadataPanel" parent="Interface" instance=ExtResource("30_sgf_metadata_panel")]
+
+[node name="VariationToolBar" type="VBoxContainer" parent="Interface" unique_id=1956709426]
+visible = false
+offset_right = 72.0
+offset_bottom = 136.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="KeepBranchButton" type="Button" parent="Interface/VariationToolBar" unique_id=819888075]
+custom_minimum_size = Vector2(72, 64)
+layout_mode = 2
+tooltip_text = "保留当前变化并退出"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
+theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
+theme_override_font_sizes/font_size = 32
+text = "✓"
+flat = true
+
+[node name="ExitButton" type="Button" parent="Interface/VariationToolBar" unique_id=1379083947]
+custom_minimum_size = Vector2(72, 64)
+layout_mode = 2
+tooltip_text = "丢弃当前变化并退出（Esc）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
+theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 32
+text = "✕"
+flat = true
+
+[node name="SettingsUI" parent="Interface" unique_id=2146883696 instance=ExtResource("10_settings_panel")]
+
+[node name="NewTabButton" type="Button" parent="Interface" unique_id=1046846715]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 60.0
+offset_right = -12.0
+offset_bottom = 96.0
+grow_horizontal = 0
+tooltip_text = "新建棋局标签（Ctrl+N）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "新建"
+
+[node name="SaveButton" type="Button" parent="Interface" unique_id=149015687]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 108.0
+offset_right = -12.0
+offset_bottom = 144.0
+grow_horizontal = 0
+tooltip_text = "保存棋谱（Ctrl+S）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "保存"
+
+[node name="SaveAsButton" type="Button" parent="Interface" unique_id=909270040]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 156.0
+offset_right = -12.0
+offset_bottom = 192.0
+grow_horizontal = 0
+tooltip_text = "另存棋谱（Ctrl+A）"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "另存"
+
+[node name="ExportButton" type="Button" parent="Interface" unique_id=1657203091]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 204.0
+offset_right = -12.0
+offset_bottom = 240.0
+grow_horizontal = 0
+tooltip_text = "导出排版为 PPTX"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "导出"
+
+[node name="SaveFileDialog" type="FileDialog" parent="Interface" unique_id=452577461]
+title = "保存 SGF 棋谱"
+initial_position = 2
+size = Vector2i(760, 520)
+ok_button_text = "保存"
+access = 2
+filters = PackedStringArray("*.sgf ; SGF 棋谱")
+use_native_dialog = true
+
+[node name="SaveErrorDialog" type="AcceptDialog" parent="Interface" unique_id=1053476923]
+title = "保存失败"
+ok_button_text = "确定"
+dialog_text = "无法保存 SGF 棋谱。"
+
+[node name="SaveConfirmation" type="ConfirmationDialog" parent="Interface" unique_id=67802700]
+title = "确认保存"
+ok_button_text = "保存"
+dialog_text = "是否保存当前棋谱？"
+cancel_button_text = "取消"
+
+[node name="ExportFileDialog" type="FileDialog" parent="Interface" unique_id=845669890]
+title = "导出 PPTX 排版"
+initial_position = 2
+size = Vector2i(760, 520)
+ok_button_text = "导出"
+access = 2
+filters = PackedStringArray("*.pptx ; PowerPoint 演示文稿")
+use_native_dialog = true
+
+[node name="ExportErrorDialog" type="AcceptDialog" parent="Interface" unique_id=2051289586]
+title = "导出失败"
+ok_button_text = "确定"
+dialog_text = "无法导出 PPTX 排版。"
+
+[node name="ExportSuccessDialog" type="AcceptDialog" parent="Interface" unique_id=2133099480]
+title = "导出成功"
+ok_button_text = "确定"
+dialog_text = "PPTX 排版已成功导出。"
+
+[node name="BoardSizeDialog" parent="Interface" unique_id=2106825246 instance=ExtResource("8_board_size_dialog")]
+
+[node name="SetupBranchPopup" parent="Interface" unique_id=305216044 instance=ExtResource("21_setup_branch_popup")]
+
+[node name="BranchOrderPopup" parent="Interface" unique_id=1424123007 instance=ExtResource("28_branch_order_popup")]
+
+[node name="CloseTabConfirmation" type="ConfirmationDialog" parent="Interface" unique_id=1651094353]
+title = "关闭标签"
+ok_button_text = "关闭"
+dialog_text = "是否关闭这个标签？"
+cancel_button_text = "取消"
+
+[node name="BranchVisualizationLayer" type="CanvasLayer" parent="." unique_id=58072009]
+layer = 20
+visible = false
+
+[node name="BranchVisualization" parent="BranchVisualizationLayer" unique_id=624425188 instance=ExtResource("19_branch_visualization_scene")]
+
+[node name="NoteMarkLayer" type="CanvasLayer" parent="." unique_id=75455534]
+layer = 15
+visible = false
+
+[node name="NoteMarkToolBar" type="VBoxContainer" parent="NoteMarkLayer" unique_id=1282765491]
+offset_right = 56.0
+offset_bottom = 56.0
+theme_override_constants/separation = 8
+
+[node name="NextMarkLabel" type="Label" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=1280902476]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.24, 1)
+theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.03, 0.9)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 30
+text = "A"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Triangle" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=1864401362]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_font_sizes/font_size = 38
+theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
+toggle_mode = true
+text = "△"
+flat = true
+
+[node name="Square" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=1694409470]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_font_sizes/font_size = 38
+theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
+toggle_mode = true
+text = "□"
+flat = true
+
+[node name="Circle" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=852226521]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_font_sizes/font_size = 38
+theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
+toggle_mode = true
+text = "○"
+flat = true
+
+[node name="Cross" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=164178103]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_font_sizes/font_size = 38
+theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
+toggle_mode = true
+text = "×"
+flat = true
+
+[node name="Erase" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=99057962]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "擦除标记"
+focus_mode = 0
+theme_override_colors/font_color = Color(0.96, 0.3, 0.3, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.46, 0.38, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.025, 0.02, 1)
+theme_override_font_sizes/font_size = 34
+theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
+toggle_mode = true
+text = "🗑"
+flat = true
+
+[node name="Accept" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=733207045]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "接受标记修改"
+focus_mode = 0
+theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_font_sizes/font_size = 32
+text = "✓"
+flat = true
+
+[node name="Cancel" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=985128362]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "放弃标记修改（Esc）"
+focus_mode = 0
+theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_font_sizes/font_size = 32
+text = "✕"
+flat = true

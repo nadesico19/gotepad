@@ -1,0 +1,42 @@
+{
+  "format": "gotepad-pptx-template",
+  "version": 2,
+  "page": {
+    "name": "B5 landscape",
+    "width_mm": 250,
+    "height_mm": 176,
+    "slide_width_px": 945,
+    "slide_height_px": 665
+  },
+  "layouts": [
+    {
+      "slide": 1,
+      "name": "LAYOUT_PROBLEM"
+    },
+    {
+      "slide": 2,
+      "name": "LAYOUT_SOLUTION"
+    },
+    {
+      "slide": 3,
+      "name": "LAYOUT_VARIATION"
+    },
+    {
+      "slide": 4,
+      "name": "LAYOUT_LONG_COMMENT"
+    }
+  ],
+  "common_shape_names": [
+    "PAGE_HEADER",
+    "LAYOUT_CODE",
+    "HEADER_RULE",
+    "FOOTER_TEXT",
+    "PAGE_NUMBER",
+    "BOARD_IMAGE_SLOT",
+    "BOARD_SLOT_LABEL",
+    "FIGURE_CAPTION",
+    "NODE_TITLE",
+    "NODE_SUBTITLE",
+    "COMMENT"
+  ]
+}

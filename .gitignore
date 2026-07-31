@@ -1,0 +1,8 @@
+# Third-party sources are downloaded by the developer and are not published
+# with this repository. Keep only the acquisition metadata in version control.
+/third_party/godot-cpp/**
+!/third_party/godot-cpp/gotepad_info.txt
+/third_party/libsgfcplusplus/**
+!/third_party/libsgfcplusplus/gotepad_info.txt
+/third_party/miniz/**
+!/third_party/miniz/gotepad_info.txt
