@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://script/notes_panel.gd" id="1_script"]
+[ext_resource type="Script" path="res://script/note_symbol_button.gd" id="2_symbol_button"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
 bg_color = Color(0.075, 0.075, 0.085, 0.5)
@@ -134,32 +135,32 @@ custom_minimum_size = Vector2(42, 42)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "三角标记（TR）"
-theme_override_font_sizes/font_size = 24
-text = "△"
+script = ExtResource("2_symbol_button")
+symbol_code = "TR"
 
 [node name="Square" type="Button" parent="Panel/Margin/Content/MarkButtons"]
 custom_minimum_size = Vector2(42, 42)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "方框标记（SQ）"
-theme_override_font_sizes/font_size = 24
-text = "□"
+script = ExtResource("2_symbol_button")
+symbol_code = "SQ"
 
 [node name="Circle" type="Button" parent="Panel/Margin/Content/MarkButtons"]
 custom_minimum_size = Vector2(42, 42)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "圆圈标记（CR）"
-theme_override_font_sizes/font_size = 24
-text = "○"
+script = ExtResource("2_symbol_button")
+symbol_code = "CR"
 
 [node name="Cross" type="Button" parent="Panel/Margin/Content/MarkButtons"]
 custom_minimum_size = Vector2(42, 42)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "叉号标记（MA）"
-theme_override_font_sizes/font_size = 24
-text = "×"
+script = ExtResource("2_symbol_button")
+symbol_code = "MA"
 
 [node name="Erase" type="Button" parent="Panel/Margin/Content/MarkButtons"]
 custom_minimum_size = Vector2(42, 42)

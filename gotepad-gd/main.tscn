@@ -26,6 +26,10 @@
 [ext_resource type="PackedScene" path="res://scene/branch_order_popup.tscn" id="28_branch_order_popup"]
 [ext_resource type="Texture2D" path="res://assets/ui/sgf_info.svg" id="29_sgf_info"]
 [ext_resource type="PackedScene" path="res://scene/sgf_metadata_panel.tscn" id="30_sgf_metadata_panel"]
+[ext_resource type="Script" path="res://script/note_symbol_button.gd" id="31_note_symbol_button"]
+[ext_resource type="Texture2D" path="res://assets/ui/katago.svg" id="32_katago"]
+[ext_resource type="PackedScene" path="res://scene/katago_analysis_panel.tscn" id="33_katago_panel"]
+[ext_resource type="Script" path="res://script/katago_analysis_service.gd" id="34_katago_service"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
 bg_color = Color(0.22, 0.17, 0.055, 0.82)
@@ -75,6 +79,9 @@ position = Vector2(576, 324)
 script = ExtResource("7_camera_script")
 target_path = NodePath("../Board")
 margin = 12.0
+
+[node name="KataGoAnalysisService" type="Node" parent="."]
+script = ExtResource("34_katago_service")
 
 [node name="Interface" type="CanvasLayer" parent="." unique_id=97103342]
 layer = 10
@@ -351,9 +358,23 @@ flat = true
 icon_alignment = 1
 expand_icon = true
 
+[node name="KatagoAnalysisButton" type="Button" parent="Interface/BoardToolBar"]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "KataGo分析"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+toggle_mode = true
+icon = ExtResource("32_katago")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
 [node name="NotesPanel" parent="Interface" unique_id=441855980 instance=ExtResource("26_notes_panel")]
 
 [node name="SgfMetadataPanel" parent="Interface" instance=ExtResource("30_sgf_metadata_panel")]
+
+[node name="KatagoAnalysisPanel" parent="Interface" instance=ExtResource("33_katago_panel")]
 
 [node name="VariationToolBar" type="VBoxContainer" parent="Interface" unique_id=1956709426]
 visible = false
@@ -529,11 +550,11 @@ layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
 theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
-theme_override_font_sizes/font_size = 38
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
-text = "△"
 flat = true
+script = ExtResource("31_note_symbol_button")
+symbol_code = "TR"
 
 [node name="Square" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=1694409470]
 custom_minimum_size = Vector2(56, 56)
@@ -541,11 +562,11 @@ layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
 theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
-theme_override_font_sizes/font_size = 38
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
-text = "□"
 flat = true
+script = ExtResource("31_note_symbol_button")
+symbol_code = "SQ"
 
 [node name="Circle" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=852226521]
 custom_minimum_size = Vector2(56, 56)
@@ -553,11 +574,11 @@ layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
 theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
-theme_override_font_sizes/font_size = 38
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
-text = "○"
 flat = true
+script = ExtResource("31_note_symbol_button")
+symbol_code = "CR"
 
 [node name="Cross" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=164178103]
 custom_minimum_size = Vector2(56, 56)
@@ -565,11 +586,11 @@ layout_mode = 2
 focus_mode = 0
 theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
 theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
-theme_override_font_sizes/font_size = 38
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
-text = "×"
 flat = true
+script = ExtResource("31_note_symbol_button")
+symbol_code = "MA"
 
 [node name="Erase" type="Button" parent="NoteMarkLayer/NoteMarkToolBar" unique_id=99057962]
 custom_minimum_size = Vector2(56, 56)

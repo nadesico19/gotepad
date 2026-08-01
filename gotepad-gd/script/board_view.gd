@@ -10,6 +10,7 @@ signal note_mark_cancel_requested
 signal note_mark_draft_changed
 signal setup_branches_changed(branches: Array[Dictionary])
 signal variation_mode_changed(enabled: bool)
+signal position_changed(uid: int)
 
 const kBlack: int = 1
 const kWhite: int = 2
@@ -47,13 +48,14 @@ const kBranchMarkerBorderColor: Color = Color(1.0, 1.0, 1.0, 0.30)
 const kNoteMarkDisabled: int = 0
 const kNoteSequentialMarkMode: int = 1
 const kNoteSymbolMarkMode: int = 2
-const kNoteMarkColor: Color = Color(1.0, 0.82, 0.24, 1.0)
-const kNoteMarkOutlineColor: Color = Color(0.12, 0.08, 0.03, 0.88)
 const kStoneScene: PackedScene = preload("res://scene/stone.tscn")
 
 @export_range(1, 52, 1) var initial_board_size: int = 19
 
 @onready var stones_: Node2D = $Stones
+@onready var note_marks_overlay_: Node2D = $NoteMarksOverlay
+@onready var analysis_candidates_overlay_: AnalysisCandidatesOverlay = \
+	$AnalysisCandidatesOverlay
 @onready var hover_stone_: Sprite2D = $HoverStone
 @onready var find_hover_: Sprite2D = $FindHover
 @onready var cut_branch_hover_: Sprite2D = $CutBranchHover
@@ -108,6 +110,7 @@ var variation_original_view_uid_: int = 0
 var variation_original_next_color_: int = kBlack
 var variation_original_locked_: bool = false
 var variation_start_color_: int = kBlack
+var variation_base_uid_: int = 0
 var displayed_note_sequential_marks_: Array[Dictionary] = []
 var displayed_note_symbol_marks_: Array[Dictionary] = []
 var note_mark_mode_: int = kNoteMarkDisabled
@@ -270,6 +273,51 @@ func get_next_color_texture() -> Texture2D:
 	return black_texture_ if next_color_ == kBlack else white_texture_
 
 
+func get_playback_path() -> PackedInt64Array:
+	return playback_path_.duplicate()
+
+
+func roam_to_playback_uid(uid: int) -> bool:
+	if go_notes_ == null or not follow_current_ or playback_path_.find(uid) < 0:
+		return false
+	if uid == int(go_notes_.get_current_uid()):
+		return true
+	var path_index: int = playback_path_.find(uid)
+	on_playback_value_changed_(float(path_index))
+	return uid == int(go_notes_.get_current_uid())
+
+
+func set_analysis_candidates(move_infos: Array) -> void:
+	if analysis_candidates_overlay_ == null:
+		return
+	var candidates: Array[Dictionary] = []
+	for info_value: Variant in move_infos:
+		if candidates.size() >= 3:
+			break
+		var info: Dictionary = Dictionary(info_value)
+		var intersection: Vector2i = gtp_coordinate_to_intersection_(
+			str(info.get("move", "")).strip_edges().to_upper()
+		)
+		if intersection == Vector2i.ZERO:
+			continue
+		var candidate_winrate: float = float(info.get("winrate", 0.0))
+		if next_color_ == kWhite:
+			candidate_winrate = 1.0 - candidate_winrate
+		candidates.append({
+			"row": intersection.y,
+			"column": intersection.x,
+			"winrate": candidate_winrate,
+		})
+	analysis_candidates_overlay_.configure(
+		candidates, board_size_, cell_size_()
+	)
+
+
+func clear_analysis_candidates() -> void:
+	if analysis_candidates_overlay_ != null:
+		analysis_candidates_overlay_.clear_candidates()
+
+
 func is_variation_mode() -> bool:
 	return variation_mode_
 
@@ -288,23 +336,65 @@ func enter_variation_mode() -> bool:
 	variation_original_next_color_ = next_color_
 	variation_original_locked_ = interactions_locked_
 	variation_start_color_ = next_color_
+	variation_base_uid_ = int(temporary_notes.get_current_uid())
 	set_find_mode_(kFindDisabled)
 	set_cut_branch_mode_(false)
 	set_preset_mode_(false)
 	set_playback_playing_(false)
-	set_variation_navigation_visible_(false)
+	set_variation_navigation_mode_(true)
 	variation_mode_ = true
 	set_interactions_locked(false)
 	if not bind_go_notes(temporary_notes):
 		variation_mode_ = false
 		var _rollback_bound: bool = bind_go_notes(variation_original_notes_)
 		set_interactions_locked(variation_original_locked_)
-		set_variation_navigation_visible_(true)
+		set_variation_navigation_mode_(false)
 		clear_variation_restore_state_()
 		return false
 	set_next_color_(variation_start_color_)
 	variation_mode_changed.emit(true)
 	return true
+
+
+func enter_analysis_variation(pv: Array) -> bool:
+	if pv.is_empty() or not enter_variation_mode():
+		return false
+	var color: int = variation_start_color_
+	var placed_moves: int = 0
+	for move_value: Variant in pv:
+		var move: String = str(move_value).strip_edges().to_upper()
+		if move == "PASS" or move == "RESIGN":
+			break
+		var intersection: Vector2i = gtp_coordinate_to_intersection_(move)
+		if intersection == Vector2i.ZERO:
+			break
+		var command: String = "PLACESTONE,%d,%d,%d;" % [
+			color, intersection.y, intersection.x
+		]
+		if int(go_notes_.execute_command(command)) != 0:
+			break
+		placed_moves += 1
+		color = kWhite if color == kBlack else kBlack
+	if placed_moves <= 0:
+		var _exited: bool = exit_variation_mode()
+		return false
+	set_next_color_(color)
+	return true
+
+
+func gtp_coordinate_to_intersection_(coordinate: String) -> Vector2i:
+	if coordinate.length() < 2:
+		return Vector2i.ZERO
+	var column_index: int = kCoordinateLetters.find(coordinate.substr(0, 1))
+	var row_text: String = coordinate.substr(1)
+	if column_index < 0 or not row_text.is_valid_int():
+		return Vector2i.ZERO
+	var row_from_bottom: int = int(row_text)
+	var row: int = board_size_ - row_from_bottom + 1
+	var column: int = column_index + 1
+	if row < 1 or row > board_size_ or column < 1 or column > board_size_:
+		return Vector2i.ZERO
+	return Vector2i(column, row)
 
 
 func exit_variation_mode() -> bool:
@@ -323,7 +413,7 @@ func exit_variation_mode() -> bool:
 		restored = bind_go_notes(original_notes)
 	set_interactions_locked(original_locked)
 	set_next_color_(original_next_color)
-	set_variation_navigation_visible_(true)
+	set_variation_navigation_mode_(false)
 	clear_variation_restore_state_()
 	variation_mode_changed.emit(false)
 	return restored
@@ -333,7 +423,8 @@ func keep_variation_branch() -> bool:
 	if not variation_mode_ or variation_original_notes_ == null:
 		return false
 	var variation_moves: Array[Dictionary] = variation_path_moves_()
-	if variation_moves.is_empty() and int(go_notes_.get_current_uid()) != 0:
+	if variation_moves.is_empty() \
+			and int(go_notes_.get_current_uid()) != variation_base_uid_:
 		return false
 	var original_notes: GoNotes = variation_original_notes_
 	var base_uid: int = variation_original_view_uid_
@@ -364,23 +455,27 @@ func variation_path_moves_() -> Array[Dictionary]:
 	var path: PackedInt64Array = PackedInt64Array(
 		go_notes_.call(&"get_straightforward_path")
 	)
-	for index in range(1, path.size()):
+	var base_index: int = path.find(variation_base_uid_)
+	if base_index < 0:
+		return moves
+	for index in range(base_index + 1, path.size()):
 		var node_data: Dictionary = Dictionary(
 			go_notes_.call(&"get_node_at", int(path[index]))
 		)
-		if node_data.is_empty():
+		var color: int = int(node_data.get("color", 0))
+		if node_data.is_empty() or (color != kBlack and color != kWhite):
 			moves.clear()
 			return moves
 		moves.append(node_data)
 	return moves
 
 
-func set_variation_navigation_visible_(visible: bool) -> void:
-	playback_bar_.visible = visible
-	playback_previous_button_.visible = visible
-	playback_next_button_.visible = visible
-	playback_button_.visible = visible
-	if not visible:
+func set_variation_navigation_mode_(enabled: bool) -> void:
+	playback_bar_.show()
+	playback_previous_button_.show()
+	playback_next_button_.show()
+	playback_button_.visible = not enabled
+	if enabled:
 		playback_hover_bubble_.hide()
 
 
@@ -408,6 +503,7 @@ func clear_variation_restore_state_() -> void:
 	variation_original_follow_current_ = true
 	variation_original_view_uid_ = 0
 	variation_original_next_color_ = kBlack
+	variation_base_uid_ = 0
 	variation_original_locked_ = false
 
 
@@ -437,7 +533,19 @@ func set_displayed_note_marks(
 ) -> void:
 	displayed_note_sequential_marks_ = sequential_marks.duplicate(true)
 	displayed_note_symbol_marks_ = symbol_marks.duplicate(true)
-	queue_redraw()
+	refresh_note_marks_overlay_()
+
+
+func refresh_note_marks_overlay_() -> void:
+	if not is_node_ready() or note_marks_overlay_ == null:
+		return
+	note_marks_overlay_.call(
+		&"configure",
+		displayed_note_sequential_marks_,
+		displayed_note_symbol_marks_,
+		board_size_,
+		cell_size_()
+	)
 
 
 func begin_note_sequential_mark_mode(
@@ -732,10 +840,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if interactions_locked_:
 			return
+		if variation_mode_ and not is_variation_terminal_position_():
+			return
 		place_stone_at_screen_position_(mouse_event.position)
 	elif mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 		if variation_mode_:
-			takeback_last_move_()
+			request_takeback_()
 			return
 		if find_direction_ != kFindDisabled:
 			set_find_mode_(kFindDisabled)
@@ -817,6 +927,8 @@ func refresh_hover_stone_() -> void:
 		show_cut_branch_hover_(intersection)
 		return
 	if interactions_locked_:
+		return
+	if variation_mode_ and not is_variation_terminal_position_():
 		return
 	var row: int = intersection.y
 	var column: int = intersection.x
@@ -1092,7 +1204,8 @@ func _draw() -> void:
 	draw_coordinates_(cell_size)
 	if not is_note_mark_mode():
 		draw_branch_markers_(canvas_scale, cell_size)
-	draw_note_marks_(canvas_scale, cell_size)
+	if note_marks_overlay_ != null:
+		note_marks_overlay_.queue_redraw()
 
 
 func draw_coordinates_(cell_size: float) -> void:
@@ -1189,131 +1302,6 @@ func draw_branch_markers_(canvas_scale: float, cell_size: float) -> void:
 		)
 
 
-func draw_note_marks_(canvas_scale: float, cell_size: float) -> void:
-	var outline_width: float = 4.0 / canvas_scale
-	var mark_width: float = 2.0 / canvas_scale
-	for mark: Dictionary in displayed_note_symbol_marks_:
-		draw_note_symbol_(
-			str(mark.get("symbol", "")),
-			note_mark_position_(mark),
-			cell_size,
-			outline_width,
-			mark_width
-		)
-
-	var font: Font = ThemeDB.fallback_font
-	if font == null:
-		return
-	var font_size: int = maxi(roundi(cell_size * 0.48), 1)
-	var text_outline_size: int = maxi(roundi(cell_size * 0.09), 1)
-	for index in range(displayed_note_sequential_marks_.size()):
-		if index >= kSequentialMarkLetters.length():
-			break
-		var mark: Dictionary = displayed_note_sequential_marks_[index]
-		draw_centered_note_text_(
-			font,
-			kSequentialMarkLetters.substr(index, 1),
-			note_mark_position_(mark),
-			font_size,
-			text_outline_size
-		)
-
-
-func draw_note_symbol_(
-	symbol: String,
-	center: Vector2,
-	cell_size: float,
-	outline_width: float,
-	mark_width: float
-) -> void:
-	var radius: float = cell_size * 0.27
-	match symbol:
-		"TR":
-			var triangle := PackedVector2Array([
-				center + Vector2(0.0, -radius),
-				center + Vector2(radius * 0.87, radius * 0.5),
-				center + Vector2(-radius * 0.87, radius * 0.5),
-				center + Vector2(0.0, -radius)
-			])
-			draw_polyline(
-				triangle, kNoteMarkOutlineColor, outline_width, true
-			)
-			draw_polyline(triangle, kNoteMarkColor, mark_width, true)
-		"SQ":
-			var square := Rect2(
-				center - Vector2.ONE * radius,
-				Vector2.ONE * radius * 2.0
-			)
-			draw_rect(
-				square, kNoteMarkOutlineColor, false, outline_width, true
-			)
-			draw_rect(square, kNoteMarkColor, false, mark_width, true)
-		"CR":
-			draw_arc(
-				center, radius, 0.0, TAU, 32,
-				kNoteMarkOutlineColor, outline_width, true
-			)
-			draw_arc(
-				center, radius, 0.0, TAU, 32,
-				kNoteMarkColor, mark_width, true
-			)
-		"MA":
-			var diagonal: Vector2 = Vector2.ONE * radius * 0.78
-			draw_line(
-				center - diagonal, center + diagonal,
-				kNoteMarkOutlineColor, outline_width, true
-			)
-			draw_line(
-				center + Vector2(-diagonal.x, diagonal.y),
-				center + Vector2(diagonal.x, -diagonal.y),
-				kNoteMarkOutlineColor, outline_width, true
-			)
-			draw_line(
-				center - diagonal, center + diagonal,
-				kNoteMarkColor, mark_width, true
-			)
-			draw_line(
-				center + Vector2(-diagonal.x, diagonal.y),
-				center + Vector2(diagonal.x, -diagonal.y),
-				kNoteMarkColor, mark_width, true
-			)
-
-
-func draw_centered_note_text_(
-	font: Font,
-	text: String,
-	center: Vector2,
-	font_size: int,
-	outline_size: int
-) -> void:
-	var text_size: Vector2 = font.get_string_size(
-		text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size
-	)
-	var baseline: Vector2 = Vector2(
-		center.x - text_size.x * 0.5,
-		center.y + (
-			font.get_ascent(font_size) - font.get_descent(font_size)
-		) * 0.5
-	)
-	draw_string_outline(
-		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
-		font_size, outline_size, kNoteMarkOutlineColor
-	)
-	draw_string(
-		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
-		font_size, kNoteMarkColor
-	)
-
-
-func note_mark_position_(mark: Dictionary) -> Vector2:
-	var row: int = int(mark.get("row", 0))
-	var column: int = int(mark.get("column", 0))
-	return Vector2(
-		grid_coordinate_(float(column - 1)),
-		grid_coordinate_(float(row - 1))
-	)
-
-
 func toggle_note_mark_at_(screen_position: Vector2) -> void:
 	var intersection: Vector2i = intersection_at_screen_position_(
 		screen_position
@@ -1325,7 +1313,7 @@ func toggle_note_mark_at_(screen_position: Vector2) -> void:
 	elif note_mark_mode_ == kNoteSymbolMarkMode:
 		toggle_symbol_note_mark_(intersection)
 	note_mark_draft_changed.emit()
-	queue_redraw()
+	refresh_note_marks_overlay_()
 
 
 func toggle_sequential_note_mark_(intersection: Vector2i) -> void:
@@ -1467,6 +1455,8 @@ func place_stone_at_screen_position_(
 ) -> void:
 	if interactions_locked_:
 		return
+	if variation_mode_ and not is_variation_terminal_position_():
+		return
 	var inverse_canvas_transform := get_global_transform_with_canvas().affine_inverse()
 	var local_position: Vector2 = inverse_canvas_transform * screen_position
 	var cell_size: float = cell_size_()
@@ -1524,7 +1514,9 @@ func execute_place_stone_(color: int, row: int, column: int) -> bool:
 func request_takeback_() -> void:
 	if interactions_locked_:
 		return
-	if int(go_notes_.get_current_uid()) == 0:
+	if variation_mode_ and not can_takeback_variation_move_():
+		return
+	if not variation_mode_ and int(go_notes_.get_current_uid()) == 0:
 		return
 	takeback_confirmation_.popup_centered(Vector2i(360, 160))
 	get_viewport().set_input_as_handled()
@@ -1533,11 +1525,17 @@ func request_takeback_() -> void:
 func on_takeback_confirmed_() -> void:
 	if interactions_locked_:
 		return
+	if variation_mode_ and not can_takeback_variation_move_():
+		return
 	takeback_last_move_()
 
 
 func takeback_last_move_() -> void:
-	if interactions_locked_ or int(go_notes_.get_current_uid()) == 0:
+	if interactions_locked_:
+		return
+	if variation_mode_ and not can_takeback_variation_move_():
+		return
+	if not variation_mode_ and int(go_notes_.get_current_uid()) == 0:
 		return
 
 	var result: int = int(
@@ -1548,6 +1546,20 @@ func takeback_last_move_() -> void:
 		return
 
 	get_viewport().set_input_as_handled()
+
+
+func is_variation_terminal_position_() -> bool:
+	if not variation_mode_ or go_notes_ == null or playback_path_.is_empty():
+		return false
+	return int(go_notes_.get_current_uid()) == int(
+		playback_path_[playback_path_.size() - 1]
+	)
+
+
+func can_takeback_variation_move_() -> bool:
+	if not is_variation_terminal_position_():
+		return false
+	return int(go_notes_.get_current_uid()) != variation_base_uid_
 
 
 func connect_go_notes_signal_() -> void:
@@ -1567,6 +1579,7 @@ func disconnect_go_notes_signal_() -> void:
 
 
 func on_go_notes_changed_() -> void:
+	var previous_view_uid: int = view_uid_
 	if preset_mode_ and int(go_notes_.call(&"can_preset_stone")) != 0:
 		set_preset_mode_(false)
 	if not playback_navigation_:
@@ -1581,12 +1594,17 @@ func on_go_notes_changed_() -> void:
 		update_playback_editable_()
 	else:
 		refresh_playback_path_()
+	if view_uid_ != previous_view_uid:
+		position_changed.emit(view_uid_)
 
 
 func refresh_view_() -> bool:
 	if not refresh_position_():
 		return false
-	return refresh_playback_path_()
+	if not refresh_playback_path_():
+		return false
+	position_changed.emit(view_uid_)
+	return true
 
 
 func refresh_playback_path_() -> bool:
@@ -1598,6 +1616,11 @@ func refresh_playback_path_() -> bool:
 	)
 	if path.is_empty():
 		return false
+	if variation_mode_:
+		var base_index: int = path.find(variation_base_uid_)
+		if base_index < 0:
+			return false
+		path = path.slice(base_index)
 	var playback_move_numbers: PackedInt32Array = \
 		build_playback_move_numbers_(path)
 	if playback_move_numbers.size() != path.size():
@@ -1868,12 +1891,13 @@ func refresh_position_() -> bool:
 	if not preset_mode_:
 		var last_color: int = int(node_data.get("color", 0))
 		var inferred_next_color: int = variation_start_color_ \
-			if variation_mode_ and target_uid == 0 \
+			if variation_mode_ and target_uid == variation_base_uid_ \
 			else (kWhite if last_color == kBlack else kBlack)
 		set_next_color_(inferred_next_color)
 	refresh_branch_moves_(node_data)
 	setup_branches_changed.emit(get_setup_branches())
 	refresh_stones_()
+	refresh_note_marks_overlay_()
 	refresh_hover_stone_()
 	queue_redraw()
 	return true

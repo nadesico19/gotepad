@@ -9,6 +9,7 @@ const kNoteSymbolMarkMode: int = 2
 const kPendingPanelNone: int = 0
 const kPendingPanelNotes: int = 1
 const kPendingPanelSgfMetadata: int = 2
+const kPendingPanelKatago: int = 3
 const kSequentialMarkLetters: String = \
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 const kPptxTemplatePath: String = \
@@ -78,6 +79,12 @@ class DocumentState extends RefCounted:
 	$Interface/BoardToolBar/SgfMetadataButton
 @onready var sgf_metadata_panel_: SgfMetadataPanel = \
 	$Interface/SgfMetadataPanel
+@onready var katago_analysis_service_: KataGoAnalysisService = \
+	$KataGoAnalysisService
+@onready var katago_analysis_button_: Button = \
+	$Interface/BoardToolBar/KatagoAnalysisButton
+@onready var katago_analysis_panel_: KataGoAnalysisPanel = \
+	$Interface/KatagoAnalysisPanel
 @onready var settings_ui_: Control = $Interface/SettingsUI
 @onready var undo_unavailable_mark_: TextureRect = \
 	$Interface/BoardToolBar/UndoButton/UnavailableMark
@@ -130,6 +137,7 @@ var note_mark_original_sequential_: Array[Dictionary] = []
 var note_mark_original_symbols_: Array[Dictionary] = []
 var pending_save_path_: String = ""
 var pending_side_panel_: int = kPendingPanelNone
+var side_panel_after_variation_: int = kPendingPanelNone
 
 
 func _enter_tree() -> void:
@@ -168,6 +176,14 @@ func _ready() -> void:
 	sgf_metadata_panel_.panel_visibility_changed.connect(
 		on_sgf_metadata_panel_visibility_changed_
 	)
+	katago_analysis_button_.pressed.connect(on_katago_analysis_requested_)
+	katago_analysis_panel_.bind_service(katago_analysis_service_)
+	katago_analysis_panel_.panel_visibility_changed.connect(
+		on_katago_analysis_panel_visibility_changed_
+	)
+	katago_analysis_panel_.variation_requested.connect(
+		on_katago_variation_requested_
+	)
 	notes_panel_.displayed_marks_changed.connect(
 		on_displayed_note_marks_changed_
 	)
@@ -181,6 +197,7 @@ func _ready() -> void:
 	board_.find_mode_changed.connect(on_find_mode_changed_)
 	board_.cut_branch_mode_changed.connect(on_cut_branch_mode_changed_)
 	board_.variation_mode_changed.connect(on_variation_mode_changed_)
+	board_.position_changed.connect(on_board_position_changed_)
 	board_.next_color_changed.connect(on_next_color_changed_)
 	board_.preset_mode_changed.connect(on_preset_mode_changed_)
 	board_.note_mark_cancel_requested.connect(on_note_mark_cancel_requested_)
@@ -673,6 +690,8 @@ func on_close_tab_canceled_() -> void:
 func on_branch_visualization_requested_() -> void:
 	if setup_branch_popup_.visible:
 		setup_branch_popup_.hide()
+	if katago_analysis_panel_.is_panel_open():
+		katago_analysis_panel_.close_panel()
 	background_layer_.visible = false
 	board_.hide()
 	interface_layer_.visible = false
@@ -698,6 +717,10 @@ func on_notes_requested_() -> void:
 		pending_side_panel_ = kPendingPanelNotes
 		sgf_metadata_panel_.close_panel()
 		return
+	if katago_analysis_panel_.is_panel_open():
+		pending_side_panel_ = kPendingPanelNotes
+		katago_analysis_panel_.close_panel()
+		return
 	pending_side_panel_ = kPendingPanelNone
 	notes_panel_.open_panel(go_notes_)
 
@@ -707,9 +730,13 @@ func on_notes_panel_visibility_changed_(opened: bool) -> void:
 	if opened:
 		pending_side_panel_ = kPendingPanelNone
 		sgf_metadata_button_.set_pressed_no_signal(false)
+		katago_analysis_button_.set_pressed_no_signal(false)
 	elif pending_side_panel_ == kPendingPanelSgfMetadata:
 		pending_side_panel_ = kPendingPanelNone
 		sgf_metadata_panel_.open_panel(go_notes_)
+	elif pending_side_panel_ == kPendingPanelKatago:
+		pending_side_panel_ = kPendingPanelNone
+		katago_analysis_panel_.open_panel(go_notes_, board_)
 	call_deferred(&"position_side_panels_")
 
 
@@ -722,6 +749,10 @@ func on_sgf_metadata_requested_() -> void:
 		pending_side_panel_ = kPendingPanelSgfMetadata
 		notes_panel_.close_panel()
 		return
+	if katago_analysis_panel_.is_panel_open():
+		pending_side_panel_ = kPendingPanelSgfMetadata
+		katago_analysis_panel_.close_panel()
+		return
 	pending_side_panel_ = kPendingPanelNone
 	sgf_metadata_panel_.open_panel(go_notes_)
 
@@ -731,10 +762,61 @@ func on_sgf_metadata_panel_visibility_changed_(opened: bool) -> void:
 	if opened:
 		pending_side_panel_ = kPendingPanelNone
 		notes_button_.set_pressed_no_signal(false)
+		katago_analysis_button_.set_pressed_no_signal(false)
 	elif pending_side_panel_ == kPendingPanelNotes:
 		pending_side_panel_ = kPendingPanelNone
 		notes_panel_.open_panel(go_notes_)
+	elif pending_side_panel_ == kPendingPanelKatago:
+		pending_side_panel_ = kPendingPanelNone
+		katago_analysis_panel_.open_panel(go_notes_, board_)
 	call_deferred(&"position_side_panels_")
+
+
+func on_katago_analysis_requested_() -> void:
+	if katago_analysis_panel_.is_panel_open():
+		pending_side_panel_ = kPendingPanelNone
+		katago_analysis_panel_.close_panel()
+		return
+	if notes_panel_.is_panel_open():
+		pending_side_panel_ = kPendingPanelKatago
+		notes_panel_.close_panel()
+		return
+	if sgf_metadata_panel_.is_panel_open():
+		pending_side_panel_ = kPendingPanelKatago
+		sgf_metadata_panel_.close_panel()
+		return
+	pending_side_panel_ = kPendingPanelNone
+	katago_analysis_panel_.open_panel(go_notes_, board_)
+
+
+func on_katago_analysis_panel_visibility_changed_(opened: bool) -> void:
+	katago_analysis_button_.set_pressed_no_signal(opened)
+	if opened:
+		pending_side_panel_ = kPendingPanelNone
+		notes_button_.set_pressed_no_signal(false)
+		sgf_metadata_button_.set_pressed_no_signal(false)
+	elif pending_side_panel_ == kPendingPanelNotes:
+		pending_side_panel_ = kPendingPanelNone
+		notes_panel_.open_panel(go_notes_)
+	elif pending_side_panel_ == kPendingPanelSgfMetadata:
+		pending_side_panel_ = kPendingPanelNone
+		sgf_metadata_panel_.open_panel(go_notes_)
+	call_deferred(&"position_side_panels_")
+
+
+func on_katago_variation_requested_(pv: Array) -> void:
+	side_panel_after_variation_ = kPendingPanelKatago
+	katago_analysis_panel_.close_panel()
+	if not board_.enter_analysis_variation(pv):
+		side_panel_after_variation_ = kPendingPanelNone
+		katago_analysis_panel_.open_panel(go_notes_, board_)
+		push_warning("无法根据KataGo候选进入变化图。")
+
+
+func on_board_position_changed_(uid: int) -> void:
+	if board_.is_variation_mode():
+		return
+	katago_analysis_panel_.on_board_position_changed(uid)
 
 
 func on_displayed_note_marks_changed_(
@@ -791,13 +873,15 @@ func set_note_symbol_selection_(symbol: String) -> void:
 		var button: Button = selections[key] as Button
 		var selected: bool = key == symbol
 		button.set_pressed_no_signal(selected)
-		button.add_theme_font_size_override(
-			&"font_size",
-			40 if selected else (34 if key.is_empty() else 38)
-		)
-		button.add_theme_constant_override(
-			&"outline_size", 3 if selected else 0
-		)
+		if key.is_empty():
+			button.add_theme_font_size_override(
+				&"font_size", 40 if selected else 34
+			)
+			button.add_theme_constant_override(
+				&"outline_size", 3 if selected else 0
+			)
+		else:
+			button.queue_redraw()
 
 
 func on_note_mark_draft_changed_() -> void:
@@ -885,6 +969,9 @@ func on_variation_keep_requested_() -> void:
 
 
 func on_variation_mode_changed_(enabled: bool) -> void:
+	if enabled and katago_analysis_panel_.is_panel_open():
+		side_panel_after_variation_ = kPendingPanelKatago
+		katago_analysis_panel_.close_panel()
 	board_toolbar_.visible = not enabled
 	variation_toolbar_.visible = enabled
 	preset_button_.visible = not enabled
@@ -897,6 +984,15 @@ func on_variation_mode_changed_(enabled: bool) -> void:
 		update_preset_button_()
 		update_next_color_button_(board_.get_next_color())
 		call_deferred(&"position_board_toolbar_")
+		restore_side_panel_after_variation_()
+
+
+func restore_side_panel_after_variation_() -> void:
+	var panel_to_restore: int = side_panel_after_variation_
+	side_panel_after_variation_ = kPendingPanelNone
+	if panel_to_restore == kPendingPanelKatago:
+		katago_analysis_panel_.open_panel(go_notes_, board_)
+		call_deferred(&"position_side_panels_")
 
 
 func on_next_color_requested_() -> void:
@@ -923,6 +1019,8 @@ func on_preset_cancel_requested_() -> void:
 
 
 func on_preset_mode_changed_(enabled: bool) -> void:
+	if enabled and katago_analysis_panel_.is_panel_open():
+		katago_analysis_panel_.close_panel()
 	preset_button_.set_pressed_no_signal(enabled)
 	preset_button_.tooltip_text = \
 		"正在预置棋子（Esc 取消）" if enabled else "预置棋子（Ctrl+H）"
@@ -1050,6 +1148,8 @@ func switch_document_(index: int) -> void:
 		notes_panel_.open_panel(go_notes_)
 	if sgf_metadata_panel_.is_panel_open():
 		sgf_metadata_panel_.open_panel(go_notes_)
+	if katago_analysis_panel_.is_panel_open():
+		katago_analysis_panel_.open_panel(go_notes_, board_)
 	refresh_document_tabs_()
 	call_deferred(&"position_board_toolbar_")
 
@@ -1216,7 +1316,8 @@ func position_board_toolbar_() -> void:
 
 func position_side_panels_() -> void:
 	if not notes_panel_.is_panel_open() \
-			and not sgf_metadata_panel_.is_panel_open():
+			and not sgf_metadata_panel_.is_panel_open() \
+			and not katago_analysis_panel_.is_panel_open():
 		return
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var right: float = viewport_size.x - 96.0
@@ -1236,6 +1337,8 @@ func position_side_panels_() -> void:
 		notes_panel_.set_panel_rect(panel_rect)
 	if sgf_metadata_panel_.is_panel_open():
 		sgf_metadata_panel_.set_panel_rect(panel_rect)
+	if katago_analysis_panel_.is_panel_open():
+		katago_analysis_panel_.set_panel_rect(panel_rect)
 
 
 func position_note_mark_toolbar_() -> void:

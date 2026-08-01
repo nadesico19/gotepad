@@ -8,6 +8,10 @@
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
 bg_color = Color(0.075, 0.075, 0.085, 0.5)
+content_margin_left = 64.0
+content_margin_top = 18.0
+content_margin_right = 10.0
+content_margin_bottom = 18.0
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -42,7 +46,7 @@ grow_horizontal = 0
 mouse_filter = 0
 focus_mode = 0
 mouse_default_cursor_shape = 2
-tooltip_text = "显示设置（Ctrl+O）"
+tooltip_text = "程序设置（Ctrl+O）"
 text = "设置"
 
 [node name="SettingsPanel" type="PanelContainer" parent="."]
@@ -50,7 +54,7 @@ layout_mode = 0
 anchor_left = 1.0
 anchor_bottom = 1.0
 anchor_right = 1.0
-offset_left = -444.0
+offset_left = -500.0
 offset_top = 12.0
 offset_right = -84.0
 offset_bottom = -12.0
@@ -59,15 +63,15 @@ grow_vertical = 2
 mouse_filter = 0
 theme_override_styles/panel = SubResource("StyleBoxPanel")
 
-[node name="Margin" type="MarginContainer" parent="SettingsPanel"]
+[node name="Margin" type="ScrollContainer" parent="SettingsPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 18
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+theme_override_constants/scrollbar_h_separation = 12
 
 [node name="Options" type="VBoxContainer" parent="SettingsPanel/Margin"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
 [node name="Version" type="Label" parent="SettingsPanel/Margin/Options"]
@@ -80,7 +84,7 @@ text = "Gotepad 版本"
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
-text = "显示设置"
+text = "设置"
 
 [node name="BoardLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
@@ -227,6 +231,204 @@ step = 0.1
 value = 1.0
 suffix = " 秒"
 
+[node name="KatagoSeparator" type="HSeparator" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+
+[node name="KatagoTitle" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "KataGo 本地分析"
+
+[node name="KatagoExecutableLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "KataGo 可执行文件"
+
+[node name="KatagoExecutableRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Path" type="LineEdit" parent="SettingsPanel/Margin/Options/KatagoExecutableRow"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "请选择 katago.exe"
+clear_button_enabled = true
+
+[node name="Browse" type="Button" parent="SettingsPanel/Margin/Options/KatagoExecutableRow"]
+custom_minimum_size = Vector2(64, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "浏览"
+
+[node name="KatagoModelLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "神经网络模型"
+
+[node name="KatagoModelRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Path" type="LineEdit" parent="SettingsPanel/Margin/Options/KatagoModelRow"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "请选择 .bin.gz 模型"
+clear_button_enabled = true
+
+[node name="Browse" type="Button" parent="SettingsPanel/Margin/Options/KatagoModelRow"]
+custom_minimum_size = Vector2(64, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "浏览"
+
+[node name="KatagoConfigLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "KataGo 分析配置文件"
+
+[node name="KatagoConfigRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Path" type="LineEdit" parent="SettingsPanel/Margin/Options/KatagoConfigRow"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "请选择 Analysis Engine .cfg 配置"
+clear_button_enabled = true
+
+[node name="Browse" type="Button" parent="SettingsPanel/Margin/Options/KatagoConfigRow"]
+custom_minimum_size = Vector2(64, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "浏览"
+
+[node name="KatagoMaxVisitsRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoMaxVisitsRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "分析计算量"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoMaxVisitsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Visits" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoMaxVisitsRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+min_value = 1.0
+max_value = 100000.0
+value = 500.0
+allow_greater = true
+suffix = " visits"
+
+[node name="KatagoReportIntervalRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoReportIntervalRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "分析刷新间隔"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoReportIntervalRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Seconds" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoReportIntervalRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+min_value = 0.1
+max_value = 60.0
+step = 0.1
+value = 2.0
+suffix = " 秒"
+
+[node name="KatagoAnalysisPvLengthRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "候选变化图手数"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Moves" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+min_value = 1.0
+max_value = 1000.0
+value = 10.0
+allow_greater = true
+suffix = " 手"
+
+[node name="KatagoShowScoreLead" type="CheckBox" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "显示目差"
+
+[node name="KatagoGameAnalysisVisitsRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "整局快速分析计算量"
+tooltip_text = "每个局面的 visits；1 最快，仅用于观察胜率和目差趋势"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Visits" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+min_value = 1.0
+max_value = 100000.0
+value = 1.0
+allow_greater = true
+suffix = " visits"
+
+[node name="KatagoTestRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Test" type="Button" parent="SettingsPanel/Margin/Options/KatagoTestRow"]
+custom_minimum_size = Vector2(96, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "测试路径"
+
+[node name="Benchmark" type="Button" parent="SettingsPanel/Margin/Options/KatagoTestRow"]
+custom_minimum_size = Vector2(156, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "自动性能检测"
+tooltip_text = "在30秒内测试适合当前设备的搜索线程和批量大小"
+
+[node name="KatagoStatus" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.72, 0.72, 0.75, 1)
+text = "尚未配置"
+autowrap_mode = 2
+
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options"]
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
@@ -238,19 +440,73 @@ theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
 text = "保存设置失败"
 autowrap_mode = 2
 
-[node name="ActionBar" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
-layout_mode = 2
-alignment = 2
+[node name="ActionBar" type="VBoxContainer" parent="."]
+layout_mode = 0
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -488.0
+offset_top = 30.0
+offset_right = -452.0
+offset_bottom = 146.0
+grow_horizontal = 0
 theme_override_constants/separation = 8
 
-[node name="ConfirmButton" type="Button" parent="SettingsPanel/Margin/Options/ActionBar"]
+[node name="ConfirmButton" type="Button" parent="ActionBar"]
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-text = "确认"
+theme_override_colors/font_color = Color(0.35, 0.95, 0.5, 1)
+theme_override_colors/font_hover_color = Color(0.55, 1, 0.65, 1)
+theme_override_colors/font_pressed_color = Color(0.25, 0.8, 0.4, 1)
+theme_override_font_sizes/font_size = 22
+tooltip_text = "确认并保存设置"
+text = "✓"
 
-[node name="RestoreButton" type="Button" parent="SettingsPanel/Margin/Options/ActionBar"]
+[node name="RestoreButton" type="Button" parent="ActionBar"]
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-text = "还原"
+theme_override_colors/font_color = Color(0.35, 0.7, 1, 1)
+theme_override_colors/font_hover_color = Color(0.55, 0.82, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.25, 0.55, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+tooltip_text = "还原本次修改"
+text = "↺"
 
-[node name="CancelButton" type="Button" parent="SettingsPanel/Margin/Options/ActionBar"]
+[node name="CancelButton" type="Button" parent="ActionBar"]
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-text = "取消"
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+theme_override_colors/font_hover_color = Color(1, 0.6, 0.6, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.3, 0.3, 1)
+theme_override_font_sizes/font_size = 22
+tooltip_text = "取消并关闭设置"
+text = "✕"
+
+[node name="KatagoExecutableDialog" type="FileDialog" parent="."]
+title = "选择 KataGo 可执行文件"
+size = Vector2i(900, 600)
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.exe ; Windows 可执行文件", "* ; 所有文件")
+use_native_dialog = true
+
+[node name="KatagoModelDialog" type="FileDialog" parent="."]
+title = "选择 KataGo 神经网络模型"
+size = Vector2i(900, 600)
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.bin.gz ; KataGo 神经网络模型")
+use_native_dialog = true
+
+[node name="KatagoConfigDialog" type="FileDialog" parent="."]
+title = "选择 KataGo Analysis Engine 配置文件"
+size = Vector2i(900, 600)
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.cfg ; KataGo 配置文件")
+use_native_dialog = true
+
+[node name="KatagoBenchmarkConfirmation" type="ConfirmationDialog" parent="."]
+title = "自动性能检测"
+size = Vector2i(520, 190)
+ok_button_text = "开始检测"
+cancel_button_text = "取消"

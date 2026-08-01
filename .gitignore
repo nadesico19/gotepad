@@ -6,3 +6,5 @@
 !/third_party/libsgfcplusplus/gotepad_info.txt
 /third_party/miniz/**
 !/third_party/miniz/gotepad_info.txt
+/third_party/katago/**
+!/third_party/katago/gotepad_info.txt
