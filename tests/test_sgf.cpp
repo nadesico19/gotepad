@@ -642,7 +642,7 @@ void test_gotepad_sgf_roundtrip(std::ofstream &out) {
               "Saved SGF should contain GP[1]");
   expect_true(saved_content.find("XU[0]") != std::string::npos,
               "Saved SGF root should contain XU[0]");
-  expect_true(saved_content.find("AP[Gotepad:0.1.1]") != std::string::npos,
+  expect_true(saved_content.find("AP[Gotepad:0.1.2]") != std::string::npos,
               "Saved SGF should identify Gotepad as its application");
 
   const auto restored =

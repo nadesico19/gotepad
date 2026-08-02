@@ -180,11 +180,53 @@ void test_leaf_nodes_are_exported_without_notes() {
                   slide3.find("第3图") != std::string::npos,
               "Unnoted leaf pages should use generated figure titles");
 }
+
+void test_png_board_images() {
+  const auto template_path = find_template();
+  expect_true(!template_path.empty(), "PPTX template should exist");
+
+  Notes notes{5};
+  place(notes, 1, 3, 3);
+  append_note(notes, "PNG棋盘", "验证兼容图片导出。", 3);
+
+  const auto output =
+      std::filesystem::path{".tmp/test_go_notes_png_export.pptx"};
+  std::string error{};
+  const bool exported = notes.export_pptx_file(
+      output.u8string(), template_path.u8string(), error,
+      Notes::PptxImageFormat::Png);
+  if (!exported)
+    std::cerr << "PPTX PNG export error: " << error << '\n';
+  expect_true(exported, "PPTX PNG export should succeed");
+
+  const auto content_types = zip_entry(output, "[Content_Types].xml");
+  const auto relationships =
+      zip_entry(output, "ppt/slides/_rels/slide1.xml.rels");
+  const auto board = zip_entry(output, "ppt/media/board1.png");
+  const std::string png_signature{"\x89PNG\r\n\x1a\n", 8};
+  expect_true(content_types.find("image/png") != std::string::npos,
+              "PPTX should declare PNG board image content");
+  expect_true(relationships.find("board1.png") != std::string::npos,
+              "Slide should reference the PNG board image");
+  expect_true(board.size() > 24 && board.compare(0, 8, png_signature) == 0,
+              "Board image should be a valid PNG stream");
+  const auto dimension = [](const std::string &png, size_t offset) {
+    return (static_cast<uint32_t>(static_cast<uint8_t>(png[offset])) << 24U) |
+           (static_cast<uint32_t>(static_cast<uint8_t>(png[offset + 1]))
+            << 16U) |
+           (static_cast<uint32_t>(static_cast<uint8_t>(png[offset + 2]))
+            << 8U) |
+           static_cast<uint32_t>(static_cast<uint8_t>(png[offset + 3]));
+  };
+  expect_true(dimension(board, 16) == 1600 && dimension(board, 20) == 1600,
+              "PNG board image should use the print resolution");
+}
 } // namespace
 
 int main() {
   test_pptx_export();
   test_leaf_nodes_are_exported_without_notes();
+  test_png_board_images();
   std::cout << "PPTX export tests passed.\n";
   return 0;
 }

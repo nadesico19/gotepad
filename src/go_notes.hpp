@@ -155,6 +155,8 @@ struct GoNotesPositionSnapshot {
 // GoNotes是GoCore状态的唯一修改边界；运行期操作统一通过Command执行并支持undo/redo。
 class GoNotes {
 public:
+  enum class PptxImageFormat : uint8_t { Svg, Png };
+
   // 定义围棋笔记支持的操作命令基类。
   class Command {
   public:
@@ -511,12 +513,16 @@ public:
   // undo/redo记录。成功返回true；失败返回false并填写error_message。
   [[nodiscard]] bool export_pptx_file(const std::string &path,
                                       const std::string &template_path,
-                                      std::string &error_message) const;
+                                      std::string &error_message,
+                                      PptxImageFormat image_format =
+                                          PptxImageFormat::Svg) const;
 
   // 使用内存中的模板PPTX导出，供模板被打包在GUI资源容器中的客户端使用。
   [[nodiscard]] bool export_pptx_file(const std::string &path,
                                       const std::vector<uint8_t> &template_data,
-                                      std::string &error_message) const;
+                                      std::string &error_message,
+                                      PptxImageFormat image_format =
+                                          PptxImageFormat::Svg) const;
 
   // 执行用户指定的棋盘操作命令，成功时将命令推送到undo_stack_。
   // PlaceStoneCommand返回-100且下一手分支存在相同落子时，会转换为RoamingCommand继续执行。

@@ -231,6 +231,25 @@ step = 0.1
 value = 1.0
 suffix = " 秒"
 
+[node name="PptxImageFormatRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/PptxImageFormatRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "PPTX 棋盘图片"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/PptxImageFormatRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Format" type="OptionButton" parent="SettingsPanel/Margin/Options/PptxImageFormatRow"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+tooltip_text = "SVG 保持矢量清晰度；PNG 兼容更多版本的演示软件"
+
 [node name="KatagoSeparator" type="HSeparator" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 

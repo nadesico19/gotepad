@@ -7,7 +7,7 @@ signal katago_paths_changed
 signal katago_analysis_settings_changed
 
 const kConfigPath: String = "user://settings.cfg"
-const kSchemaVersion: int = 11
+const kSchemaVersion: int = 12
 const kMoveNumberModeOne: int = 0
 const kMoveNumberModeTen: int = 1
 const kMoveNumberModeAll: int = 2
@@ -16,6 +16,9 @@ const kDefaultMoveNumberMode: int = kMoveNumberModeOne
 const kDefaultMoveNumberCount: int = 20
 const kDefaultAbsoluteMoveNumbers: bool = false
 const kDefaultPlaybackIntervalSeconds: float = 1.0
+const kPptxImageFormatSvg: int = 0
+const kPptxImageFormatPng: int = 1
+const kDefaultPptxImageFormat: int = kPptxImageFormatSvg
 const kDefaultKatagoExecutablePath: String = ""
 const kDefaultKatagoModelPath: String = ""
 const kDefaultKatagoMaxVisits: int = 500
@@ -52,6 +55,7 @@ var move_number_mode_: int = kDefaultMoveNumberMode
 var move_number_count_: int = kDefaultMoveNumberCount
 var absolute_move_numbers_: bool = kDefaultAbsoluteMoveNumbers
 var playback_interval_seconds_: float = kDefaultPlaybackIntervalSeconds
+var pptx_image_format_: int = kDefaultPptxImageFormat
 var katago_executable_path_: String = kDefaultKatagoExecutablePath
 var katago_model_path_: String = kDefaultKatagoModelPath
 var katago_max_visits_: int = kDefaultKatagoMaxVisits
@@ -106,6 +110,14 @@ func get_absolute_move_numbers() -> bool:
 
 func get_playback_interval_seconds() -> float:
 	return playback_interval_seconds_
+
+
+func get_pptx_image_format() -> int:
+	return pptx_image_format_
+
+
+func get_pptx_image_format_name() -> String:
+	return "png" if pptx_image_format_ == kPptxImageFormatPng else "svg"
 
 
 func get_katago_executable_path() -> String:
@@ -201,6 +213,7 @@ func set_settings(
 		move_number_count: int,
 		absolute_move_numbers: bool,
 		playback_interval_seconds: float,
+		pptx_image_format: int,
 		katago_executable_path: String,
 		katago_model_path: String,
 		katago_max_visits: int,
@@ -217,6 +230,7 @@ func set_settings(
 	var previous_move_number_count: int = move_number_count_
 	var previous_absolute_move_numbers: bool = absolute_move_numbers_
 	var previous_playback_interval: float = playback_interval_seconds_
+	var previous_pptx_image_format: int = pptx_image_format_
 	var previous_katago_executable_path: String = katago_executable_path_
 	var previous_katago_model_path: String = katago_model_path_
 	var previous_katago_max_visits: int = katago_max_visits_
@@ -238,6 +252,9 @@ func set_settings(
 	move_number_count_ = maxi(move_number_count, 1)
 	absolute_move_numbers_ = absolute_move_numbers
 	playback_interval_seconds_ = clampf(playback_interval_seconds, 0.1, 60.0)
+	pptx_image_format_ = clampi(
+		pptx_image_format, kPptxImageFormatSvg, kPptxImageFormatPng
+	)
 	katago_executable_path_ = katago_executable_path.strip_edges()
 	katago_model_path_ = katago_model_path.strip_edges()
 	katago_max_visits_ = maxi(katago_max_visits, 1)
@@ -258,6 +275,7 @@ func set_settings(
 		move_number_count_ = previous_move_number_count
 		absolute_move_numbers_ = previous_absolute_move_numbers
 		playback_interval_seconds_ = previous_playback_interval
+		pptx_image_format_ = previous_pptx_image_format
 		katago_executable_path_ = previous_katago_executable_path
 		katago_model_path_ = previous_katago_model_path
 		katago_max_visits_ = previous_katago_max_visits
@@ -351,6 +369,11 @@ func load_config_() -> void:
 		"playback_interval_seconds",
 		kDefaultPlaybackIntervalSeconds
 	)), 0.1, 60.0)
+	pptx_image_format_ = clampi(int(config.get_value(
+		"export",
+		"pptx_image_format",
+		kDefaultPptxImageFormat
+	)), kPptxImageFormatSvg, kPptxImageFormatPng)
 	katago_executable_path_ = str(config.get_value(
 		"katago",
 		"executable_path",
@@ -450,6 +473,7 @@ func save_config_() -> Error:
 		"playback_interval_seconds",
 		playback_interval_seconds_
 	)
+	config.set_value("export", "pptx_image_format", pptx_image_format_)
 	config.set_value("katago", "executable_path", katago_executable_path_)
 	config.set_value("katago", "model_path", katago_model_path_)
 	config.set_value("katago", "max_visits", katago_max_visits_)
@@ -477,6 +501,7 @@ func reset_settings_() -> void:
 	move_number_count_ = kDefaultMoveNumberCount
 	absolute_move_numbers_ = kDefaultAbsoluteMoveNumbers
 	playback_interval_seconds_ = kDefaultPlaybackIntervalSeconds
+	pptx_image_format_ = kDefaultPptxImageFormat
 	katago_executable_path_ = kDefaultKatagoExecutablePath
 	katago_model_path_ = kDefaultKatagoModelPath
 	katago_max_visits_ = kDefaultKatagoMaxVisits

@@ -6,6 +6,7 @@
 
 #include "go_notes.hpp"
 
+#include <lunasvg.h>
 #include <miniz.h>
 
 #include <algorithm>
@@ -29,7 +30,10 @@ constexpr char kNoNotesMessage[] = "[GNE0025] no notes to export";
 constexpr char kTemplateReadMessage[] = "[GNE0026] cannot read PPTX template";
 constexpr char kTemplateInvalidMessage[] = "[GNE0027] invalid PPTX template";
 constexpr char kPptxWriteMessage[] = "[GNE0028] cannot write PPTX file";
+constexpr char kPptxRasterizeMessage[] =
+    "[GNE0034] cannot rasterize board image";
 constexpr double kCommentPageUnits = 500.0;
+constexpr int kPngBoardSize = 1600;
 
 struct ExportPage {
   uint64_t uid{};
@@ -53,6 +57,43 @@ struct BoardDiagram {
   std::string svg{};
   std::string repeated_numbers{};
 };
+
+struct PngWriteContext {
+  std::vector<uint8_t> *bytes{};
+  bool valid{true};
+};
+
+void append_png_bytes_(void *closure, void *data, int size) noexcept {
+  auto *context = static_cast<PngWriteContext *>(closure);
+  if (context == nullptr || context->bytes == nullptr || data == nullptr ||
+      size <= 0 || !context->valid)
+    return;
+  try {
+    const auto *begin = static_cast<const uint8_t *>(data);
+    context->bytes->insert(context->bytes->end(), begin, begin + size);
+  } catch (...) {
+    context->valid = false;
+  }
+}
+
+bool svg_to_png_(const std::string &svg, std::vector<uint8_t> &png) {
+  png.clear();
+  try {
+    auto document = lunasvg::Document::loadFromData(svg);
+    if (!document)
+      return false;
+    auto bitmap =
+        document->renderToBitmap(kPngBoardSize, kPngBoardSize, 0xFFFFFFFF);
+    if (bitmap.isNull())
+      return false;
+    PngWriteContext context{&png, true};
+    return bitmap.writeToPng(append_png_bytes_, &context) && context.valid &&
+           !png.empty();
+  } catch (...) {
+    png.clear();
+    return false;
+  }
+}
 
 std::filesystem::path utf8_path_(const std::string &path) {
   return std::filesystem::u8path(path);
@@ -672,7 +713,8 @@ std::string build_slide_xml_(const std::string &template_xml,
   return xml;
 }
 
-std::string content_types_(size_t slide_count) {
+std::string content_types_(size_t slide_count,
+                           GoNotes::PptxImageFormat image_format) {
   std::ostringstream xml{};
   xml << "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
          "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/"
@@ -681,7 +723,12 @@ std::string content_types_(size_t slide_count) {
          "openxmlformats-package.core-properties+xml\"/>"
          "<Default Extension=\"rels\" ContentType=\"application/vnd."
          "openxmlformats-package.relationships+xml\"/>"
-         "<Default Extension=\"svg\" ContentType=\"image/svg+xml\"/>"
+         "<Default Extension=\""
+      << (image_format == GoNotes::PptxImageFormat::Png ? "png" : "svg")
+      << "\" ContentType=\""
+      << (image_format == GoNotes::PptxImageFormat::Png ? "image/png"
+                                                       : "image/svg+xml")
+      << "\"/>"
          "<Override PartName=\"/docProps/app.xml\" ContentType=\"application/"
          "vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
          "<Override PartName=\"/ppt/presentation.xml\" ContentType=\""
@@ -753,7 +800,8 @@ std::string presentation_relationships_(size_t slide_count) {
   return xml.str();
 }
 
-std::string slide_relationships_(size_t index) {
+std::string slide_relationships_(size_t index,
+                                 GoNotes::PptxImageFormat image_format) {
   std::ostringstream xml{};
   xml << "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
          "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/"
@@ -763,7 +811,9 @@ std::string slide_relationships_(size_t index) {
          "slideLayouts/slideLayout1.xml\" Id=\"rIdLayout\"/>"
          "<Relationship Type=\"http://schemas.openxmlformats.org/"
          "officeDocument/2006/relationships/image\" Target=\"/ppt/media/board"
-      << index << ".svg\" Id=\"rIdBoard\"/></Relationships>";
+      << index
+      << (image_format == GoNotes::PptxImageFormat::Png ? ".png" : ".svg")
+      << "\" Id=\"rIdBoard\"/></Relationships>";
   return xml.str();
 }
 
@@ -847,18 +897,20 @@ bool write_package_(const std::string &path,
 
 bool GoNotes::export_pptx_file(const std::string &path,
                                const std::string &template_path,
-                               std::string &error_message) const {
+                               std::string &error_message,
+                               PptxImageFormat image_format) const {
   std::vector<uint8_t> template_data{};
   if (!read_file_(template_path, template_data)) {
     error_message = kTemplateReadMessage;
     return false;
   }
-  return export_pptx_file(path, template_data, error_message);
+  return export_pptx_file(path, template_data, error_message, image_format);
 }
 
 bool GoNotes::export_pptx_file(const std::string &path,
                                const std::vector<uint8_t> &template_data,
-                               std::string &error_message) const {
+                               std::string &error_message,
+                               PptxImageFormat image_format) const {
   error_message.clear();
   const auto root = go_core_.record_tree();
 
@@ -877,7 +929,8 @@ bool GoNotes::export_pptx_file(const std::string &path,
     return false;
   }
 
-  parts["[Content_Types].xml"] = bytes_(content_types_(pages.size()));
+  parts["[Content_Types].xml"] =
+      bytes_(content_types_(pages.size(), image_format));
   parts["ppt/presentation.xml"] = bytes_(presentation_xml_(pages.size()));
   parts["ppt/_rels/presentation.xml.rels"] =
       bytes_(presentation_relationships_(pages.size()));
@@ -910,8 +963,17 @@ bool GoNotes::export_pptx_file(const std::string &path,
     const auto number = std::to_string(index + 1);
     parts["ppt/slides/slide" + number + ".xml"] = bytes_(slide);
     parts["ppt/slides/_rels/slide" + number + ".xml.rels"] =
-        bytes_(slide_relationships_(index + 1));
-    parts["ppt/media/board" + number + ".svg"] = bytes_(diagram.svg);
+        bytes_(slide_relationships_(index + 1, image_format));
+    if (image_format == PptxImageFormat::Png) {
+      std::vector<uint8_t> png{};
+      if (!svg_to_png_(diagram.svg, png)) {
+        error_message = kPptxRasterizeMessage;
+        return false;
+      }
+      parts["ppt/media/board" + number + ".png"] = std::move(png);
+    } else {
+      parts["ppt/media/board" + number + ".svg"] = bytes_(diagram.svg);
+    }
   }
 
   if (!write_package_(path, parts)) {

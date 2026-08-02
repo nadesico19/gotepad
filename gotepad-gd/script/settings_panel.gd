@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.1"
+const kGotepadVersion: String = "0.1.2"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkTimeoutMsec: int = 30000
 const kKatagoBenchmarkVisits: int = 8
@@ -54,6 +54,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/MoveNumberHeader/AbsoluteMoveNumbers
 @onready var playback_interval_seconds_: SpinBox = \
 	$SettingsPanel/Margin/Options/PlaybackIntervalRow/Seconds
+@onready var pptx_image_format_: OptionButton = \
+	$SettingsPanel/Margin/Options/PptxImageFormatRow/Format
 @onready var katago_executable_path_: LineEdit = \
 	$SettingsPanel/Margin/Options/KatagoExecutableRow/Path
 @onready var katago_executable_browse_: Button = \
@@ -106,6 +108,7 @@ var opening_move_number_mode_: int
 var opening_move_number_count_: int
 var opening_absolute_move_numbers_: bool
 var opening_playback_interval_seconds_: float
+var opening_pptx_image_format_: int
 var opening_katago_executable_path_: String
 var opening_katago_model_path_: String
 var opening_katago_analysis_config_path_: String
@@ -140,6 +143,7 @@ func _ready() -> void:
 	playback_interval_seconds_.value_changed.connect(
 		on_playback_interval_changed_
 	)
+	pptx_image_format_.item_selected.connect(on_option_selected_)
 	katago_executable_path_.text_changed.connect(on_katago_path_changed_)
 	katago_model_path_.text_changed.connect(on_katago_path_changed_)
 	katago_analysis_config_path_.text_changed.connect(on_katago_path_changed_)
@@ -183,6 +187,8 @@ func populate_options_() -> void:
 		board_option_.add_item(board_name)
 	for stone_name in kStoneNames:
 		stone_option_.add_item(stone_name)
+	pptx_image_format_.add_item("SVG（矢量）")
+	pptx_image_format_.add_item("PNG（兼容）")
 
 
 func on_settings_pressed_() -> void:
@@ -208,6 +214,7 @@ func open_panel_() -> void:
 		SettingsStore.get_absolute_move_numbers()
 	opening_playback_interval_seconds_ = \
 		SettingsStore.get_playback_interval_seconds()
+	opening_pptx_image_format_ = SettingsStore.get_pptx_image_format()
 	opening_katago_executable_path_ = \
 		SettingsStore.get_katago_executable_path()
 	opening_katago_model_path_ = SettingsStore.get_katago_model_path()
@@ -247,6 +254,7 @@ func open_panel_() -> void:
 	playback_interval_seconds_.set_value_no_signal(
 		opening_playback_interval_seconds_
 	)
+	pptx_image_format_.select(opening_pptx_image_format_)
 	katago_executable_path_.text = "" if executable_path_invalid \
 		else opening_katago_executable_path_
 	katago_model_path_.text = "" if model_path_invalid \
@@ -401,6 +409,7 @@ func has_staged_changes_() -> bool:
 		or selected_move_number_mode_() != opening_move_number_mode_ \
 		or selected_move_number_count_() != opening_move_number_count_ \
 		or selected_absolute_move_numbers_() != opening_absolute_move_numbers_ \
+		or selected_pptx_image_format_() != opening_pptx_image_format_ \
 		or selected_katago_executable_path_() \
 			!= opening_katago_executable_path_ \
 		or selected_katago_model_path_() != opening_katago_model_path_ \
@@ -455,6 +464,14 @@ func selected_absolute_move_numbers_() -> bool:
 
 func selected_playback_interval_seconds_() -> float:
 	return clampf(playback_interval_seconds_.value, 0.1, 60.0)
+
+
+func selected_pptx_image_format_() -> int:
+	return clampi(
+		pptx_image_format_.selected,
+		SettingsStore.kPptxImageFormatSvg,
+		SettingsStore.kPptxImageFormatPng
+	)
 
 
 func selected_katago_executable_path_() -> String:
@@ -515,6 +532,7 @@ func on_confirm_pressed_() -> void:
 		selected_move_number_count_(),
 		selected_absolute_move_numbers_(),
 		selected_playback_interval_seconds_(),
+		selected_pptx_image_format_(),
 		selected_katago_executable_path_(),
 		selected_katago_model_path_(),
 		selected_katago_max_visits_(),
@@ -536,6 +554,7 @@ func on_confirm_pressed_() -> void:
 	opening_move_number_count_ = selected_move_number_count_()
 	opening_absolute_move_numbers_ = selected_absolute_move_numbers_()
 	opening_playback_interval_seconds_ = selected_playback_interval_seconds_()
+	opening_pptx_image_format_ = selected_pptx_image_format_()
 	opening_katago_executable_path_ = selected_katago_executable_path_()
 	opening_katago_model_path_ = selected_katago_model_path_()
 	opening_katago_analysis_config_path_ = \
@@ -568,6 +587,7 @@ func on_restore_pressed_() -> void:
 	playback_interval_seconds_.set_value_no_signal(
 		opening_playback_interval_seconds_
 	)
+	pptx_image_format_.select(opening_pptx_image_format_)
 	katago_executable_path_.text = opening_katago_executable_path_ \
 		if SettingsStore.is_katago_executable_path_valid(
 			opening_katago_executable_path_
@@ -1027,6 +1047,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	custom_move_count_.editable = enabled and custom_moves_.button_pressed
 	absolute_move_numbers_.disabled = not enabled
 	playback_interval_seconds_.editable = enabled
+	pptx_image_format_.disabled = not enabled
 	katago_executable_path_.editable = enabled
 	katago_model_path_.editable = enabled
 	katago_analysis_config_path_.editable = enabled

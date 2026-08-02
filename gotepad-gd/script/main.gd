@@ -638,7 +638,10 @@ func on_export_file_selected_(path: String) -> void:
 	if export_path.get_extension().to_lower() != "pptx":
 		export_path += ".pptx"
 	var exported: bool = bool(go_notes_.call(
-		&"export_pptx_file", export_path, kPptxTemplatePath
+		&"export_pptx_file",
+		export_path,
+		kPptxTemplatePath,
+		SettingsStore.get_pptx_image_format_name()
 	))
 	if not exported:
 		export_error_dialog_.dialog_text = CommandMessages.localize(

@@ -54,7 +54,8 @@ public:
   bool load_sgf_file(const godot::String &path);
   bool save_sgf_file(const godot::String &path);
   bool export_pptx_file(const godot::String &path,
-                        const godot::String &template_path);
+                        const godot::String &template_path,
+                        const godot::String &image_format);
   int64_t execute_command(const godot::String &command);
   int64_t append_note();
   int64_t remove_note(int64_t note_index);
@@ -117,7 +118,8 @@ inline void GoNotes::_bind_methods() {
   godot::ClassDB::bind_method(godot::D_METHOD("save_sgf_file", "path"),
                               &GoNotes::save_sgf_file);
   godot::ClassDB::bind_method(
-      godot::D_METHOD("export_pptx_file", "path", "template_path"),
+      godot::D_METHOD("export_pptx_file", "path", "template_path",
+                      "image_format"),
       &GoNotes::export_pptx_file);
   godot::ClassDB::bind_method(godot::D_METHOD("execute_command", "command"),
                               &GoNotes::execute_command);
@@ -245,7 +247,8 @@ inline bool GoNotes::save_sgf_file(const godot::String &path) {
 }
 
 inline bool GoNotes::export_pptx_file(const godot::String &path,
-                                      const godot::String &template_path) {
+                                      const godot::String &template_path,
+                                      const godot::String &image_format) {
   wrapper_message_ = godot::String{};
   auto *project_settings = godot::ProjectSettings::get_singleton();
   const auto output = project_settings == nullptr
@@ -268,8 +271,19 @@ inline bool GoNotes::export_pptx_file(const godot::String &path,
   }
   const std::vector<uint8_t> template_data{
       template_buffer.ptr(), template_buffer.ptr() + template_buffer.size()};
+  const godot::String normalized_format = image_format.strip_edges().to_lower();
+  nd::go::GoNotes::PptxImageFormat native_format{};
+  if (normalized_format == "svg") {
+    native_format = nd::go::GoNotes::PptxImageFormat::Svg;
+  } else if (normalized_format == "png") {
+    native_format = nd::go::GoNotes::PptxImageFormat::Png;
+  } else {
+    wrapper_message_ = "[GNE0033] unsupported PPTX image format";
+    return false;
+  }
   std::string error_message{};
-  if (!go_notes_->export_pptx_file(output_text, template_data, error_message)) {
+  if (!go_notes_->export_pptx_file(output_text, template_data, error_message,
+                                   native_format)) {
     wrapper_message_ = godot::String::utf8(error_message.c_str());
     return false;
   }

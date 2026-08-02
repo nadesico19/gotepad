@@ -5,6 +5,14 @@ C++17 实现，当前桌面界面使用 Godot 4.7.1（非 .NET 版本）和 GDEx
 
 项目目前仍处于开发阶段。
 
+使用方法请参阅 [Gotepad 用户手册](docs/user_manual.md)。
+
+## <u>本项目中为数不多来自人类的话语</u>
+
+- 感谢codex，帮我实现了过去想做而没能做的事。
+- 这是一个棋童家长为自家小孩学棋做的笔记工具，一切都围绕个人开发和使用上的便利性，没有太考究的工程和设计要素。
+- 软件未来所有更新内容都会永久开源和免费，如有需要请放心使用。
+
 ## 主要功能
 
 - 支持围棋落子、提子、悔棋、预置棋子和多分支棋局记录。
@@ -60,6 +68,7 @@ Linux、macOS、iOS 和 Android。
 - [godot-cpp](https://github.com/godotengine/godot-cpp)：Godot GDExtension 的 C++ 绑定。
 - [libsgfc++](https://github.com/herzbube/libsgfcplusplus)：SGF 的读取、校验和保存。
 - [miniz](https://github.com/richgel999/miniz)：PPTX 导出所需的 ZIP 归档支持。
+- [LunaSVG](https://github.com/sammycage/lunasvg)：将 PPTX 中的棋盘图转换为兼容性更好的 PNG。
 - [Noto CJK](https://github.com/notofonts/noto-cjk)：PPTX 中文排版使用的黑体和宋体，字体文件按 OFL-1.1 随项目提供。
 
 第三方库源码不随本项目仓库发布。请按照各目录中的 `gotepad_info.txt` 获取指定版本，并将源码放到

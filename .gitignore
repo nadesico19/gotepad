@@ -1,10 +1,16 @@
 # Third-party sources are downloaded by the developer and are not published
 # with this repository. Keep only the acquisition metadata in version control.
+/.tmp/
+/.idea/
+/gotepad-gd/.godot/
+/gotepad-gd/bin/
 /third_party/godot-cpp/**
 !/third_party/godot-cpp/gotepad_info.txt
 /third_party/libsgfcplusplus/**
 !/third_party/libsgfcplusplus/gotepad_info.txt
 /third_party/miniz/**
 !/third_party/miniz/gotepad_info.txt
+/third_party/lunasvg/**
+!/third_party/lunasvg/gotepad_info.txt
 /third_party/katago/**
 !/third_party/katago/gotepad_info.txt

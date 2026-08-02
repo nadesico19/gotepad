@@ -32,6 +32,13 @@ target_include_directories(goban_miniz PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniz)
 set_target_properties(goban_miniz PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+set(LUNASVG_BUILD_EXAMPLES OFF CACHE BOOL
+    "Do not build LunaSVG examples" FORCE)
+set(USE_SYSTEM_PLUTOVG OFF CACHE BOOL
+    "Use the bundled PlutoVG required by LunaSVG" FORCE)
+add_subdirectory(third_party/lunasvg EXCLUDE_FROM_ALL)
+set_target_properties(lunasvg plutovg PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 set(GODOTCPP_TARGET "template_debug" CACHE STRING
     "Godot target used to build the GDExtension")
 set(GODOTCPP_API_VERSION "4.7" CACHE STRING
@@ -78,7 +85,7 @@ add_executable(test_sgf
     src/go_notes_pptx.cpp
     src/go_core.hpp
     src/go_notes.hpp)
-target_link_libraries(test_sgf PRIVATE goban_miniz)
+target_link_libraries(test_sgf PRIVATE goban_miniz lunasvg::lunasvg)
 target_link_goban_dependencies(test_sgf)
 
 add_executable(test_pptx
@@ -86,7 +93,7 @@ add_executable(test_pptx
     src/go_notes_pptx.cpp
     src/go_core.hpp
     src/go_notes.hpp)
-target_link_libraries(test_pptx PRIVATE goban_miniz)
+target_link_libraries(test_pptx PRIVATE goban_miniz lunasvg::lunasvg)
 target_link_goban_dependencies(test_pptx)
 
 add_library(go_gdext SHARED
@@ -96,7 +103,7 @@ add_library(go_gdext SHARED
     src/go_notes_pptx.cpp
     src/go_core.hpp
     src/go_notes.hpp)
-target_link_libraries(go_gdext PRIVATE godot::cpp goban_miniz)
+target_link_libraries(go_gdext PRIVATE godot::cpp goban_miniz lunasvg::lunasvg)
 target_link_goban_dependencies(go_gdext)
 get_target_property(GOBAN_GDEXT_SUFFIX godot-cpp GODOTCPP_SUFFIX)
 set_target_properties(go_gdext PROPERTIES

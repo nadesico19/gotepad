@@ -1,0 +1,26 @@
+库名称：LunaSVG
+
+用途：
+将 PPTX 导出过程中生成的 SVG 棋盘图在内存中光栅化为 PNG，以兼容不支持 SVG 图片的
+PowerPoint 版本和其他演示软件。LunaSVG 使用其自带的 PlutoVG 子模块进行渲染。
+
+本项目使用的版本：
+- 上游标签：v3.5.0
+- 精确提交：83c58df8103dc7dca423dfd824992af94d49bed6
+
+上游项目：
+https://github.com/sammycage/lunasvg
+
+许可证：
+MIT License
+
+获取方式（在项目根目录执行）：
+git clone --recurse-submodules --branch v3.5.0 https://github.com/sammycage/lunasvg.git third_party/lunasvg
+
+注意：
+- 必须获取 PlutoVG 子模块，否则 LunaSVG 无法构建。
+- 依赖源码应直接位于 third_party/lunasvg 下，使其 CMakeLists.txt 能被顶层项目引用。
+- 上游许可证全文请从 v3.5.0 标签中的 LICENSE 获取并按要求保留。
+
+SHA-256：
+- LICENSE：E008AB9F8B36EC517CC47BE20E776E68D69F5BA75F8F774D506AE4696D0E50C4
