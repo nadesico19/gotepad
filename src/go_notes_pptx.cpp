@@ -727,7 +727,7 @@ std::string content_types_(size_t slide_count,
       << (image_format == GoNotes::PptxImageFormat::Png ? "png" : "svg")
       << "\" ContentType=\""
       << (image_format == GoNotes::PptxImageFormat::Png ? "image/png"
-                                                       : "image/svg+xml")
+                                                        : "image/svg+xml")
       << "\"/>"
          "<Override PartName=\"/docProps/app.xml\" ContentType=\"application/"
          "vnd.openxmlformats-officedocument.extended-properties+xml\"/>"

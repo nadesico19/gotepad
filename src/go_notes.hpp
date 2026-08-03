@@ -79,8 +79,20 @@ inline constexpr char kInvalidSgfMetadataValueMessage[] =
     "[GNE0031] invalid SGF metadata value";
 inline constexpr char kSgfMetadataRecoveryFailedMessage[] =
     "[GNE0032] SGF metadata recovery failed";
+inline constexpr char kEditPresetFailedMessage[] =
+    "[GNE0035] current preset node cannot be edited";
+inline constexpr char kEditPresetLibertyFailedMessage[] =
+    "[GNE0036] edited preset position has invalid liberties";
+inline constexpr char kEditPresetReplayFailedMessage[] =
+    "[GNE0037] descendant replay failed after preset edit";
+inline constexpr char kEditPresetRecoveryFailedMessage[] =
+    "[GNE0038] preset edit recovery failed";
 
 inline constexpr uint8_t kNoteNumberingOptionCount = 4;
+inline constexpr uint8_t kNoteNumberingBranchRelative = 0;
+inline constexpr uint8_t kNoteNumberingBranchAbsolute = 1;
+inline constexpr uint8_t kNoteNumberingGlobalAbsolute = 2;
+inline constexpr uint8_t kNoteNumberingNone = 3;
 
 // 棋局局面笔记，含文字描述和各种标记。每一个棋局状态都可以有一个笔记列表，支持对同一局面进行
 // 多层级的描述和标记。在SGF层面，位于第0层级的笔记将附加在落子节点上；从第1层级起的笔记则会
@@ -209,6 +221,27 @@ public:
     std::vector<GoCoreRecord> takeback_records_{};
     // 已存在的等价预置子分支uid；不存在时为0。
     uint64_t existing_uid_{};
+  };
+
+  // 修改当前预置节点而不创建新节点。首次执行时changes表示相对当前盘面的点位修改；
+  // undo/redo保存并替换规范化后的完整预置记录，节点uid保持不变。
+  class EditPresetCommand final : public Command {
+  public:
+    explicit EditPresetCommand(std::vector<GoCorePresetStone> changes)
+        : changes_(std::move(changes)) {}
+
+  private:
+    friend class GoNotes;
+    [[nodiscard]] int execute(GoNotes &go_notes) override;
+    [[nodiscard]] int undo(GoNotes &go_notes) override;
+    [[nodiscard]] int apply_(GoNotes &go_notes,
+                             const std::vector<GoCorePresetStone> &stones,
+                             bool editing);
+
+    std::vector<GoCorePresetStone> changes_{};
+    std::vector<GoCorePresetStone> old_preset_stones_{};
+    std::vector<GoCorePresetStone> new_preset_stones_{};
+    uint64_t target_uid_{};
   };
 
   // 对应GoCore的place_stone函数，undo时使用takeback进行回滚。
@@ -511,18 +544,17 @@ public:
   // 按B5横版出版模板，将记录树中所有可达笔记导出为PPTX。每层笔记生成一组页面；
   // 评论过长时自动生成续页。template_path为模板PPTX路径，导出不改变棋局状态及
   // undo/redo记录。成功返回true；失败返回false并填写error_message。
-  [[nodiscard]] bool export_pptx_file(const std::string &path,
-                                      const std::string &template_path,
-                                      std::string &error_message,
-                                      PptxImageFormat image_format =
-                                          PptxImageFormat::Svg) const;
+  [[nodiscard]] bool
+  export_pptx_file(const std::string &path, const std::string &template_path,
+                   std::string &error_message,
+                   PptxImageFormat image_format = PptxImageFormat::Svg) const;
 
   // 使用内存中的模板PPTX导出，供模板被打包在GUI资源容器中的客户端使用。
-  [[nodiscard]] bool export_pptx_file(const std::string &path,
-                                      const std::vector<uint8_t> &template_data,
-                                      std::string &error_message,
-                                      PptxImageFormat image_format =
-                                          PptxImageFormat::Svg) const;
+  [[nodiscard]] bool
+  export_pptx_file(const std::string &path,
+                   const std::vector<uint8_t> &template_data,
+                   std::string &error_message,
+                   PptxImageFormat image_format = PptxImageFormat::Svg) const;
 
   // 执行用户指定的棋盘操作命令，成功时将命令推送到undo_stack_。
   // PlaceStoneCommand返回-100且下一手分支存在相同落子时，会转换为RoamingCommand继续执行。
@@ -548,6 +580,9 @@ public:
 
   // 返回最近一次操作生成的utf-8结果信息。
   [[nodiscard]] const std::string &message() const noexcept;
+
+  // 返回最近一次命令失败时关联的记录uid；没有关联节点时返回0。
+  [[nodiscard]] uint64_t error_uid() const noexcept { return error_uid_; }
 
   // 返回当前棋局记录的uid。
   [[nodiscard]] uint64_t current_uid() const noexcept;
@@ -598,6 +633,11 @@ public:
   [[nodiscard]] GoNotesPositionSnapshot
   position_snapshot_at(uint64_t uid, size_t move_count) const;
 
+  // 按指定局面的一层笔记所设置的编号方式返回盘面快照。分支编号以前一个带笔记的
+  // 祖先局面作为锚点；接口只读取状态，不修改当前游标或命令栈。
+  [[nodiscard]] GoNotesPositionSnapshot
+  note_position_snapshot_at(uint64_t uid, size_t note_index) const;
+
 private:
   [[nodiscard]] GoNotesRecord *note_at_(uint64_t uid, size_t note_index);
   [[nodiscard]] bool is_note_position_in_range_(size_t row,
@@ -606,6 +646,8 @@ private:
 
   // 笔记表。允许保留takeback后暂时无法从记录树访问的悬空笔记，保存时再统一裁剪。
   std::unordered_map<uint64_t, std::vector<GoNotesRecord>> notes_{};
+
+  uint64_t error_uid_{};
 
   // 从SGF读取或供后续保存使用的棋谱信息。
   GoNotesSgfMetadata sgf_metadata_{};
@@ -663,7 +705,8 @@ GoNotes::Command::parse(std::string_view command) {
     return error == std::errc{} && ptr == text.data() + text.size();
   };
 
-  if (fields.size() >= 4 && fields[0] == "PRESET" &&
+  if (fields.size() >= 4 &&
+      (fields[0] == "PRESET" || fields[0] == "EDITPRESET") &&
       (fields.size() - 1) % 3 == 0) {
     std::vector<GoCorePresetStone> preset_stones{};
     preset_stones.reserve((fields.size() - 1) / 3);
@@ -682,6 +725,8 @@ GoNotes::Command::parse(std::string_view command) {
                                static_cast<uint16_t>(row),
                                static_cast<uint16_t>(column)});
     }
+    if (fields[0] == "EDITPRESET")
+      return std::make_unique<EditPresetCommand>(std::move(preset_stones));
     return std::make_unique<PresetCommand>(std::move(preset_stones));
   } else if (fields.size() == 4 && fields[0] == "PLACESTONE") {
     int color{};
@@ -791,6 +836,87 @@ inline int GoNotes::PresetCommand::undo(GoNotes &go_notes) {
   (void)go_notes.current_cursor_.move_current(go_notes.go_core_);
   done_ = false;
   go_notes.message_.clear();
+  return 0;
+}
+
+inline int
+GoNotes::EditPresetCommand::apply_(GoNotes &go_notes,
+                                   const std::vector<GoCorePresetStone> &stones,
+                                   bool editing) {
+  uint64_t failed_uid{};
+  const auto result =
+      editing
+          ? go_notes.go_core_.edit_current_preset_stones(stones, failed_uid)
+          : go_notes.go_core_.replace_current_preset_stones(stones, failed_uid);
+  go_notes.error_uid_ = failed_uid;
+  if (result != 0) {
+    if (result == -2)
+      go_notes.message_ = kPositionOutsideBoardMessage;
+    else if (result == -3)
+      go_notes.message_ = kEditPresetLibertyFailedMessage;
+    else if (result == -4)
+      go_notes.message_ = kEditPresetReplayFailedMessage;
+    else if (result == -5)
+      go_notes.message_ = kPresetAlreadyExistsMessage;
+    else
+      go_notes.message_ = kEditPresetFailedMessage;
+    return result;
+  }
+  if (go_notes.current_cursor_.move_current(go_notes.go_core_) != 0 ||
+      go_notes.current_cursor_.uid != target_uid_) {
+    go_notes.message_ = kEditPresetFailedMessage;
+    return -1;
+  }
+  go_notes.message_.clear();
+  return 0;
+}
+
+inline int GoNotes::EditPresetCommand::execute(GoNotes &go_notes) {
+  if (done_) {
+    go_notes.message_ = kCommandAlreadyDoneMessage;
+    return -1;
+  }
+  if (changes_.empty()) {
+    go_notes.message_ = kEditPresetFailedMessage;
+    return -1;
+  }
+
+  if (old_preset_stones_.empty()) {
+    GoCoreRecordTreeNode current{};
+    if (current.move_current(go_notes.go_core_) != 0 || current.uid == 0 ||
+        current.color != 0 || current.preset_stones.empty()) {
+      go_notes.message_ = kEditPresetFailedMessage;
+      return -1;
+    }
+    target_uid_ = current.uid;
+    old_preset_stones_ = current.preset_stones;
+    const auto result = this->apply_(go_notes, changes_, true);
+    if (result != 0)
+      return result;
+    GoCoreRecordTreeNode edited{};
+    if (edited.move_current(go_notes.go_core_) != 0)
+      return -1;
+    new_preset_stones_ = edited.preset_stones;
+  } else {
+    const auto result = this->apply_(go_notes, new_preset_stones_, false);
+    if (result != 0)
+      return result;
+  }
+
+  done_ = true;
+  return 0;
+}
+
+inline int GoNotes::EditPresetCommand::undo(GoNotes &go_notes) {
+  if (!done_) {
+    go_notes.message_ = kCommandCannotBeUndoneMessage;
+    return -1;
+  }
+  if (this->apply_(go_notes, old_preset_stones_, false) != 0) {
+    go_notes.message_ = kEditPresetRecoveryFailedMessage;
+    return -1;
+  }
+  done_ = false;
   return 0;
 }
 
@@ -1671,6 +1797,7 @@ inline int GoNotes::UpdateSgfMetadataCommand::undo(GoNotes &go_notes) {
 }
 
 inline int GoNotes::execute(std::unique_ptr<Command> command) {
+  error_uid_ = 0;
   if (!command) {
     message_ = kInvalidCommandMessage;
     return -1;
@@ -1715,6 +1842,7 @@ inline int GoNotes::execute(std::string_view command) {
 }
 
 inline int GoNotes::undo() {
+  error_uid_ = 0;
   if (undo_stack_.empty()) {
     message_ = kNoCommandToUndoMessage;
     return -1;
@@ -1733,6 +1861,7 @@ inline int GoNotes::undo() {
 }
 
 inline int GoNotes::redo() {
+  error_uid_ = 0;
   if (redo_stack_.empty()) {
     message_ = kNoCommandToRedoMessage;
     return -1;
@@ -1901,6 +2030,77 @@ GoNotes::position_snapshot_at(uint64_t uid, size_t move_count) const {
                            static_cast<size_t>(result.board_size) +
                        static_cast<size_t>(move.column - 1);
     result.move_numbers[index] = move_number;
+  }
+  return result;
+}
+
+inline GoNotesPositionSnapshot
+GoNotes::note_position_snapshot_at(uint64_t uid, size_t note_index) const {
+  const auto note_iterator = notes_.find(uid);
+  if (note_iterator == notes_.end() ||
+      note_index >= note_iterator->second.size())
+    return {};
+  const auto numbering = note_iterator->second[note_index].numbering;
+  if (numbering >= kNoteNumberingOptionCount)
+    return {};
+
+  auto snapshot = go_core_;
+  if (snapshot.roaming_to(uid) != 0)
+    return {};
+
+  GoNotesPositionSnapshot result{};
+  result.board_size = snapshot.ngrids();
+  const auto position_count = static_cast<size_t>(result.board_size) *
+                              static_cast<size_t>(result.board_size);
+  result.states.resize(position_count);
+  result.move_numbers.resize(position_count);
+  size_t position_index = 0;
+  for (int row = 1; row <= result.board_size; ++row) {
+    for (int column = 1; column <= result.board_size; ++column)
+      result.states[position_index++] = snapshot.state_of_position(row, column);
+  }
+  if (numbering == kNoteNumberingNone)
+    return result;
+
+  GoCoreRecordTreeNode cursor{};
+  if (cursor.move_to(snapshot, uid) != 0)
+    return {};
+  std::vector<GoCoreRecordTreeNode> path{};
+  while (cursor.uid != 0) {
+    path.push_back(cursor);
+    if (cursor.move_back(snapshot) != 0)
+      return {};
+  }
+  std::reverse(path.begin(), path.end());
+
+  size_t first_numbered_path_index = 0;
+  if (numbering == kNoteNumberingBranchRelative ||
+      numbering == kNoteNumberingBranchAbsolute) {
+    for (size_t index = 0; index + 1 < path.size(); ++index) {
+      const auto ancestor_notes = notes_.find(path[index].uid);
+      if (ancestor_notes != notes_.end() && !ancestor_notes->second.empty())
+        first_numbered_path_index = index + 1;
+    }
+  }
+
+  int absolute_number = 0;
+  int relative_number = 0;
+  for (size_t index = 0; index < path.size(); ++index) {
+    const auto &move = path[index];
+    if (move.color != 1 && move.color != 2)
+      continue;
+    ++absolute_number;
+    if (index < first_numbered_path_index)
+      continue;
+    ++relative_number;
+    if (snapshot.state_of_position(move.row, move.column) != move.color)
+      continue;
+    const auto board_index = static_cast<size_t>(move.row - 1) *
+                                 static_cast<size_t>(result.board_size) +
+                             static_cast<size_t>(move.column - 1);
+    result.move_numbers[board_index] = numbering == kNoteNumberingBranchRelative
+                                           ? relative_number
+                                           : absolute_number;
   }
   return result;
 }

@@ -13,6 +13,9 @@ signal mark_mode_requested(
 	symbol_marks: Array[Dictionary],
 	initial_symbol: String
 )
+signal text_edit_became_dirty
+signal edit_resolution_canceled
+signal numbering_preview_changed(enabled: bool, uid: int, note_index: int)
 
 const kSequentialMode: int = 1
 const kSymbolMode: int = 2
@@ -54,7 +57,11 @@ var saved_title_: String = ""
 var saved_comment_: String = ""
 var updating_text_: bool = false
 var updating_numbering_: bool = false
-var close_after_edit_resolution_: bool = false
+var editing_uid_: int = -1
+var pending_action_: Callable
+var last_focused_editor_: Control
+var text_was_dirty_: bool = false
+var resolving_edit_: bool = false
 
 
 func _ready() -> void:
@@ -67,12 +74,18 @@ func _ready() -> void:
 	comment_edit_.text_changed.connect(on_text_changed_)
 	title_edit_.focus_exited.connect(on_text_editor_focus_exited_)
 	comment_edit_.focus_exited.connect(on_text_editor_focus_exited_)
+	title_edit_.focus_entered.connect(on_text_editor_focus_entered_.bind(title_edit_))
+	comment_edit_.focus_entered.connect(
+		on_text_editor_focus_entered_.bind(comment_edit_)
+	)
 	title_edit_.gui_input.connect(on_text_editor_gui_input_)
 	comment_edit_.gui_input.connect(on_text_editor_gui_input_)
 	comment_accept_.pressed.connect(on_comment_accept_pressed_)
 	comment_cancel_.pressed.connect(on_comment_cancel_pressed_)
 	unsaved_confirmation_.confirmed.connect(on_unsaved_edit_confirmed_)
-	unsaved_confirmation_.canceled.connect(on_unsaved_edit_discarded_)
+	unsaved_confirmation_.canceled.connect(on_unsaved_edit_canceled_)
+	unsaved_confirmation_.custom_action.connect(on_unsaved_custom_action_)
+	unsaved_confirmation_.add_button("放弃并继续", false, &"discard")
 	sequential_button_.pressed.connect(
 		request_mark_mode_.bind(kSequentialMode, "")
 	)
@@ -95,24 +108,6 @@ func _ready() -> void:
 	comment_actions_.hide()
 
 
-func _input(event: InputEvent) -> void:
-	if not panel_.visible or unsaved_confirmation_.visible \
-			or not is_text_dirty_():
-		return
-	if event is not InputEventMouseButton:
-		return
-	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
-	if not mouse_event.pressed or mouse_event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	if title_edit_.get_global_rect().has_point(mouse_event.position) \
-			or comment_edit_.get_global_rect().has_point(mouse_event.position) \
-			or comment_accept_.get_global_rect().has_point(mouse_event.position) \
-			or comment_cancel_.get_global_rect().has_point(mouse_event.position):
-		return
-	show_unsaved_confirmation_()
-	get_viewport().set_input_as_handled()
-
-
 func toggle_panel(go_notes: GoNotes) -> void:
 	if panel_.visible:
 		close_panel()
@@ -130,16 +125,26 @@ func open_panel(go_notes: GoNotes) -> void:
 func close_panel() -> void:
 	if not panel_.visible:
 		return
-	if is_text_dirty_():
-		close_after_edit_resolution_ = true
-		show_unsaved_confirmation_()
+	request_action_after_edit_resolution(
+		Callable(self, "close_panel_immediately_")
+	)
+
+
+func request_action_after_edit_resolution(action: Callable) -> void:
+	if not is_text_dirty_():
+		if action.is_valid():
+			action.call()
 		return
-	close_panel_immediately_()
+	if unsaved_confirmation_.visible:
+		return
+	pending_action_ = action
+	show_unsaved_confirmation_()
 
 
 func close_panel_immediately_() -> void:
 	cancel_comment_edit_()
 	panel_.hide()
+	numbering_preview_changed.emit(false, -1, -1)
 	var empty_sequential: Array[Dictionary] = []
 	var empty_symbols: Array[Dictionary] = []
 	displayed_marks_changed.emit(empty_sequential, empty_symbols)
@@ -156,7 +161,8 @@ func set_panel_rect(panel_rect: Rect2) -> void:
 
 
 func refresh_current_position() -> void:
-	if not panel_.visible or go_notes_ == null:
+	if not panel_.visible or go_notes_ == null \
+			or is_text_dirty_() or resolving_edit_:
 		return
 	var uid: int = int(go_notes_.get_current_uid())
 	notes_ = Array(go_notes_.call(&"get_notes_at", uid))
@@ -227,6 +233,7 @@ func load_selected_note_() -> void:
 	numbering_option_.disabled = not has_note
 	updating_text_ = true
 	updating_numbering_ = true
+	editing_uid_ = int(go_notes_.get_current_uid()) if go_notes_ != null else -1
 	if has_note:
 		var note: Dictionary = Dictionary(notes_[selected_note_index_])
 		numbering_option_.selected = clampi(
@@ -257,19 +264,36 @@ func load_selected_note_() -> void:
 		displayed_marks_changed.emit(empty_sequential, empty_symbols)
 	updating_text_ = false
 	updating_numbering_ = false
+	text_was_dirty_ = false
 	comment_actions_.hide()
+	numbering_preview_changed.emit(
+		has_note,
+		editing_uid_ if has_note else -1,
+		selected_note_index_ if has_note else -1
+	)
 
 
 func on_note_tab_pressed_(index: int) -> void:
 	if index == selected_note_index_:
 		return
-	cancel_comment_edit_()
+	request_action_after_edit_resolution(
+		Callable(self, "select_note_tab_").bind(index)
+	)
+
+
+func select_note_tab_(index: int) -> void:
 	selected_note_index_ = index
 	rebuild_tabs_()
 	load_selected_note_()
 
 
 func on_append_note_pressed_() -> void:
+	request_action_after_edit_resolution(
+		Callable(self, "append_note_")
+	)
+
+
+func append_note_() -> void:
 	if go_notes_ == null:
 		return
 	var new_index: int = notes_.size()
@@ -281,6 +305,12 @@ func on_append_note_pressed_() -> void:
 
 
 func on_remove_last_note_pressed_() -> void:
+	request_action_after_edit_resolution(
+		Callable(self, "remove_last_note_")
+	)
+
+
+func remove_last_note_() -> void:
 	if go_notes_ == null or notes_.is_empty():
 		return
 	var last_index: int = notes_.size() - 1
@@ -294,7 +324,11 @@ func on_remove_last_note_pressed_() -> void:
 func on_text_changed_(_new_title: String = "") -> void:
 	if updating_text_:
 		return
-	comment_actions_.visible = is_text_dirty_()
+	var dirty: bool = is_text_dirty_()
+	comment_actions_.visible = dirty
+	if dirty and not text_was_dirty_:
+		text_edit_became_dirty.emit()
+	text_was_dirty_ = dirty
 
 
 func is_text_dirty_() -> bool:
@@ -319,6 +353,10 @@ func show_unsaved_confirmation_after_focus_change_() -> void:
 	show_unsaved_confirmation_()
 
 
+func on_text_editor_focus_entered_(editor: Control) -> void:
+	last_focused_editor_ = editor
+
+
 func show_unsaved_confirmation_() -> void:
 	if unsaved_confirmation_.visible:
 		return
@@ -326,20 +364,31 @@ func show_unsaved_confirmation_() -> void:
 
 
 func on_unsaved_edit_confirmed_() -> void:
-	on_comment_accept_pressed_()
-	finish_pending_close_()
-
-
-func on_unsaved_edit_discarded_() -> void:
-	cancel_comment_edit_()
-	finish_pending_close_()
-
-
-func finish_pending_close_() -> void:
-	if not close_after_edit_resolution_:
+	if not commit_comment_edit_():
 		return
-	close_after_edit_resolution_ = false
-	close_panel_immediately_()
+	continue_pending_action_()
+
+
+func on_unsaved_edit_canceled_() -> void:
+	pending_action_ = Callable()
+	edit_resolution_canceled.emit()
+	if last_focused_editor_ != null and is_instance_valid(last_focused_editor_):
+		last_focused_editor_.call_deferred(&"grab_focus")
+
+
+func on_unsaved_custom_action_(action: StringName) -> void:
+	if action != &"discard":
+		return
+	unsaved_confirmation_.hide()
+	cancel_comment_edit_()
+	continue_pending_action_()
+
+
+func continue_pending_action_() -> void:
+	var action: Callable = pending_action_
+	pending_action_ = Callable()
+	if action.is_valid():
+		action.call_deferred()
 
 
 func on_text_editor_gui_input_(event: InputEvent) -> void:
@@ -356,23 +405,40 @@ func on_text_editor_gui_input_(event: InputEvent) -> void:
 
 
 func on_comment_accept_pressed_() -> void:
+	var _committed: bool = commit_comment_edit_()
+
+
+func commit_comment_edit_() -> bool:
 	if go_notes_ == null or selected_note_index_ < 0:
-		return
+		return false
 	if title_edit_.text == saved_title_ \
 			and comment_edit_.text == saved_comment_:
 		comment_actions_.hide()
-		return
+		text_was_dirty_ = false
+		return true
+	if int(go_notes_.get_current_uid()) != editing_uid_:
+		push_warning("笔记对应的局面已经改变，无法保存本次编辑。")
+		return false
+	resolving_edit_ = true
 	if int(go_notes_.call(
 		&"update_note_text",
 		selected_note_index_,
 		title_edit_.text,
 		comment_edit_.text
 	)) != 0:
+		resolving_edit_ = false
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
-		return
+		return false
 	saved_title_ = title_edit_.text
 	saved_comment_ = comment_edit_.text
+	var updated_note: Dictionary = Dictionary(notes_[selected_note_index_])
+	updated_note["title"] = saved_title_
+	updated_note["comment"] = saved_comment_
+	notes_[selected_note_index_] = updated_note
+	resolving_edit_ = false
+	text_was_dirty_ = false
 	comment_actions_.hide()
+	return true
 
 
 func on_comment_cancel_pressed_() -> void:
@@ -383,10 +449,29 @@ func on_numbering_selected_(index: int) -> void:
 	if updating_numbering_ or go_notes_ == null \
 			or selected_note_index_ < 0:
 		return
+	var note: Dictionary = Dictionary(notes_[selected_note_index_])
+	updating_numbering_ = true
+	numbering_option_.selected = clampi(
+		int(note.get("numbering", 0)), 0,
+		numbering_option_.item_count - 1
+	)
+	updating_numbering_ = false
+	request_action_after_edit_resolution(
+		Callable(self, "apply_numbering_selection_").bind(index)
+	)
+
+
+func apply_numbering_selection_(index: int) -> void:
 	var result: int = int(go_notes_.call(
 		&"update_note_numbering", selected_note_index_, index
 	))
 	if result == 0:
+		updating_numbering_ = true
+		numbering_option_.selected = index
+		updating_numbering_ = false
+		var updated_note: Dictionary = Dictionary(notes_[selected_note_index_])
+		updated_note["numbering"] = index
+		notes_[selected_note_index_] = updated_note
 		return
 	push_warning(CommandMessages.localize(go_notes_.get_message()))
 	updating_numbering_ = true
@@ -403,13 +488,19 @@ func cancel_comment_edit_() -> void:
 	title_edit_.text = saved_title_
 	comment_edit_.text = saved_comment_
 	updating_text_ = false
+	text_was_dirty_ = false
 	comment_actions_.hide()
 
 
 func request_mark_mode_(mode: int, initial_symbol: String) -> void:
 	if selected_note_index_ < 0 or selected_note_index_ >= notes_.size():
 		return
-	cancel_comment_edit_()
+	request_action_after_edit_resolution(
+		Callable(self, "begin_mark_mode_").bind(mode, initial_symbol)
+	)
+
+
+func begin_mark_mode_(mode: int, initial_symbol: String) -> void:
 	var note: Dictionary = Dictionary(notes_[selected_note_index_])
 	var sequential_marks: Array[Dictionary] = to_dictionary_array_(
 		note.get("sequential_marks", [])

@@ -80,6 +80,7 @@ public:
   [[nodiscard]] int64_t get_board_size() const;
   [[nodiscard]] int64_t get_state(int64_t row, int64_t column) const;
   [[nodiscard]] godot::String get_message() const;
+  [[nodiscard]] int64_t get_error_uid() const;
   [[nodiscard]] int64_t get_current_uid() const;
   [[nodiscard]] int64_t get_latest_move_color() const;
   [[nodiscard]] bool can_place_stone(int64_t color, int64_t row,
@@ -89,6 +90,8 @@ public:
   [[nodiscard]] godot::PackedInt32Array get_move_numbers_at(int64_t uid) const;
   [[nodiscard]] godot::Dictionary
   get_position_snapshot_at(int64_t uid, int64_t move_count) const;
+  [[nodiscard]] godot::Dictionary
+  get_note_position_snapshot_at(int64_t uid, int64_t note_index) const;
   [[nodiscard]] godot::Dictionary get_node_at(int64_t uid) const;
   [[nodiscard]] godot::Array get_next_moves() const;
   [[nodiscard]] godot::Array get_notes_at(int64_t uid) const;
@@ -117,10 +120,9 @@ inline void GoNotes::_bind_methods() {
                               &GoNotes::load_sgf_file);
   godot::ClassDB::bind_method(godot::D_METHOD("save_sgf_file", "path"),
                               &GoNotes::save_sgf_file);
-  godot::ClassDB::bind_method(
-      godot::D_METHOD("export_pptx_file", "path", "template_path",
-                      "image_format"),
-      &GoNotes::export_pptx_file);
+  godot::ClassDB::bind_method(godot::D_METHOD("export_pptx_file", "path",
+                                              "template_path", "image_format"),
+                              &GoNotes::export_pptx_file);
   godot::ClassDB::bind_method(godot::D_METHOD("execute_command", "command"),
                               &GoNotes::execute_command);
   godot::ClassDB::bind_method(godot::D_METHOD("append_note"),
@@ -165,6 +167,8 @@ inline void GoNotes::_bind_methods() {
                               &GoNotes::get_state);
   godot::ClassDB::bind_method(godot::D_METHOD("get_message"),
                               &GoNotes::get_message);
+  godot::ClassDB::bind_method(godot::D_METHOD("get_error_uid"),
+                              &GoNotes::get_error_uid);
   godot::ClassDB::bind_method(
       godot::D_METHOD("can_place_stone", "color", "row", "column"),
       &GoNotes::can_place_stone);
@@ -181,6 +185,9 @@ inline void GoNotes::_bind_methods() {
   godot::ClassDB::bind_method(
       godot::D_METHOD("get_position_snapshot_at", "uid", "move_count"),
       &GoNotes::get_position_snapshot_at);
+  godot::ClassDB::bind_method(
+      godot::D_METHOD("get_note_position_snapshot_at", "uid", "note_index"),
+      &GoNotes::get_note_position_snapshot_at);
   godot::ClassDB::bind_method(godot::D_METHOD("get_node_at", "uid"),
                               &GoNotes::get_node_at);
   godot::ClassDB::bind_method(godot::D_METHOD("get_next_moves"),
@@ -505,6 +512,10 @@ inline godot::String GoNotes::get_message() const {
   return godot::String::utf8(go_notes_->message().c_str());
 }
 
+inline int64_t GoNotes::get_error_uid() const {
+  return static_cast<int64_t>(go_notes_->error_uid());
+}
+
 inline int64_t GoNotes::get_current_uid() const {
   return static_cast<int64_t>(go_notes_->current_uid());
 }
@@ -553,6 +564,33 @@ GoNotes::get_position_snapshot_at(int64_t uid, int64_t move_count) const {
 
   const auto snapshot = go_notes_->position_snapshot_at(
       static_cast<uint64_t>(uid), static_cast<size_t>(move_count));
+  if (snapshot.states.empty() ||
+      snapshot.move_numbers.size() != snapshot.states.size())
+    return result;
+
+  godot::PackedInt32Array states{};
+  godot::PackedInt32Array move_numbers{};
+  states.resize(static_cast<int64_t>(snapshot.states.size()));
+  move_numbers.resize(static_cast<int64_t>(snapshot.move_numbers.size()));
+  for (size_t index = 0; index < snapshot.states.size(); ++index) {
+    const auto godot_index = static_cast<int64_t>(index);
+    states.set(godot_index, snapshot.states[index]);
+    move_numbers.set(godot_index, snapshot.move_numbers[index]);
+  }
+  result["board_size"] = snapshot.board_size;
+  result["states"] = states;
+  result["move_numbers"] = move_numbers;
+  return result;
+}
+
+inline godot::Dictionary
+GoNotes::get_note_position_snapshot_at(int64_t uid, int64_t note_index) const {
+  godot::Dictionary result{};
+  if (uid < 0 || note_index < 0)
+    return result;
+
+  const auto snapshot = go_notes_->note_position_snapshot_at(
+      static_cast<uint64_t>(uid), static_cast<size_t>(note_index));
   if (snapshot.states.empty() ||
       snapshot.move_numbers.size() != snapshot.states.size())
     return result;

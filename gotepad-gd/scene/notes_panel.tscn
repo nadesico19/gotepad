@@ -28,10 +28,10 @@ mouse_filter = 2
 script = ExtResource("1_script")
 
 [node name="UnsavedConfirmation" type="ConfirmationDialog" parent="."]
-title = "笔记内容已修改"
-dialog_text = "标题或评论已经发生改变，是否保留编辑内容？"
-ok_button_text = "保留"
-cancel_button_text = "放弃"
+title = "笔记内容尚未保存"
+dialog_text = "标题或评论已经发生改变，请选择如何处理本次编辑。"
+ok_button_text = "保存并继续"
+cancel_button_text = "取消"
 
 [node name="Panel" type="PanelContainer" parent="."]
 offset_right = 360.0

@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.2"
+const kGotepadVersion: String = "0.1.3"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkTimeoutMsec: int = 30000
 const kKatagoBenchmarkVisits: int = 8
@@ -698,6 +698,8 @@ func update_katago_path_status_(message: String, color: Color) -> void:
 
 
 func on_katago_executable_browse_pressed_() -> void:
+	if is_katago_file_dialog_open_():
+		return
 	set_dialog_current_path_(
 		katago_executable_dialog_, selected_katago_executable_path_()
 	)
@@ -705,6 +707,8 @@ func on_katago_executable_browse_pressed_() -> void:
 
 
 func on_katago_model_browse_pressed_() -> void:
+	if is_katago_file_dialog_open_():
+		return
 	set_dialog_current_path_(
 		katago_model_dialog_, selected_katago_model_path_()
 	)
@@ -712,10 +716,18 @@ func on_katago_model_browse_pressed_() -> void:
 
 
 func on_katago_config_browse_pressed_() -> void:
+	if is_katago_file_dialog_open_():
+		return
 	set_dialog_current_path_(
 		katago_config_dialog_, selected_katago_analysis_config_path_()
 	)
 	katago_config_dialog_.popup_centered_ratio(0.8)
+
+
+func is_katago_file_dialog_open_() -> bool:
+	return katago_executable_dialog_.visible \
+			or katago_model_dialog_.visible \
+			or katago_config_dialog_.visible
 
 
 func set_dialog_current_path_(dialog: FileDialog, path: String) -> void:

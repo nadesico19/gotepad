@@ -103,6 +103,10 @@ namespace {
             "PRESET,1,4,5,2,16,16,0,10,10;");
         assert(dynamic_cast<nd::go::GoNotes::PresetCommand *>(
                    batch_preset.get()) != nullptr);
+        auto edit_preset = nd::go::GoNotes::Command::parse(
+            "EDITPRESET,1,4,5,0,16,16;");
+        assert(dynamic_cast<nd::go::GoNotes::EditPresetCommand *>(
+                   edit_preset.get()) != nullptr);
         assert(!nd::go::GoNotes::Command::parse("PRESET,1,4,5,2,16;"));
 
         auto place = nd::go::GoNotes::Command::parse("PLACESTONE,2,16,17;");
@@ -548,6 +552,77 @@ namespace {
         assert(rollback_tree.children.front().children.front().uid == 2);
     }
 
+    void test_edit_current_preset_transaction() {
+        Board board{9};
+        expect_eq(board.preset_stones({{Black, 1, 1}}), 0,
+                  "edit preset: initial setup succeeds");
+        RecordTreeNode cursor{};
+        expect_eq(cursor.move_current(board), 0,
+                  "edit preset: setup cursor is readable");
+        const auto setup_uid = cursor.uid;
+        expect_eq(board.place_stone(White, 3, 3), 0,
+                  "edit preset: descendant move succeeds");
+        expect_eq(cursor.move_current(board), 0,
+                  "edit preset: descendant cursor is readable");
+        const auto move_uid = cursor.uid;
+        expect_eq(board.roaming_to(setup_uid), 0,
+                  "edit preset: returns to setup node");
+
+        uint64_t failed_uid = 0;
+        expect_eq(board.edit_current_preset_stones({{Black, 2, 2}}, failed_uid),
+                  0, "edit preset: compatible change commits");
+        assert(failed_uid == 0);
+        expect_eq(cursor.move_current(board), 0,
+                  "edit preset: edited cursor is readable");
+        assert(cursor.uid == setup_uid);
+        expect_eq(board.state_of_position(2, 2), Black,
+                  "edit preset: edited stone is visible");
+        expect_eq(board.roaming_to(move_uid), 0,
+                  "edit preset: compatible descendant remains replayable");
+        expect_eq(board.state_of_position(3, 3), White,
+                  "edit preset: descendant move is preserved");
+
+        expect_eq(board.roaming_to(setup_uid), 0,
+                  "edit preset: returns before incompatible edit");
+        const auto tree_before_failure = board.record_tree();
+        expect_eq(board.edit_current_preset_stones({{Black, 3, 3}}, failed_uid),
+                  -4, "edit preset: occupied descendant move is rejected");
+        assert(failed_uid == move_uid);
+        expect_eq(cursor.move_current(board), 0,
+                  "edit preset: failed edit cursor is readable");
+        assert(cursor.uid == setup_uid);
+        assert(same_record_tree(board.record_tree(), tree_before_failure));
+        expect_eq(board.state_of_position(3, 3), 0,
+                  "edit preset: failed transaction leaves board unchanged");
+
+        nd::go::GoNotes notes{9};
+        expect_eq(notes.execute("PRESET,1,1,1;"), 0,
+                  "edit preset command: initial setup succeeds");
+        const auto notes_setup_uid = notes.current_uid();
+        expect_eq(notes.execute("PLACESTONE,2,3,3;"), 0,
+                  "edit preset command: descendant succeeds");
+        const auto notes_move_uid = notes.current_uid();
+        expect_eq(notes.execute("ROAMING," + std::to_string(notes_setup_uid) +
+                                ";"),
+                  0, "edit preset command: returns to setup");
+        expect_eq(notes.execute("EDITPRESET,1,2,2;"), 0,
+                  "edit preset command: edit succeeds");
+        assert(notes.current_uid() == notes_setup_uid);
+        expect_eq(notes.state_at(2, 2), Black,
+                  "edit preset command: edited point is visible");
+        expect_eq(notes.undo(), 0, "edit preset command: undo succeeds");
+        expect_eq(notes.state_at(2, 2), 0,
+                  "edit preset command: undo restores old setup");
+        expect_eq(notes.redo(), 0, "edit preset command: redo succeeds");
+        expect_eq(notes.state_at(2, 2), Black,
+                  "edit preset command: redo restores edited setup");
+        expect_eq(notes.execute("EDITPRESET,1,3,3;"), -4,
+                  "edit preset command: incompatible edit is rejected");
+        assert(notes.error_uid() == notes_move_uid);
+        expect_eq(notes.state_at(3, 3), 0,
+                  "edit preset command: rejected edit is transactional");
+    }
+
     void test_basic_placement(std::ofstream &out) {
         Board board{19};
         dump_board(out, "basic: initial 19x19 board", board);
@@ -979,6 +1054,7 @@ int main() {
     test_find_command_directions();
     test_preset_stone_export_and_record_tree_load();
     test_load_record_tree_preserves_uids();
+    test_edit_current_preset_transaction();
     test_basic_placement(out);
     test_preset_stones(out);
     test_takeback_recovery(out);

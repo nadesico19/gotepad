@@ -217,6 +217,7 @@ text = "加载 SGF 棋谱"
 [node name="SgfFileDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true
 title = "加载 SGF 棋谱"
+exclusive = true
 initial_position = 2
 size = Vector2i(760, 520)
 ok_button_text = "加载"

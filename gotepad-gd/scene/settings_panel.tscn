@@ -502,6 +502,7 @@ text = "✕"
 
 [node name="KatagoExecutableDialog" type="FileDialog" parent="."]
 title = "选择 KataGo 可执行文件"
+exclusive = true
 size = Vector2i(900, 600)
 file_mode = 0
 access = 2
@@ -510,6 +511,7 @@ use_native_dialog = true
 
 [node name="KatagoModelDialog" type="FileDialog" parent="."]
 title = "选择 KataGo 神经网络模型"
+exclusive = true
 size = Vector2i(900, 600)
 file_mode = 0
 access = 2
@@ -518,6 +520,7 @@ use_native_dialog = true
 
 [node name="KatagoConfigDialog" type="FileDialog" parent="."]
 title = "选择 KataGo Analysis Engine 配置文件"
+exclusive = true
 size = Vector2i(900, 600)
 file_mode = 0
 access = 2

@@ -153,6 +153,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	get_tree().auto_accept_quit = false
 	board_size_dialog_.create_requested.connect(on_create_requested_)
 	board_size_dialog_.sgf_load_requested.connect(on_sgf_load_requested_)
 	board_size_dialog_.cancel_requested.connect(
@@ -188,6 +189,16 @@ func _ready() -> void:
 		on_displayed_note_marks_changed_
 	)
 	notes_panel_.mark_mode_requested.connect(on_note_mark_mode_requested_)
+	notes_panel_.text_edit_became_dirty.connect(board_.stop_playback)
+	notes_panel_.edit_resolution_canceled.connect(
+		on_note_edit_resolution_canceled_
+	)
+	notes_panel_.numbering_preview_changed.connect(
+		board_.set_note_numbering_preview
+	)
+	board_.set_edit_sensitive_action_gate(
+		Callable(self, "request_after_note_edit_resolution_")
+	)
 	branch_visualization_.connect(
 		&"exit_requested",
 		Callable(self, "on_branch_visualization_exit_requested_")
@@ -330,7 +341,12 @@ func _input(event: InputEvent) -> void:
 		return
 
 	var focus_owner: Control = get_viewport().gui_get_focus_owner()
-	if focus_owner is LineEdit or focus_owner is TextEdit:
+	# 文本编辑器拥有焦点时，仅保留与常规编辑操作冲突的组合键；其余
+	# 应用快捷键仍按全局快捷键处理。未在下方匹配的复制、粘贴、重做等
+	# 组合键会继续传递给文本控件。
+	var text_editor_focused: bool = focus_owner is LineEdit \
+			or focus_owner is TextEdit
+	if text_editor_focused and key_event.keycode in [KEY_A, KEY_X, KEY_Z]:
 		return
 	if board_.is_preset_mode() and key_event.keycode != KEY_Q:
 		return
@@ -395,11 +411,15 @@ func on_redo_requested_() -> void:
 
 
 func on_find_previous_requested_() -> void:
-	board_.toggle_find_mode(-1)
+	request_after_note_edit_resolution_(
+		Callable(board_, "toggle_find_mode").bind(-1)
+	)
 
 
 func on_find_next_requested_() -> void:
-	board_.toggle_find_mode(1)
+	request_after_note_edit_resolution_(
+		Callable(board_, "toggle_find_mode").bind(1)
+	)
 
 
 func on_find_mode_changed_(direction: int) -> void:
@@ -408,7 +428,9 @@ func on_find_mode_changed_(direction: int) -> void:
 
 
 func on_cut_branch_requested_() -> void:
-	board_.toggle_cut_branch_mode()
+	request_after_note_edit_resolution_(
+		Callable(board_, "toggle_cut_branch_mode")
+	)
 
 
 func on_cut_branch_mode_changed_(enabled: bool) -> void:
@@ -416,6 +438,12 @@ func on_cut_branch_mode_changed_(enabled: bool) -> void:
 
 
 func on_reorder_branch_requested_() -> void:
+	request_after_note_edit_resolution_(
+		Callable(self, "open_reorder_branch_popup_")
+	)
+
+
+func open_reorder_branch_popup_() -> void:
 	var branches: Array = Array(go_notes_.call(&"get_next_moves"))
 	if branches.size() < 2:
 		return
@@ -541,6 +569,10 @@ func on_setup_branch_selected_(uid: int) -> void:
 
 
 func on_new_tab_requested_() -> void:
+	request_after_note_edit_resolution_(Callable(self, "create_new_tab_"))
+
+
+func create_new_tab_() -> void:
 	var document: DocumentState = DocumentState.new()
 	document.notes = GoNotes.new()
 	document.title = unique_document_title_("新建笔记")
@@ -549,6 +581,10 @@ func on_new_tab_requested_() -> void:
 
 
 func on_save_requested_() -> void:
+	request_after_note_edit_resolution_(Callable(self, "request_save_"))
+
+
+func request_save_() -> void:
 	if active_document_index_ < 0 \
 			or active_document_index_ >= documents_.size():
 		return
@@ -560,6 +596,10 @@ func on_save_requested_() -> void:
 
 
 func on_save_as_requested_() -> void:
+	request_after_note_edit_resolution_(Callable(self, "request_save_as_"))
+
+
+func request_save_as_() -> void:
 	if active_document_index_ < 0 \
 			or active_document_index_ >= documents_.size():
 		return
@@ -567,6 +607,8 @@ func on_save_as_requested_() -> void:
 
 
 func show_save_dialog_() -> void:
+	if save_file_dialog_.visible or export_file_dialog_.visible:
+		return
 	var document: DocumentState = documents_[active_document_index_]
 	if document.file_path.is_empty():
 		save_file_dialog_.current_file = "%s.sgf" % document.title
@@ -625,8 +667,14 @@ func save_document_to_(path: String) -> bool:
 
 
 func on_export_requested_() -> void:
+	request_after_note_edit_resolution_(Callable(self, "request_export_"))
+
+
+func request_export_() -> void:
 	if active_document_index_ < 0 \
 			or active_document_index_ >= documents_.size():
+		return
+	if save_file_dialog_.visible or export_file_dialog_.visible:
 		return
 	var document: DocumentState = documents_[active_document_index_]
 	export_file_dialog_.current_file = "%s.pptx" % document.title
@@ -653,6 +701,12 @@ func on_export_file_selected_(path: String) -> void:
 
 
 func on_document_tab_close_requested_(index: int) -> void:
+	request_after_note_edit_resolution_(
+		Callable(self, "request_document_tab_close_").bind(index)
+	)
+
+
+func request_document_tab_close_(index: int) -> void:
 	if index < 0 or index >= documents_.size():
 		return
 	pending_close_index_ = index
@@ -691,6 +745,12 @@ func on_close_tab_canceled_() -> void:
 
 
 func on_branch_visualization_requested_() -> void:
+	request_after_note_edit_resolution_(
+		Callable(self, "open_branch_visualization_")
+	)
+
+
+func open_branch_visualization_() -> void:
 	if setup_branch_popup_.visible:
 		setup_branch_popup_.hide()
 	if katago_analysis_panel_.is_panel_open():
@@ -808,6 +868,12 @@ func on_katago_analysis_panel_visibility_changed_(opened: bool) -> void:
 
 
 func on_katago_variation_requested_(pv: Array) -> void:
+	request_after_note_edit_resolution_(
+		Callable(self, "enter_katago_variation_").bind(pv)
+	)
+
+
+func enter_katago_variation_(pv: Array) -> void:
 	side_panel_after_variation_ = kPendingPanelKatago
 	katago_analysis_panel_.close_panel()
 	if not board_.enter_analysis_variation(pv):
@@ -958,6 +1024,10 @@ func finish_note_mark_mode_() -> void:
 
 
 func on_variation_requested_() -> void:
+	request_after_note_edit_resolution_(Callable(self, "enter_variation_"))
+
+
+func enter_variation_() -> void:
 	if not board_.enter_variation_mode():
 		push_warning("无法从当前盘面进入变化图。")
 
@@ -1010,10 +1080,18 @@ func on_preset_requested_() -> void:
 	if board_.is_preset_mode():
 		preset_button_.set_pressed_no_signal(true)
 		return
+	request_after_note_edit_resolution_(Callable(self, "enter_preset_mode_"))
+
+
+func enter_preset_mode_() -> void:
 	board_.toggle_preset_mode()
 
 
 func on_preset_accept_requested_() -> void:
+	request_after_note_edit_resolution_(Callable(self, "accept_preset_mode_"))
+
+
+func accept_preset_mode_() -> void:
 	var _accepted: bool = board_.accept_preset_mode()
 
 
@@ -1057,23 +1135,31 @@ func update_next_color_button_(color: int) -> void:
 func perform_undo_() -> bool:
 	if not go_notes_.can_undo():
 		return false
+	request_after_note_edit_resolution_(Callable(self, "perform_undo_now_"))
+	return true
+
+
+func perform_undo_now_() -> void:
 	var result: int = int(go_notes_.undo())
 	if result != 0:
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
 		update_history_buttons_()
-		return false
-	return true
+		return
 
 
 func perform_redo_() -> bool:
 	if not go_notes_.can_redo():
 		return false
+	request_after_note_edit_resolution_(Callable(self, "perform_redo_now_"))
+	return true
+
+
+func perform_redo_now_() -> void:
 	var result: int = int(go_notes_.redo())
 	if result != 0:
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
 		update_history_buttons_()
-		return false
-	return true
+		return
 
 
 func on_go_notes_history_changed_() -> void:
@@ -1105,7 +1191,38 @@ func update_preset_button_() -> void:
 
 
 func on_document_tab_selected_(index: int) -> void:
-	switch_document_(index)
+	request_after_note_edit_resolution_(
+		Callable(self, "switch_document_").bind(index)
+	)
+
+
+func request_after_note_edit_resolution_(action: Callable) -> void:
+	notes_panel_.request_action_after_edit_resolution(action)
+
+
+func on_note_edit_resolution_canceled_() -> void:
+	pending_side_panel_ = kPendingPanelNone
+	board_.restore_playback_position()
+	refresh_document_tabs_()
+	update_history_buttons_()
+	update_preset_button_()
+	notes_button_.set_pressed_no_signal(notes_panel_.is_panel_open())
+	find_previous_button_.set_pressed_no_signal(
+		board_.get_find_direction() == -1
+	)
+	find_next_button_.set_pressed_no_signal(board_.get_find_direction() == 1)
+	cut_branch_button_.set_pressed_no_signal(board_.is_cut_branch_mode())
+	preset_button_.set_pressed_no_signal(board_.is_preset_mode())
+
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_WM_CLOSE_REQUEST or not is_node_ready():
+		return
+	request_after_note_edit_resolution_(Callable(self, "quit_application_"))
+
+
+func quit_application_() -> void:
+	get_tree().quit()
 
 
 func switch_document_(index: int) -> void:

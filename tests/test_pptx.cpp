@@ -85,6 +85,56 @@ void append_note(Notes &notes, std::string title, std::string comment,
               "PPTX test numbering should be updated");
 }
 
+void test_note_numbering_snapshots() {
+  Notes notes{5};
+  place(notes, 1, 1, 1);
+  place(notes, 2, 1, 2);
+  append_note(notes, "编号锚点", "", nd::go::kNoteNumberingNone);
+  place(notes, 1, 2, 1);
+  place(notes, 2, 2, 2);
+  place(notes, 1, 3, 1);
+  append_note(notes, "编号预览", "", nd::go::kNoteNumberingBranchRelative);
+
+  const auto value_at = [](const nd::go::GoNotesPositionSnapshot &snapshot,
+                           int row, int column) {
+    return snapshot.move_numbers[static_cast<size_t>(row - 1) *
+                                     static_cast<size_t>(snapshot.board_size) +
+                                 static_cast<size_t>(column - 1)];
+  };
+  auto snapshot = notes.note_position_snapshot_at(notes.current_uid(), 0);
+  expect_true(value_at(snapshot, 1, 1) == 0 &&
+                  value_at(snapshot, 2, 1) == 1 &&
+                  value_at(snapshot, 3, 1) == 3,
+              "Branch-relative preview should restart after the prior note");
+
+  expect_true(notes.execute(std::make_unique<Notes::UpdateNoteNumbering>(
+                  0, nd::go::kNoteNumberingBranchAbsolute)) == 0,
+              "Branch-absolute preview mode should be selected");
+  snapshot = notes.note_position_snapshot_at(notes.current_uid(), 0);
+  expect_true(value_at(snapshot, 1, 1) == 0 &&
+                  value_at(snapshot, 2, 1) == 3 &&
+                  value_at(snapshot, 3, 1) == 5,
+              "Branch-absolute preview should preserve global move numbers");
+
+  expect_true(notes.execute(std::make_unique<Notes::UpdateNoteNumbering>(
+                  0, nd::go::kNoteNumberingGlobalAbsolute)) == 0,
+              "Global-absolute preview mode should be selected");
+  snapshot = notes.note_position_snapshot_at(notes.current_uid(), 0);
+  expect_true(value_at(snapshot, 1, 1) == 1 &&
+                  value_at(snapshot, 2, 1) == 3 &&
+                  value_at(snapshot, 3, 1) == 5,
+              "Global-absolute preview should include the complete branch");
+
+  expect_true(notes.execute(std::make_unique<Notes::UpdateNoteNumbering>(
+                  0, nd::go::kNoteNumberingNone)) == 0,
+              "No-numbering preview mode should be selected");
+  snapshot = notes.note_position_snapshot_at(notes.current_uid(), 0);
+  expect_true(value_at(snapshot, 1, 1) == 0 &&
+                  value_at(snapshot, 2, 1) == 0 &&
+                  value_at(snapshot, 3, 1) == 0,
+              "No-numbering preview should hide every move number");
+}
+
 void test_pptx_export() {
   const auto template_path = find_template();
   expect_true(!template_path.empty(), "PPTX template should exist");
@@ -224,6 +274,7 @@ void test_png_board_images() {
 } // namespace
 
 int main() {
+  test_note_numbering_snapshots();
   test_pptx_export();
   test_leaf_nodes_are_exported_without_notes();
   test_png_board_images();

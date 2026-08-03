@@ -178,3 +178,8 @@ title = "找子"
 exclusive = true
 dialog_text = "没有在指定方向找到这颗棋子。"
 ok_button_text = "确定"
+
+[node name="PresetEditErrorDialog" type="AcceptDialog" parent="."]
+title = "无法修改预置局面"
+exclusive = true
+ok_button_text = "确定"

@@ -170,6 +170,20 @@ public:
   [[nodiscard]] int
   preset_stones(const std::vector<GoCorePresetStone> &preset_stones);
 
+  // 将changes作为对当前盘面的修改，事务式替换当前预置节点。修改后会在独立棋盘中重放
+  // 完整记录树，全部成功才提交。返回0表示成功；-1表示当前节点不可编辑或没有实际变化；
+  // -2表示参数无效；-3表示修改后的预置局面存在无气棋块；-4表示后续记录无法重放；
+  // -5表示修改结果与同级预置分支重复。重放失败时failed_uid返回首个失败节点。
+  [[nodiscard]] int
+  edit_current_preset_stones(const std::vector<GoCorePresetStone> &changes,
+                             uint64_t &failed_uid);
+
+  // 使用相对父局面的完整点位变化替换当前预置节点，主要供命令undo/redo使用。
+  // 返回值与edit_current_preset_stones一致。
+  [[nodiscard]] int replace_current_preset_stones(
+      const std::vector<GoCorePresetStone> &preset_stones,
+      uint64_t &failed_uid);
+
   // 计算参数在当前局面形成的最终预置变化，并查找等价的直接子分支。
   // 找到时返回该预置节点的uid；参数无效、最终没有变化或不存在等价分支时返回0。
   [[nodiscard]] uint64_t matching_preset_branch_uid(
@@ -241,7 +255,8 @@ public:
   // 棋盘、状态记录和uid计数器不变。
   [[nodiscard]] int
   load_record_tree(const GoCoreRecordTreeNode &tree,
-                   const std::vector<GoCorePresetStone> &preset_stones);
+                   const std::vector<GoCorePresetStone> &preset_stones,
+                   uint64_t *failed_uid = nullptr);
 
   // 输出字符版的棋盘状态。将棋盘全部坐标点都输出成一个二维字符阵列，包括有效坐标点外围的一圈值
   // 为11的虚拟坐标点，以便完整观察棋盘的内部状态。依据坐标点的值，采用不同字符表示：00优先使用
@@ -316,8 +331,12 @@ private:
   void build_record_tree_(uint64_t uid,
                           std::vector<GoCoreRecordTreeNode> &children) const;
 
+  [[nodiscard]] static GoCoreRecordTreeNode *
+  find_record_tree_node_(GoCoreRecordTreeNode &node, uint64_t uid);
+
   [[nodiscard]] bool
-  load_record_tree_children_(const std::vector<GoCoreRecordTreeNode> &children);
+  load_record_tree_children_(const std::vector<GoCoreRecordTreeNode> &children,
+                             uint64_t *failed_uid);
 
   [[nodiscard]] bool validate_record_tree_children_(
       const std::vector<GoCoreRecordTreeNode> &children,
@@ -489,6 +508,109 @@ inline int GoCore::preset_stone(int color, size_t row, size_t column) {
 inline int
 GoCore::preset_stones(const std::vector<GoCorePresetStone> &preset_stones) {
   return this->preset_stones_(preset_stones, 0, false);
+}
+
+inline int GoCore::edit_current_preset_stones(
+    const std::vector<GoCorePresetStone> &changes, uint64_t &failed_uid) {
+  failed_uid = 0;
+  const auto current_it = this->recorder_.find(this->current_uid_);
+  if (current_it == this->recorder_.end() || current_it->second.color != 0 ||
+      changes.empty()) {
+    return -1;
+  }
+
+  GoCore desired = *this;
+  bool changed = false;
+  for (const auto &stone : changes) {
+    if (stone.color > 2 ||
+        !this->is_position_in_range_(stone.row, stone.column)) {
+      return -2;
+    }
+    if (desired.state_of_position(stone.row, stone.column) != stone.color) {
+      desired.set_state_of_position_(stone.color, stone.row, stone.column);
+      changed = true;
+    }
+  }
+  if (!changed)
+    return -1;
+
+  GoCore parent = *this;
+  parent.backward_();
+  std::vector<GoCorePresetStone> replacement{};
+  for (size_t row = 1; row <= static_cast<size_t>(this->ngrids_); ++row) {
+    for (size_t column = 1; column <= static_cast<size_t>(this->ngrids_);
+         ++column) {
+      const auto desired_state = desired.state_of_position(row, column);
+      if (desired_state != parent.state_of_position(row, column)) {
+        replacement.push_back({static_cast<uint16_t>(desired_state),
+                               static_cast<uint16_t>(row),
+                               static_cast<uint16_t>(column)});
+      }
+    }
+  }
+  return this->replace_current_preset_stones(replacement, failed_uid);
+}
+
+inline int GoCore::replace_current_preset_stones(
+    const std::vector<GoCorePresetStone> &preset_stones, uint64_t &failed_uid) {
+  failed_uid = 0;
+  const auto current_it = this->recorder_.find(this->current_uid_);
+  if (current_it == this->recorder_.end() || current_it->second.color != 0 ||
+      preset_stones.empty()) {
+    return -1;
+  }
+
+  GoCore desired = *this;
+  desired.backward_();
+  for (const auto &stone : preset_stones) {
+    if (stone.color > 2 ||
+        !this->is_position_in_range_(stone.row, stone.column)) {
+      return -2;
+    }
+    desired.set_state_of_position_(stone.color, stone.row, stone.column);
+  }
+  if (!desired.has_valid_liberties_())
+    return -3;
+
+  std::vector<GoCorePresetStone> replacement{};
+  GoCore parent = *this;
+  parent.backward_();
+  for (size_t row = 1; row <= static_cast<size_t>(this->ngrids_); ++row) {
+    for (size_t column = 1; column <= static_cast<size_t>(this->ngrids_);
+         ++column) {
+      const auto desired_state = desired.state_of_position(row, column);
+      if (desired_state != parent.state_of_position(row, column)) {
+        replacement.push_back({static_cast<uint16_t>(desired_state),
+                               static_cast<uint16_t>(row),
+                               static_cast<uint16_t>(column)});
+      }
+    }
+  }
+  if (replacement.empty() ||
+      this->same_preset_result_(replacement,
+                                current_it->second.preset_stones)) {
+    return -1;
+  }
+  if (this->matching_preset_branch_uid_(current_it->second.last_uid,
+                                        replacement, this->current_uid_) != 0) {
+    return -5;
+  }
+
+  auto tree = this->record_tree();
+  auto *node = this->find_record_tree_node_(tree, this->current_uid_);
+  if (node == nullptr || node->color != 0)
+    return -1;
+  node->preset_stones = std::move(replacement);
+
+  GoCore candidate{this->ngrids_};
+  if (candidate.load_record_tree(tree, {}, &failed_uid) != 0 ||
+      candidate.roaming_to(this->current_uid_) != 0) {
+    if (failed_uid == 0)
+      failed_uid = this->current_uid_;
+    return -4;
+  }
+  *this = std::move(candidate);
+  return 0;
 }
 
 inline uint64_t GoCore::matching_preset_branch_uid(
@@ -1164,7 +1286,10 @@ inline std::vector<int> GoCore::position_states_at(uint64_t uid) const {
 
 inline int
 GoCore::load_record_tree(const GoCoreRecordTreeNode &tree,
-                         const std::vector<GoCorePresetStone> &preset_stones) {
+                         const std::vector<GoCorePresetStone> &preset_stones,
+                         uint64_t *failed_uid) {
+  if (failed_uid != nullptr)
+    *failed_uid = 0;
   std::unordered_set<uint64_t> uids{};
   if (tree.uid != 0 || tree.color != 0 || tree.row != 0 || tree.column != 0 ||
       !tree.preset_stones.empty() ||
@@ -1198,9 +1323,11 @@ GoCore::load_record_tree(const GoCoreRecordTreeNode &tree,
   bool loaded = true;
   if (!preset_stones.empty() &&
       this->preset_stones_(preset_stones, legacy_preset_uid, false) != 0) {
+    if (failed_uid != nullptr)
+      *failed_uid = legacy_preset_uid;
     loaded = false;
   }
-  if (loaded && !this->load_record_tree_children_(tree.children))
+  if (loaded && !this->load_record_tree_children_(tree.children, failed_uid))
     loaded = false;
   if (loaded && this->roaming_to(0) != 0)
     loaded = false;
@@ -1420,6 +1547,17 @@ GoCore::build_record_tree_(uint64_t uid,
   }
 }
 
+inline GoCoreRecordTreeNode *
+GoCore::find_record_tree_node_(GoCoreRecordTreeNode &node, uint64_t uid) {
+  if (node.uid == uid)
+    return &node;
+  for (auto &child : node.children) {
+    if (auto *result = find_record_tree_node_(child, uid); result != nullptr)
+      return result;
+  }
+  return nullptr;
+}
+
 inline int
 GoCore::reorder_next_records(uint64_t parent_uid,
                              const std::vector<uint64_t> &ordered_uids) {
@@ -1448,7 +1586,7 @@ GoCore::reorder_next_records(uint64_t parent_uid,
 }
 
 inline bool GoCore::load_record_tree_children_(
-    const std::vector<GoCoreRecordTreeNode> &children) {
+    const std::vector<GoCoreRecordTreeNode> &children, uint64_t *failed_uid) {
   const auto parent_uid = this->current_uid_;
   for (const auto &child : children) {
     if (this->roaming_to(parent_uid) != 0)
@@ -1458,20 +1596,23 @@ inline bool GoCore::load_record_tree_children_(
             ? this->preset_stones_(child.preset_stones, child.uid, false)
             : this->place_stone_(child.color, child.row, child.column,
                                  child.uid);
-    if (result != 0)
+    if (result != 0) {
+      if (failed_uid != nullptr)
+        *failed_uid = child.uid;
       return false;
+    }
 
     // SGF允许写出对当前局面没有实际影响的setup属性。它不应成为GoCore节点，
     // 但其子节点仍需直接接到当前父节点上。
     if (child.color == 0 && this->current_uid_ == parent_uid) {
-      if (!this->load_record_tree_children_(child.children))
+      if (!this->load_record_tree_children_(child.children, failed_uid))
         return false;
       continue;
     }
     if (this->current_uid_ != child.uid)
       return false;
 
-    if (!this->load_record_tree_children_(child.children))
+    if (!this->load_record_tree_children_(child.children, failed_uid))
       return false;
   }
 

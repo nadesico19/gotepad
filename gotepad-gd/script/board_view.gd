@@ -6,6 +6,7 @@ signal cut_branch_mode_changed(enabled: bool)
 signal find_mode_changed(direction: int)
 signal next_color_changed(color: int)
 signal preset_mode_changed(enabled: bool)
+signal preset_edit_replay_failed(failed_uid: int)
 signal note_mark_cancel_requested
 signal note_mark_draft_changed
 signal setup_branches_changed(branches: Array[Dictionary])
@@ -65,6 +66,7 @@ const kStoneScene: PackedScene = preload("res://scene/stone.tscn")
 @onready var cut_branch_confirmation_: ConfirmationDialog = \
 	$CutBranchConfirmation
 @onready var find_result_dialog_: AcceptDialog = $FindResultDialog
+@onready var preset_edit_error_dialog_: AcceptDialog = $PresetEditErrorDialog
 @onready var playback_bar_: HSlider = $PlaybackBar
 @onready var playback_hover_bubble_: PanelContainer = $PlaybackHoverBubble
 @onready var playback_hover_label_: Label = $PlaybackHoverBubble/Label
@@ -95,6 +97,7 @@ var updating_playback_bar_: bool = false
 var playback_playing_: bool = false
 var interactions_locked_: bool = false
 var preset_mode_: bool = false
+var preset_editing_current_: bool = false
 var preset_original_states_: PackedInt32Array = PackedInt32Array()
 var preset_original_move_numbers_: PackedInt32Array = PackedInt32Array()
 var preset_draft_states_: PackedInt32Array = PackedInt32Array()
@@ -111,6 +114,10 @@ var variation_original_next_color_: int = kBlack
 var variation_original_locked_: bool = false
 var variation_start_color_: int = kBlack
 var variation_base_uid_: int = 0
+var edit_sensitive_action_gate_: Callable
+var note_numbering_preview_enabled_: bool = false
+var note_numbering_preview_uid_: int = -1
+var note_numbering_preview_index_: int = -1
 var displayed_note_sequential_marks_: Array[Dictionary] = []
 var displayed_note_symbol_marks_: Array[Dictionary] = []
 var note_mark_mode_: int = kNoteMarkDisabled
@@ -273,8 +280,41 @@ func get_next_color_texture() -> Texture2D:
 	return black_texture_ if next_color_ == kBlack else white_texture_
 
 
+func get_find_direction() -> int:
+	return find_direction_
+
+
+func is_cut_branch_mode() -> bool:
+	return cut_branch_mode_
+
+
 func get_playback_path() -> PackedInt64Array:
 	return playback_path_.duplicate()
+
+
+func set_edit_sensitive_action_gate(gate: Callable) -> void:
+	edit_sensitive_action_gate_ = gate
+
+
+func stop_playback() -> void:
+	set_playback_playing_(false)
+
+
+func restore_playback_position() -> void:
+	refresh_playback_path_()
+
+
+func set_note_numbering_preview(
+		enabled: bool,
+		uid: int,
+		note_index: int
+) -> void:
+	note_numbering_preview_enabled_ = enabled and uid >= 0 and note_index >= 0
+	note_numbering_preview_uid_ = uid if note_numbering_preview_enabled_ else -1
+	note_numbering_preview_index_ = \
+		note_index if note_numbering_preview_enabled_ else -1
+	if not position_states_.is_empty() and not refresh_position_():
+		push_error("Failed to refresh note move-number preview.")
 
 
 func roam_to_playback_uid(uid: int) -> bool:
@@ -629,6 +669,7 @@ func cancel_preset_mode() -> bool:
 	position_states_ = PackedInt32Array(preset_original_states_)
 	move_numbers_ = PackedInt32Array(preset_original_move_numbers_)
 	preset_mode_ = false
+	preset_editing_current_ = false
 	clear_preset_draft_()
 	infer_next_color_()
 	preset_mode_changed.emit(false)
@@ -1043,6 +1084,11 @@ func set_preset_mode_(enabled: bool) -> void:
 
 	preset_mode_ = enabled
 	if preset_mode_:
+		var current_node: Dictionary = Dictionary(
+			go_notes_.call(&"get_node_at", view_uid_)
+		)
+		preset_editing_current_ = view_uid_ > 0 \
+				and int(current_node.get("color", -1)) == 0
 		preset_original_states_ = PackedInt32Array(position_states_)
 		preset_original_move_numbers_ = PackedInt32Array(move_numbers_)
 		preset_draft_states_ = PackedInt32Array(position_states_)
@@ -1050,6 +1096,7 @@ func set_preset_mode_(enabled: bool) -> void:
 		set_cut_branch_mode_(false)
 		set_playback_playing_(false)
 	else:
+		preset_editing_current_ = false
 		clear_preset_draft_()
 		infer_next_color_()
 	preset_mode_changed.emit(preset_mode_)
@@ -1065,7 +1112,21 @@ func commit_preset_draft_() -> bool:
 	var result: int = int(go_notes_.execute_command(command))
 	if result == 0:
 		return true
-	push_warning(CommandMessages.localize(go_notes_.get_message()))
+	var native_message: String = go_notes_.get_message()
+	var localized_message: String = CommandMessages.localize(native_message)
+	push_warning(localized_message)
+	if native_message.begins_with("[GNE0037]"):
+		var failed_uid: int = int(go_notes_.call(&"get_error_uid"))
+		position_states_ = PackedInt32Array(preset_original_states_)
+		move_numbers_ = PackedInt32Array(preset_original_move_numbers_)
+		preset_edit_error_dialog_.dialog_text = (
+			"修改后的预置局面无法重放后续棋局（首个冲突节点 UID：%d）。\n"
+			+ "本次修改已放弃。如需修改，请先剪掉与新局面冲突的后续分支。"
+		) % failed_uid
+		preset_edit_error_dialog_.popup_centered()
+		preset_edit_replay_failed.emit(failed_uid)
+		refresh_stones_()
+		return true
 	preset_mode_changed.emit(true)
 	return false
 
@@ -1077,7 +1138,9 @@ func build_preset_command_(
 	if original_states.size() != final_states.size() \
 			or final_states.size() != board_size_ * board_size_:
 		return ""
-	var fields := PackedStringArray(["PRESET"])
+	var command_name: String = "EDITPRESET" if preset_editing_current_ \
+			else "PRESET"
+	var fields := PackedStringArray([command_name])
 	for index in range(final_states.size()):
 		if original_states[index] == final_states[index]:
 			continue
@@ -1108,6 +1171,13 @@ func try_find_at_(screen_position: Vector2) -> bool:
 	if intersection == Vector2i.ZERO:
 		return false
 	var direction: int = find_direction_
+	request_edit_sensitive_action_(
+		Callable(self, "execute_find_now_").bind(direction, intersection)
+	)
+	return true
+
+
+func execute_find_now_(direction: int, intersection: Vector2i) -> void:
 	set_find_mode_(kFindDisabled)
 	var command: String = "FIND,%d,%d,%d;" % [
 		direction, intersection.y, intersection.x
@@ -1121,7 +1191,6 @@ func try_find_at_(screen_position: Vector2) -> bool:
 			message = "没有在指定方向找到这颗棋子。"
 		find_result_dialog_.dialog_text = message
 		find_result_dialog_.popup_centered(Vector2i(420, 160))
-	return true
 
 func _draw() -> void:
 	var canvas_transform: Transform2D = get_global_transform_with_canvas()
@@ -1386,10 +1455,18 @@ func try_cut_branch_at_(screen_position: Vector2) -> bool:
 	var branch: Dictionary = branch_at_screen_position_(screen_position)
 	if branch.is_empty():
 		return false
-	pending_cut_branch_uid_ = int(branch.get("uid", -1))
+	request_edit_sensitive_action_(
+		Callable(self, "show_cut_branch_confirmation_").bind(
+			int(branch.get("uid", -1))
+		)
+	)
+	return true
+
+
+func show_cut_branch_confirmation_(target_uid: int) -> void:
+	pending_cut_branch_uid_ = target_uid
 	set_playback_playing_(false)
 	cut_branch_confirmation_.popup_centered(Vector2i(460, 180))
-	return true
 
 
 func on_cut_branch_confirmed_() -> void:
@@ -1432,12 +1509,22 @@ func branch_at_screen_position_(screen_position: Vector2) -> Dictionary:
 
 
 func execute_roaming_to_(target_uid: int) -> bool:
+	var outcome: Dictionary = {"completed": false, "success": true}
+	request_edit_sensitive_action_(
+		Callable(self, "execute_roaming_to_now_").bind(target_uid, outcome)
+	)
+	return bool(outcome.success) if bool(outcome.completed) else true
+
+
+func execute_roaming_to_now_(target_uid: int, outcome: Dictionary) -> void:
 	var command: String = "ROAMING,%d;" % target_uid
 	var result: int = int(go_notes_.execute_command(command))
+	outcome.completed = true
 	if result != 0:
+		outcome.success = false
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
-		return false
-	return true
+		return
+	outcome.success = true
 
 
 func branch_local_position_(branch: Dictionary) -> Vector2:
@@ -1503,12 +1590,29 @@ func place_stone_at_screen_position_(
 
 
 func execute_place_stone_(color: int, row: int, column: int) -> bool:
+	var outcome: Dictionary = {"completed": false, "success": true}
+	request_edit_sensitive_action_(
+		Callable(self, "execute_place_stone_now_").bind(
+			color, row, column, outcome
+		)
+	)
+	return bool(outcome.success) if bool(outcome.completed) else true
+
+
+func execute_place_stone_now_(
+		color: int,
+		row: int,
+		column: int,
+		outcome: Dictionary
+) -> void:
 	var command: String = "PLACESTONE,%d,%d,%d;" % [color, row, column]
 	var result: int = int(go_notes_.execute_command(command))
+	outcome.completed = true
 	if result != 0:
+		outcome.success = false
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
-		return false
-	return true
+		return
+	outcome.success = true
 
 
 func request_takeback_() -> void:
@@ -1518,6 +1622,10 @@ func request_takeback_() -> void:
 		return
 	if not variation_mode_ and int(go_notes_.get_current_uid()) == 0:
 		return
+	request_edit_sensitive_action_(Callable(self, "show_takeback_confirmation_"))
+
+
+func show_takeback_confirmation_() -> void:
 	takeback_confirmation_.popup_centered(Vector2i(360, 160))
 	get_viewport().set_input_as_handled()
 
@@ -1701,9 +1809,7 @@ func navigate_playback_by_(
 	)
 	if target_index == current_index:
 		return true
-	var target_value: float = float(target_index)
-	playback_bar_.set_value_no_signal(target_value)
-	on_playback_value_changed_(target_value, user_initiated)
+	on_playback_value_changed_(float(target_index), user_initiated)
 	return true
 
 
@@ -1826,9 +1932,17 @@ func set_playback_playing_(playing: bool) -> void:
 
 
 func on_playback_value_changed_(
-	value: float,
-	user_initiated: bool = true
+		value: float,
+		user_initiated: bool = true
 ) -> void:
+	if updating_playback_bar_ or not follow_current_:
+		return
+	request_edit_sensitive_action_(
+		Callable(self, "apply_playback_value_").bind(value, user_initiated)
+	)
+
+
+func apply_playback_value_(value: float, user_initiated: bool) -> void:
 	if updating_playback_bar_ or not follow_current_:
 		return
 	if user_initiated:
@@ -1836,6 +1950,7 @@ func on_playback_value_changed_(
 	if go_notes_ == null or playback_path_.is_empty():
 		return
 	var path_index: int = clampi(roundi(value), 0, playback_path_.size() - 1)
+	playback_bar_.set_value_no_signal(float(path_index))
 	var target_uid: int = int(playback_path_[path_index])
 	if target_uid == int(go_notes_.get_current_uid()):
 		return
@@ -1850,6 +1965,13 @@ func on_playback_value_changed_(
 		set_playback_playing_(false)
 
 
+func request_edit_sensitive_action_(action: Callable) -> void:
+	if edit_sensitive_action_gate_.is_valid():
+		edit_sensitive_action_gate_.call(action)
+	elif action.is_valid():
+		action.call()
+
+
 func refresh_position_() -> bool:
 	branch_moves_.clear()
 	setup_branches_.clear()
@@ -1859,13 +1981,20 @@ func refresh_position_() -> bool:
 		return false
 	var target_uid: int = int(go_notes_.get_current_uid()) \
 		if follow_current_ else view_uid_
-	var snapshot: Dictionary = Dictionary(
-		go_notes_.call(
+	var snapshot: Dictionary = {}
+	if note_numbering_preview_enabled_ \
+			and target_uid == note_numbering_preview_uid_:
+		snapshot = Dictionary(go_notes_.call(
+			&"get_note_position_snapshot_at",
+			target_uid,
+			note_numbering_preview_index_
+		))
+	if snapshot.is_empty():
+		snapshot = Dictionary(go_notes_.call(
 			&"get_position_snapshot_at",
 			target_uid,
 			move_number_query_count_()
-		)
-	)
+		))
 	if snapshot.is_empty():
 		return false
 	var states: PackedInt32Array = PackedInt32Array(
@@ -1941,7 +2070,9 @@ func refresh_stones_() -> void:
 
 	var cell_size: float = cell_size_()
 	var first_displayed_move: int = 1
-	if SettingsStore.get_absolute_move_numbers():
+	var note_preview_active: bool = note_numbering_preview_enabled_ \
+		and view_uid_ == note_numbering_preview_uid_
+	if not note_preview_active and SettingsStore.get_absolute_move_numbers():
 		var displayed_move_count: int = displayed_move_count_()
 		if displayed_move_count > 0:
 			var latest_move_number: int = 0
