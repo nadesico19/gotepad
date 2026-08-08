@@ -15,7 +15,7 @@ corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
 
 [node name="BranchOrderPopup" type="PopupPanel"]
-size = Vector2i(440, 460)
+size = Vector2i(488, 460)
 theme_override_styles/panel = SubResource("StyleBoxFlat_popup")
 script = ExtResource("1_script")
 
@@ -39,12 +39,17 @@ theme_override_constants/separation = 8
 layout_mode = 2
 theme_override_constants/separation = 4
 
+[node name="LeadingSpace" type="Control" parent="Margin/Content/Header"]
+custom_minimum_size = Vector2(8, 0)
+layout_mode = 2
+mouse_filter = 2
+
 [node name="Title" type="Label" parent="Margin/Content/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.91, 0.7, 1)
 theme_override_font_sizes/font_size = 19
-text = "调整下一手分支顺序"
+text = "调整、删除、双击进入"
 vertical_alignment = 1
 
 [node name="Accept" type="Button" parent="Margin/Content/Header"]
@@ -83,3 +88,9 @@ horizontal_scroll_mode = 0
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
+
+[node name="DeleteConfirmation" type="ConfirmationDialog" parent="."]
+title = "确认删除分支"
+initial_position = 2
+ok_button_text = "删除"
+cancel_button_text = "取消"

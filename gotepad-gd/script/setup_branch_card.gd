@@ -4,6 +4,7 @@ extends Button
 signal branch_hovered(uid: int)
 signal branch_unhovered(uid: int)
 signal branch_selected(uid: int)
+signal branch_double_clicked(uid: int)
 
 const kCardSize: Vector2 = Vector2(320.0, 124.0)
 const kThumbnailSize: float = 104.0
@@ -24,6 +25,7 @@ func _ready() -> void:
 	mouse_entered.connect(on_mouse_entered_)
 	mouse_exited.connect(on_mouse_exited_)
 	pressed.connect(on_pressed_)
+	gui_input.connect(on_gui_input_)
 
 
 func setup(
@@ -55,6 +57,15 @@ func on_mouse_exited_() -> void:
 
 func on_pressed_() -> void:
 	branch_selected.emit(uid_)
+
+
+func on_gui_input_(event: InputEvent) -> void:
+	if event is not InputEventMouseButton:
+		return
+	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
+	if mouse_event.button_index == MOUSE_BUTTON_LEFT \
+			and mouse_event.pressed and mouse_event.double_click:
+		branch_double_clicked.emit(uid_)
 
 
 func _draw() -> void:

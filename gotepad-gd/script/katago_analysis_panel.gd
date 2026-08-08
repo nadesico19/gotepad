@@ -10,22 +10,31 @@ const kStatePaused: int = 2
 const kStateStopping: int = 3
 const kStateContinuous: int = 4
 @onready var panel_: PanelContainer = $Panel
-@onready var play_button_: Button = $Panel/Margin/Content/Controls/Play
-@onready var pause_button_: Button = $Panel/Margin/Content/Controls/Pause
-@onready var stop_button_: Button = $Panel/Margin/Content/Controls/Stop
-@onready var status_label_: Label = $Panel/Margin/Content/Controls/Status
-@onready var continuous_: CheckBox = $Panel/Margin/Content/Controls/Continuous
+@onready var play_button_: Button = $Panel/Margin/Content/Controls/Primary/Play
+@onready var pause_button_: Button = $Panel/Margin/Content/Controls/Primary/Pause
+@onready var stop_button_: Button = $Panel/Margin/Content/Controls/Primary/Stop
+@onready var increase_button_: Button = \
+	$Panel/Margin/Content/Controls/Primary/Increase
+@onready var max_playouts_: SpinBox = \
+	$Panel/Margin/Content/Controls/Primary/MaxPlayouts
+@onready var status_label_: Label = \
+	$Panel/Margin/Content/Controls/Secondary/Status
+@onready var continuous_: CheckBox = \
+	$Panel/Margin/Content/Controls/Secondary/Continuous
 @onready var candidates_: Tree = $Panel/Margin/Content/Candidates
 @onready var curve_: AnalysisCurve = $Panel/Margin/Content/Curve
 @onready var score_legend_: Label = $Panel/Margin/Content/CurveFooter/ScoreLegend
 @onready var analyze_game_button_: Button = \
 	$Panel/Margin/Content/CurveFooter/AnalyzeGame
+@onready var invalid_max_playouts_dialog_: AcceptDialog = \
+	$InvalidMaxPlayoutsDialog
 
 var service_: KataGoAnalysisService
 var go_notes_: GoNotes
 var board_: GoBoardView
 var state_: int = kStateIdle
 var current_query_id_: String = ""
+var current_max_playouts_: int = 0
 var batch_query_id_: String = ""
 var batch_member_ids_: Dictionary = {}
 var current_uid_: int = -1
@@ -43,6 +52,7 @@ func _ready() -> void:
 	play_button_.pressed.connect(on_play_pressed_)
 	pause_button_.pressed.connect(on_pause_pressed_)
 	stop_button_.pressed.connect(on_stop_pressed_)
+	increase_button_.pressed.connect(on_increase_pressed_)
 	continuous_.toggled.connect(on_continuous_toggled_)
 	analyze_game_button_.pressed.connect(on_analyze_game_pressed_)
 	curve_.position_requested.connect(on_curve_position_requested_)
@@ -166,6 +176,14 @@ func on_stop_pressed_() -> void:
 	update_controls_()
 
 
+func on_increase_pressed_() -> void:
+	var requested_playouts: int = roundi(max_playouts_.value)
+	if requested_playouts <= 0:
+		invalid_max_playouts_dialog_.popup_centered()
+		return
+	start_current_analysis_(false, requested_playouts)
+
+
 func on_continuous_toggled_(enabled: bool) -> void:
 	if enabled:
 		stop_batch_query_()
@@ -175,12 +193,13 @@ func on_continuous_toggled_(enabled: bool) -> void:
 		terminate_current_query_()
 		query_turn_uids_.erase(current_query_id_)
 		current_query_id_ = ""
+		current_max_playouts_ = 0
 		state_ = kStateIdle
 		status_label_.text = "持续分析已关闭"
 	update_controls_()
 
 
-func start_current_analysis_(continuous: bool) -> void:
+func start_current_analysis_(continuous: bool, max_playouts: int = 0) -> void:
 	if service_ == null or go_notes_ == null or board_ == null:
 		return
 	var path: PackedInt64Array = board_.get_playback_path()
@@ -197,6 +216,7 @@ func start_current_analysis_(continuous: bool) -> void:
 	current_uid_ = board_.get_view_uid()
 	query_turn_uids_.erase(current_query_id_)
 	current_query_id_ = service_.next_query_id("current")
+	current_max_playouts_ = maxi(max_playouts, 0)
 	var turns: Array = Array(context.get("analyze_turns", []))
 	var target_turn: int = int(turns[-1])
 	query_turn_uids_[current_query_id_] = {target_turn: current_uid_}
@@ -206,16 +226,20 @@ func start_current_analysis_(continuous: bool) -> void:
 		[target_turn],
 		SettingsStore.get_katago_max_visits(),
 		SettingsStore.get_katago_report_interval_seconds(),
-		SettingsStore.get_katago_analysis_pv_length()
+		SettingsStore.get_katago_analysis_pv_length(),
+		current_max_playouts_
 	)
 	query["initialPlayer"] = "W" if board_.get_next_color() == 2 else "B"
 	if not service_.submit_query(query):
 		current_query_id_ = ""
+		current_max_playouts_ = 0
 		state_ = kStateIdle
 		update_controls_()
 		return
 	state_ = kStateContinuous if continuous else kStateAnalyzing
-	status_label_.text = "正在分析当前局面…"
+	status_label_.text = "正在分析当前局面…" \
+		if current_max_playouts_ <= 0 \
+		else "正在加大计算量：%d maxplayouts…" % current_max_playouts_
 	update_controls_()
 
 
@@ -308,11 +332,16 @@ func apply_current_result_(result: Dictionary) -> void:
 	refresh_candidates_(latest_move_infos_)
 	refresh_curve_()
 	var visits: int = int(root_info.get("visits", 0))
-	status_label_.text = "%s · %d/%d visits" % [
-		"分析中" if bool(result.get("isDuringSearch", false)) else "分析完成",
-		visits,
-		SettingsStore.get_katago_max_visits()
-	]
+	var progress_name: String = \
+		"分析中" if bool(result.get("isDuringSearch", false)) else "分析完成"
+	if current_max_playouts_ > 0:
+		status_label_.text = "%s · %d visits · 目标 %d maxplayouts" % [
+			progress_name, visits, current_max_playouts_
+		]
+	else:
+		status_label_.text = "%s · %d/%d visits" % [
+			progress_name, visits, SettingsStore.get_katago_max_visits()
+		]
 
 
 func handle_batch_result_(result: Dictionary) -> void:
@@ -452,6 +481,9 @@ func update_controls_() -> void:
 	pause_button_.disabled = state_ != kStateAnalyzing
 	stop_button_.disabled = current_query_id_.is_empty() \
 		or (state_ != kStateAnalyzing and state_ != kStatePaused)
+	increase_button_.disabled = state_ != kStateIdle \
+		or not current_query_id_.is_empty() or not batch_query_id_.is_empty()
+	max_playouts_.editable = not increase_button_.disabled
 	continuous_.disabled = state_ == kStateStopping \
 		or not batch_query_id_.is_empty()
 	analyze_game_button_.disabled = not current_query_id_.is_empty() \
@@ -486,6 +518,7 @@ func stop_all_queries_() -> void:
 	stop_batch_query_()
 	query_turn_uids_.erase(current_query_id_)
 	current_query_id_ = ""
+	current_max_playouts_ = 0
 	paused_result_.clear()
 	state_ = kStateIdle
 
@@ -495,6 +528,7 @@ func on_service_error_(message: String) -> void:
 	continuous_.set_pressed_no_signal(false)
 	state_ = kStateIdle
 	current_query_id_ = ""
+	current_max_playouts_ = 0
 	batch_query_id_ = ""
 	batch_member_ids_.clear()
 	query_turn_uids_.clear()
@@ -507,6 +541,7 @@ func on_query_error_(query_id: String, message: String) -> void:
 	if query_id == current_query_id_:
 		query_turn_uids_.erase(query_id)
 		current_query_id_ = ""
+		current_max_playouts_ = 0
 		continuous_.set_pressed_no_signal(false)
 		state_ = kStateIdle
 	elif batch_member_ids_.has(query_id):

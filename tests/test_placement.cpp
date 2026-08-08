@@ -108,6 +108,13 @@ namespace {
         assert(dynamic_cast<nd::go::GoNotes::EditPresetCommand *>(
                    edit_preset.get()) != nullptr);
         assert(!nd::go::GoNotes::Command::parse("PRESET,1,4,5,2,16;"));
+        auto keep_main_line =
+            nd::go::GoNotes::Command::parse("KEEPMAINLINE;");
+        assert(dynamic_cast<nd::go::GoNotes::KeepMainLineCommand *>(
+                   keep_main_line.get()) != nullptr);
+        auto clear_notes = nd::go::GoNotes::Command::parse("CLEARNOTES;");
+        assert(dynamic_cast<nd::go::GoNotes::ClearNotesCommand *>(
+                   clear_notes.get()) != nullptr);
 
         auto place = nd::go::GoNotes::Command::parse("PLACESTONE,2,16,17;");
         assert(dynamic_cast<nd::go::GoNotes::PlaceStoneCommand *>(place.get()) != nullptr);
@@ -256,6 +263,83 @@ namespace {
         assert(children[0].uid == preset_uid);
         assert(children[1].uid == first_uid);
         assert(children[2].uid == second_uid);
+    }
+
+    void test_keep_main_line_command() {
+        nd::go::GoNotes notes{19};
+        expect_eq(notes.execute("PLACESTONE,1,4,4;"), 0,
+                  "keep main line: creates first root branch");
+        const auto main_first_uid = notes.current_uid();
+        expect_eq(notes.execute("PLACESTONE,2,4,5;"), 0,
+                  "keep main line: extends first child");
+        const auto main_leaf_uid = notes.current_uid();
+        expect_eq(notes.execute("ROAMING," + std::to_string(main_first_uid) + ";"), 0,
+                  "keep main line: returns to first node");
+        expect_eq(notes.execute("PLACESTONE,2,5,4;"), 0,
+                  "keep main line: creates a deeper side branch");
+        const auto deeper_side_uid = notes.current_uid();
+        expect_eq(notes.execute("ROAMING,0;"), 0,
+                  "keep main line: returns to root");
+        expect_eq(notes.execute("PLACESTONE,1,10,10;"), 0,
+                  "keep main line: creates a root side branch");
+        const auto root_side_uid = notes.current_uid();
+
+        expect_eq(notes.execute("KEEPMAINLINE;"), 0,
+                  "keep main line: command succeeds");
+        assert(notes.current_uid() == main_leaf_uid);
+        assert(notes.node_at(main_first_uid).has_value());
+        assert(notes.node_at(main_leaf_uid).has_value());
+        assert(!notes.node_at(deeper_side_uid).has_value());
+        assert(!notes.node_at(root_side_uid).has_value());
+
+        expect_eq(notes.undo(), 0,
+                  "keep main line: one undo restores every removed branch");
+        assert(notes.current_uid() == root_side_uid);
+        assert(notes.node_at(deeper_side_uid).has_value());
+        assert(notes.node_at(root_side_uid).has_value());
+
+        expect_eq(notes.redo(), 0,
+                  "keep main line: redo removes every side branch again");
+        assert(notes.current_uid() == main_leaf_uid);
+        assert(!notes.node_at(deeper_side_uid).has_value());
+        assert(!notes.node_at(root_side_uid).has_value());
+    }
+
+    void test_clear_notes_command() {
+        nd::go::GoNotes notes{19};
+        expect_eq(notes.execute("PLACESTONE,1,4,4;"), 0,
+                  "clear notes: creates a recorded position");
+        const auto noted_uid = notes.current_uid();
+        expect_eq(notes.execute(std::make_unique<nd::go::GoNotes::AppendNote>()),
+                  0, "clear notes: appends a note");
+        expect_eq(notes.execute(std::make_unique<nd::go::GoNotes::UpdateNoteText>(
+                      0, "Title", "Comment")),
+                  0, "clear notes: fills note text");
+        expect_eq(notes.execute(
+                      std::make_unique<nd::go::GoNotes::UpdateSequentialMarks>(
+                          0, 4, 4, false)),
+                  0, "clear notes: adds a sequential mark");
+        expect_eq(notes.execute(
+                      std::make_unique<nd::go::GoNotes::UpdateSymbolMarks>(
+                          0, 5, 5, "TR")),
+                  0, "clear notes: adds a symbol mark");
+
+        expect_eq(notes.execute("CLEARNOTES;"), 0,
+                  "clear notes: command succeeds");
+        assert(notes.notes_at(noted_uid).empty());
+
+        expect_eq(notes.undo(), 0,
+                  "clear notes: one undo restores all note content");
+        const auto restored = notes.notes_at(noted_uid);
+        assert(restored.size() == 1);
+        assert(restored.front().title == "Title");
+        assert(restored.front().comment == "Comment");
+        assert(restored.front().sequential_marks.size() == 1);
+        assert(restored.front().symbol_marks.size() == 1);
+
+        expect_eq(notes.redo(), 0,
+                  "clear notes: redo clears all note content again");
+        assert(notes.notes_at(noted_uid).empty());
     }
 
     void test_go_notes_execute_and_undo() {
@@ -1050,6 +1134,8 @@ int main() {
     test_command_parse();
     test_go_notes_construction();
     test_reorder_branches_command();
+    test_keep_main_line_command();
+    test_clear_notes_command();
     test_go_notes_execute_and_undo();
     test_find_command_directions();
     test_preset_stone_export_and_record_tree_load();

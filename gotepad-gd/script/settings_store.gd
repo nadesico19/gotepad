@@ -7,7 +7,8 @@ signal katago_paths_changed
 signal katago_analysis_settings_changed
 
 const kConfigPath: String = "user://settings.cfg"
-const kSchemaVersion: int = 12
+const kWindowStatePath: String = "user://window_state.cfg"
+const kSchemaVersion: int = 15
 const kMoveNumberModeOne: int = 0
 const kMoveNumberModeTen: int = 1
 const kMoveNumberModeAll: int = 2
@@ -16,9 +17,13 @@ const kDefaultMoveNumberMode: int = kMoveNumberModeOne
 const kDefaultMoveNumberCount: int = 20
 const kDefaultAbsoluteMoveNumbers: bool = false
 const kDefaultPlaybackIntervalSeconds: float = 1.0
+const kStoneSoundVolumeMinimum: int = 0
+const kStoneSoundVolumeMaximum: int = 100
+const kDefaultStoneSoundVolume: int = 50
 const kPptxImageFormatSvg: int = 0
 const kPptxImageFormatPng: int = 1
 const kDefaultPptxImageFormat: int = kPptxImageFormatSvg
+const kDefaultPptxBoardCoordinates: bool = false
 const kDefaultKatagoExecutablePath: String = ""
 const kDefaultKatagoModelPath: String = ""
 const kDefaultKatagoMaxVisits: int = 500
@@ -55,7 +60,9 @@ var move_number_mode_: int = kDefaultMoveNumberMode
 var move_number_count_: int = kDefaultMoveNumberCount
 var absolute_move_numbers_: bool = kDefaultAbsoluteMoveNumbers
 var playback_interval_seconds_: float = kDefaultPlaybackIntervalSeconds
+var stone_sound_volume_: int = kDefaultStoneSoundVolume
 var pptx_image_format_: int = kDefaultPptxImageFormat
+var pptx_board_coordinates_: bool = kDefaultPptxBoardCoordinates
 var katago_executable_path_: String = kDefaultKatagoExecutablePath
 var katago_model_path_: String = kDefaultKatagoModelPath
 var katago_max_visits_: int = kDefaultKatagoMaxVisits
@@ -65,10 +72,15 @@ var katago_analysis_pv_length_: int = kDefaultKatagoAnalysisPvLength
 var katago_show_score_lead_: bool = kDefaultKatagoShowScoreLead
 var katago_game_analysis_visits_: int = kDefaultKatagoGameAnalysisVisits
 var katago_analysis_config_path_: String = ""
+var saved_window_state_available_: bool = false
+var saved_window_position_: Vector2i = Vector2i.ZERO
+var saved_window_size_: Vector2i = Vector2i(1600, 900)
+var saved_window_maximized_: bool = false
 
 
 func _ready() -> void:
 	load_config_()
+	load_window_state_()
 	ensure_managed_katago_analysis_config_()
 	load_textures_()
 
@@ -112,12 +124,20 @@ func get_playback_interval_seconds() -> float:
 	return playback_interval_seconds_
 
 
+func get_stone_sound_volume() -> int:
+	return stone_sound_volume_
+
+
 func get_pptx_image_format() -> int:
 	return pptx_image_format_
 
 
 func get_pptx_image_format_name() -> String:
 	return "png" if pptx_image_format_ == kPptxImageFormatPng else "svg"
+
+
+func get_pptx_board_coordinates() -> bool:
+	return pptx_board_coordinates_
 
 
 func get_katago_executable_path() -> String:
@@ -154,6 +174,34 @@ func get_katago_analysis_config_path() -> String:
 
 func get_managed_katago_analysis_config_path() -> String:
 	return ProjectSettings.globalize_path(kManagedKatagoConfigPath)
+
+
+func get_saved_window_state() -> Dictionary:
+	if not saved_window_state_available_:
+		return {}
+	return {
+		"position": saved_window_position_,
+		"size": saved_window_size_,
+		"maximized": saved_window_maximized_,
+	}
+
+
+func save_window_state(
+	position: Vector2i,
+	size: Vector2i,
+	maximized: bool
+) -> Error:
+	if size.x <= 0 or size.y <= 0:
+		return ERR_INVALID_PARAMETER
+	saved_window_position_ = position
+	saved_window_size_ = size
+	saved_window_maximized_ = maximized
+	saved_window_state_available_ = true
+	var config: ConfigFile = ConfigFile.new()
+	config.set_value("window", "position", saved_window_position_)
+	config.set_value("window", "size", saved_window_size_)
+	config.set_value("window", "maximized", saved_window_maximized_)
+	return config.save(kWindowStatePath)
 
 
 func has_valid_katago_paths() -> bool:
@@ -213,7 +261,9 @@ func set_settings(
 		move_number_count: int,
 		absolute_move_numbers: bool,
 		playback_interval_seconds: float,
+		stone_sound_volume: int,
 		pptx_image_format: int,
+		pptx_board_coordinates: bool,
 		katago_executable_path: String,
 		katago_model_path: String,
 		katago_max_visits: int,
@@ -230,7 +280,9 @@ func set_settings(
 	var previous_move_number_count: int = move_number_count_
 	var previous_absolute_move_numbers: bool = absolute_move_numbers_
 	var previous_playback_interval: float = playback_interval_seconds_
+	var previous_stone_sound_volume: int = stone_sound_volume_
 	var previous_pptx_image_format: int = pptx_image_format_
+	var previous_pptx_board_coordinates: bool = pptx_board_coordinates_
 	var previous_katago_executable_path: String = katago_executable_path_
 	var previous_katago_model_path: String = katago_model_path_
 	var previous_katago_max_visits: int = katago_max_visits_
@@ -252,9 +304,15 @@ func set_settings(
 	move_number_count_ = maxi(move_number_count, 1)
 	absolute_move_numbers_ = absolute_move_numbers
 	playback_interval_seconds_ = clampf(playback_interval_seconds, 0.1, 60.0)
+	stone_sound_volume_ = clampi(
+		stone_sound_volume,
+		kStoneSoundVolumeMinimum,
+		kStoneSoundVolumeMaximum
+	)
 	pptx_image_format_ = clampi(
 		pptx_image_format, kPptxImageFormatSvg, kPptxImageFormatPng
 	)
+	pptx_board_coordinates_ = pptx_board_coordinates
 	katago_executable_path_ = katago_executable_path.strip_edges()
 	katago_model_path_ = katago_model_path.strip_edges()
 	katago_max_visits_ = maxi(katago_max_visits, 1)
@@ -275,7 +333,9 @@ func set_settings(
 		move_number_count_ = previous_move_number_count
 		absolute_move_numbers_ = previous_absolute_move_numbers
 		playback_interval_seconds_ = previous_playback_interval
+		stone_sound_volume_ = previous_stone_sound_volume
 		pptx_image_format_ = previous_pptx_image_format
+		pptx_board_coordinates_ = previous_pptx_board_coordinates
 		katago_executable_path_ = previous_katago_executable_path
 		katago_model_path_ = previous_katago_model_path
 		katago_max_visits_ = previous_katago_max_visits
@@ -324,6 +384,36 @@ func reload() -> void:
 	katago_analysis_settings_changed.emit()
 
 
+func load_window_state_() -> void:
+	saved_window_state_available_ = false
+	var config: ConfigFile = ConfigFile.new()
+	var error: Error = config.load(kWindowStatePath)
+	if error == ERR_FILE_NOT_FOUND:
+		return
+	if error != OK:
+		push_warning(
+			"Failed to load window state: %s" % error_string(error)
+		)
+		return
+	var position_value: Variant = config.get_value(
+		"window", "position", Vector2i.ZERO
+	)
+	var size_value: Variant = config.get_value(
+		"window", "size", Vector2i.ZERO
+	)
+	if position_value is not Vector2i or size_value is not Vector2i:
+		return
+	var loaded_size: Vector2i = size_value as Vector2i
+	if loaded_size.x <= 0 or loaded_size.y <= 0:
+		return
+	saved_window_position_ = position_value as Vector2i
+	saved_window_size_ = loaded_size
+	saved_window_maximized_ = bool(config.get_value(
+		"window", "maximized", false
+	))
+	saved_window_state_available_ = true
+
+
 func load_config_() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	var error: Error = config.load(kConfigPath)
@@ -337,6 +427,11 @@ func load_config_() -> void:
 		push_warning("Failed to load settings file: %s" % error_string(error))
 		reset_settings_()
 		return
+	var schema_version: int = int(config.get_value(
+		"general",
+		"schema_version",
+		0
+	))
 
 	board_texture_path_ = str(config.get_value(
 		"board",
@@ -369,11 +464,36 @@ func load_config_() -> void:
 		"playback_interval_seconds",
 		kDefaultPlaybackIntervalSeconds
 	)), 0.1, 60.0)
+	var stored_stone_sound_volume: int = int(config.get_value(
+		"audio",
+		"stone_sound_volume",
+		kDefaultStoneSoundVolume
+	))
+	if schema_version < 15:
+		match stored_stone_sound_volume:
+			0:
+				stored_stone_sound_volume = 0
+			1:
+				stored_stone_sound_volume = 25
+			2:
+				stored_stone_sound_volume = 50
+			3:
+				stored_stone_sound_volume = 100
+	stone_sound_volume_ = clampi(
+		stored_stone_sound_volume,
+		kStoneSoundVolumeMinimum,
+		kStoneSoundVolumeMaximum
+	)
 	pptx_image_format_ = clampi(int(config.get_value(
 		"export",
 		"pptx_image_format",
 		kDefaultPptxImageFormat
 	)), kPptxImageFormatSvg, kPptxImageFormatPng)
+	pptx_board_coordinates_ = bool(config.get_value(
+		"export",
+		"pptx_board_coordinates",
+		kDefaultPptxBoardCoordinates
+	))
 	katago_executable_path_ = str(config.get_value(
 		"katago",
 		"executable_path",
@@ -415,11 +535,6 @@ func load_config_() -> void:
 		get_managed_katago_analysis_config_path()
 	)).strip_edges()
 
-	var schema_version: int = int(config.get_value(
-		"general",
-		"schema_version",
-		0
-	))
 	if schema_version < 11:
 		katago_game_analysis_visits_ = kDefaultKatagoGameAnalysisVisits
 	if schema_version < kSchemaVersion:
@@ -473,7 +588,11 @@ func save_config_() -> Error:
 		"playback_interval_seconds",
 		playback_interval_seconds_
 	)
+	config.set_value("audio", "stone_sound_volume", stone_sound_volume_)
 	config.set_value("export", "pptx_image_format", pptx_image_format_)
+	config.set_value(
+		"export", "pptx_board_coordinates", pptx_board_coordinates_
+	)
 	config.set_value("katago", "executable_path", katago_executable_path_)
 	config.set_value("katago", "model_path", katago_model_path_)
 	config.set_value("katago", "max_visits", katago_max_visits_)
@@ -501,7 +620,9 @@ func reset_settings_() -> void:
 	move_number_count_ = kDefaultMoveNumberCount
 	absolute_move_numbers_ = kDefaultAbsoluteMoveNumbers
 	playback_interval_seconds_ = kDefaultPlaybackIntervalSeconds
+	stone_sound_volume_ = kDefaultStoneSoundVolume
 	pptx_image_format_ = kDefaultPptxImageFormat
+	pptx_board_coordinates_ = kDefaultPptxBoardCoordinates
 	katago_executable_path_ = kDefaultKatagoExecutablePath
 	katago_model_path_ = kDefaultKatagoModelPath
 	katago_max_visits_ = kDefaultKatagoMaxVisits

@@ -820,12 +820,15 @@ std::unique_ptr<GoNotes> GoNotes::from_sgf_file(const std::string &path,
     uint64_t next_uid = 1;
     std::unordered_set<uint64_t> state_uids{};
     SgfNotes notes{};
+    uint64_t failed_uid{};
     if (!append_node_(root, tree.children, 0, next_uid, board_size,
                       trust_gotepad_uids, state_uids, notes, error_message) ||
-        go_notes->go_core_.load_record_tree(tree, {}) != 0) {
+        go_notes->go_core_.load_record_tree(tree, {}, &failed_uid) != 0) {
       if (error_message.empty())
-        error_message =
-            "SGF contains setup stones or moves that cannot be replayed";
+        error_message = failed_uid == 0 ? "SGF contains an invalid record tree"
+                                        : "SGF record at UID " +
+                                              std::to_string(failed_uid) +
+                                              " cannot be replayed";
       return nullptr;
     }
     go_notes->notes_ = std::move(notes);

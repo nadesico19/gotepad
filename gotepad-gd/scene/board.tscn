@@ -26,6 +26,8 @@ script = ExtResource("2_board_script")
 [node name="Stones" type="Node2D" parent="."]
 show_behind_parent = false
 
+[node name="StoneSoundPlayer" type="AudioStreamPlayer" parent="."]
+
 [node name="NoteMarksOverlay" type="Node2D" parent="."]
 z_index = 2
 script = ExtResource("8_note_marks_overlay")
@@ -97,6 +99,7 @@ max_value = 0.0
 step = 1.0
 rounded = true
 tick_count = 0
+scrollable = false
 tooltip_text = "拖动以浏览棋局"
 
 [node name="PlaybackHoverBubble" type="PanelContainer" parent="."]

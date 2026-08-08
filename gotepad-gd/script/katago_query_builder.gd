@@ -92,9 +92,10 @@ static func build_query(
 		turns: Array,
 		max_visits: int,
 		report_interval: float,
-		pv_length: int
+		pv_length: int,
+		max_playouts: int = 0
 ) -> Dictionary:
-	return {
+	var query: Dictionary = {
 		"id": query_id,
 		"moves": context.get("moves", []),
 		"initialStones": context.get("initialStones", []),
@@ -109,6 +110,13 @@ static func build_query(
 		# KataGo 的 analysisPVLen 不包含候选第一手；界面设置表示总手数。
 		"analysisPVLen": maxi(pv_length - 1, 1)
 	}
+	if max_playouts > 0:
+		# Analysis Engine 没有独立的顶层 maxPlayouts 字段，需要通过
+		# overrideSettings 覆盖；同时解除较小的 maxVisits 限制，避免请求
+		# 在达到指定 playouts 前就提前结束。
+		query["maxVisits"] = 1000000000
+		query["overrideSettings"] = {"maxPlayouts": max_playouts}
+	return query
 
 
 static func find_last_setup_index_(

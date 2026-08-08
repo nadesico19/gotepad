@@ -50,10 +50,26 @@ const kNoteMarkDisabled: int = 0
 const kNoteSequentialMarkMode: int = 1
 const kNoteSymbolMarkMode: int = 2
 const kStoneScene: PackedScene = preload("res://scene/stone.tscn")
+const kStoneSound0: AudioStream = preload(
+	"res://assets/audio/place_stone_0.mp3"
+)
+const kStoneSound1: AudioStream = preload(
+	"res://assets/audio/place_stone_1.mp3"
+)
+const kStoneSound2: AudioStream = preload(
+	"res://assets/audio/place_stone_2.mp3"
+)
+const kStoneSound3: AudioStream = preload(
+	"res://assets/audio/place_stone_3.mp3"
+)
+const kStoneSound4: AudioStream = preload(
+	"res://assets/audio/place_stone_4.mp3"
+)
 
 @export_range(1, 52, 1) var initial_board_size: int = 19
 
 @onready var stones_: Node2D = $Stones
+@onready var stone_sound_player_: AudioStreamPlayer = $StoneSoundPlayer
 @onready var note_marks_overlay_: Node2D = $NoteMarksOverlay
 @onready var analysis_candidates_overlay_: AnalysisCandidatesOverlay = \
 	$AnalysisCandidatesOverlay
@@ -859,8 +875,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		playback_direction = 1
 	if playback_direction != 0:
-		if variation_mode_:
-			return
 		if is_screen_position_on_board_(mouse_event.position) \
 				and navigate_playback_by_(playback_direction):
 			get_viewport().set_input_as_handled()
@@ -1354,9 +1368,29 @@ func draw_branch_markers_(canvas_scale: float, cell_size: float) -> void:
 	var marker_size: float = cell_size * kBranchMarkerSizeCellRatio
 	var marker_half_size: float = marker_size * 0.5
 	var outline_width: float = 1.0 / canvas_scale
+	var playback_next_uid: int = playback_next_uid_()
 	for index in range(branch_moves_.size()):
 		var branch: Dictionary = branch_moves_[index]
 		var center: Vector2 = branch_local_position_(branch)
+		var branch_uid: int = int(branch.get("uid", -1))
+		if branch_uid != playback_next_uid:
+			draw_circle(
+				center,
+				marker_half_size,
+				kBranchMarkerFillColor,
+				true,
+				-1.0,
+				true
+			)
+			draw_circle(
+				center,
+				marker_half_size,
+				kBranchMarkerBorderColor,
+				false,
+				outline_width,
+				true
+			)
+			continue
 		var marker_rect: Rect2 = Rect2(
 			center - Vector2.ONE * marker_half_size,
 			Vector2.ONE * marker_size
@@ -1369,6 +1403,13 @@ func draw_branch_markers_(canvas_scale: float, cell_size: float) -> void:
 			outline_width,
 			true
 		)
+
+
+func playback_next_uid_() -> int:
+	var current_index: int = playback_path_.find(view_uid_)
+	if current_index < 0 or current_index >= playback_path_.size() - 1:
+		return -1
+	return int(playback_path_[current_index + 1])
 
 
 func toggle_note_mark_at_(screen_position: Vector2) -> void:
@@ -1605,6 +1646,7 @@ func execute_place_stone_now_(
 		column: int,
 		outcome: Dictionary
 ) -> void:
+	var enters_existing_branch: bool = has_move_branch_(color, row, column)
 	var command: String = "PLACESTONE,%d,%d,%d;" % [color, row, column]
 	var result: int = int(go_notes_.execute_command(command))
 	outcome.completed = true
@@ -1613,6 +1655,40 @@ func execute_place_stone_now_(
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
 		return
 	outcome.success = true
+	if not enters_existing_branch:
+		play_stone_sound_()
+
+
+func has_move_branch_(color: int, row: int, column: int) -> bool:
+	for branch: Dictionary in branch_moves_:
+		if int(branch.get("color", 0)) == color \
+				and int(branch.get("row", 0)) == row \
+				and int(branch.get("column", 0)) == column:
+			return true
+	return false
+
+
+func play_stone_sound_() -> void:
+	var volume: int = SettingsStore.get_stone_sound_volume()
+	if volume <= SettingsStore.kStoneSoundVolumeMinimum:
+		return
+	stone_sound_player_.stream = random_stone_sound_()
+	stone_sound_player_.volume_db = linear_to_db(float(volume) / 100.0)
+	stone_sound_player_.play()
+
+
+func random_stone_sound_() -> AudioStream:
+	match randi_range(0, 4):
+		0:
+			return kStoneSound0
+		1:
+			return kStoneSound1
+		2:
+			return kStoneSound2
+		3:
+			return kStoneSound3
+		_:
+			return kStoneSound4
 
 
 func request_takeback_() -> void:
@@ -1736,6 +1812,7 @@ func refresh_playback_path_() -> bool:
 
 	playback_path_ = path
 	playback_move_numbers_ = playback_move_numbers
+	queue_redraw()
 	updating_playback_bar_ = true
 	playback_bar_.min_value = 0.0
 	playback_bar_.max_value = float(maxi(path.size() - 1, 0))
@@ -1821,6 +1898,14 @@ func on_playback_bar_gui_input_(event: InputEvent) -> void:
 		var mouse_event: InputEventMouseButton = event as InputEventMouseButton
 		if mouse_event.pressed:
 			set_playback_playing_(false)
+			var playback_direction: int = 0
+			if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
+				playback_direction = -1
+			elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				playback_direction = 1
+			if playback_direction != 0 \
+					and navigate_playback_by_(playback_direction):
+				playback_bar_.accept_event()
 	elif event is InputEventKey:
 		var key_event: InputEventKey = event as InputEventKey
 		if key_event.pressed and (

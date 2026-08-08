@@ -35,7 +35,9 @@ func update_zoom_() -> void:
 		target_size.x,
 		target_size.y + bottom_extension * target_scale.y
 	)
-	var viewport_size: Vector2 = Vector2(window_.size)
+	# content_scale_factor会把物理窗口换算为较小的逻辑视口。相机必须按
+	# 逻辑视口计算，否则高分屏UI放大后棋盘还会被重复放大并超出窗口。
+	var viewport_size: Vector2 = window_.get_visible_rect().size
 	var available_size := viewport_size - Vector2(
 		margin * 2.0 + right_ui_reserve,
 		margin * 2.0 + top_ui_reserve

@@ -45,11 +45,15 @@ theme_override_constants/margin_bottom = 12
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Controls" type="HBoxContainer" parent="Panel/Margin/Content"]
+[node name="Controls" type="VBoxContainer" parent="Panel/Margin/Content"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="Play" type="Button" parent="Panel/Margin/Content/Controls"]
+[node name="Primary" type="HBoxContainer" parent="Panel/Margin/Content/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Play" type="Button" parent="Panel/Margin/Content/Controls/Primary"]
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 focus_mode = 0
@@ -57,7 +61,7 @@ tooltip_text = "分析当前局面/恢复界面刷新"
 script = ExtResource("2_control_button")
 icon_kind = "play"
 
-[node name="Pause" type="Button" parent="Panel/Margin/Content/Controls"]
+[node name="Pause" type="Button" parent="Panel/Margin/Content/Controls/Primary"]
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 focus_mode = 0
@@ -65,7 +69,7 @@ tooltip_text = "暂停界面刷新"
 script = ExtResource("2_control_button")
 icon_kind = "pause"
 
-[node name="Stop" type="Button" parent="Panel/Margin/Content/Controls"]
+[node name="Stop" type="Button" parent="Panel/Margin/Content/Controls/Primary"]
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 focus_mode = 0
@@ -73,7 +77,33 @@ tooltip_text = "停止当前分析"
 script = ExtResource("2_control_button")
 icon_kind = "stop"
 
-[node name="Status" type="Label" parent="Panel/Margin/Content/Controls"]
+[node name="Spacer" type="Control" parent="Panel/Margin/Content/Controls/Primary"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Increase" type="Button" parent="Panel/Margin/Content/Controls/Primary"]
+custom_minimum_size = Vector2(104, 40)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+tooltip_text = "使用右侧指定的 maxplayouts 加大当前局面的计算量"
+text = "加大计算量"
+
+[node name="MaxPlayouts" type="SpinBox" parent="Panel/Margin/Content/Controls/Primary"]
+custom_minimum_size = Vector2(158, 40)
+layout_mode = 2
+max_value = 1000000000.0
+step = 1.0
+value = 0.0
+suffix = " maxplayouts"
+update_on_text_changed = true
+
+[node name="Secondary" type="HBoxContainer" parent="Panel/Margin/Content/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Status" type="Label" parent="Panel/Margin/Content/Controls/Secondary"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.78, 0.8, 0.82, 1)
@@ -82,7 +112,7 @@ text = "尚未开始分析"
 vertical_alignment = 1
 text_overrun_behavior = 3
 
-[node name="Continuous" type="CheckBox" parent="Panel/Margin/Content/Controls"]
+[node name="Continuous" type="CheckBox" parent="Panel/Margin/Content/Controls/Secondary"]
 layout_mode = 2
 focus_mode = 0
 mouse_default_cursor_shape = 2
@@ -127,3 +157,9 @@ focus_mode = 0
 mouse_default_cursor_shape = 2
 tooltip_text = "分析当前播放条对应的整条棋局路径"
 text = "分析整条播放路径"
+
+[node name="InvalidMaxPlayoutsDialog" type="AcceptDialog" parent="."]
+title = "计算量无效"
+size = Vector2i(460, 180)
+dialog_text = "请输入大于 0 的 maxplayouts。"
+ok_button_text = "确定"

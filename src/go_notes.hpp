@@ -87,6 +87,10 @@ inline constexpr char kEditPresetReplayFailedMessage[] =
     "[GNE0037] descendant replay failed after preset edit";
 inline constexpr char kEditPresetRecoveryFailedMessage[] =
     "[GNE0038] preset edit recovery failed";
+inline constexpr char kKeepMainLineFailedMessage[] =
+    "[GNE0039] keep main line failed";
+inline constexpr char kClearNotesFailedMessage[] =
+    "[GNE0040] clear notes failed";
 
 inline constexpr uint8_t kNoteNumberingOptionCount = 4;
 inline constexpr uint8_t kNoteNumberingBranchRelative = 0;
@@ -179,6 +183,8 @@ public:
     // - GoNotes::PlaceStoneCommand: "PLACESTONE,2,16,16;"
     // - GoNotes::TakebackCommand: "TAKEBACK;"
     // - GoNotes::CutBranchCommand: "CUTBRANCH,42;"
+    // - GoNotes::KeepMainLineCommand: "KEEPMAINLINE;"
+    // - GoNotes::ClearNotesCommand: "CLEARNOTES;"
     // - GoNotes::RoamingCommand: "ROAMING,42;"
     // - GoNotes::FindCommand: "FIND,4,4;"或"FIND,-1,4,4;"
     // - GoNotes::FindCommand: "FIND,1,4,4;"
@@ -287,6 +293,30 @@ public:
     uint64_t target_uid_;
     uint64_t start_uid_{};
     bool start_uid_set_{};
+  };
+
+  // 仅保留从虚拟根节点开始、每层选择第一个子节点所形成的主干路径，其余分支全部删除。
+  // 命令保存修改前后的完整记录树，因此整个操作只占用一个undo步骤；undo会恢复全部分支并
+  // 漫游回执行前的局面，redo则重新裁剪并漫游到保留主干的叶节点。
+  class KeepMainLineCommand final : public Command {
+  private:
+    [[nodiscard]] int execute(GoNotes &go_notes) override;
+    [[nodiscard]] int undo(GoNotes &go_notes) override;
+    GoCoreRecordTreeNode original_tree_{};
+    GoCoreRecordTreeNode main_line_tree_{};
+    uint64_t start_uid_{};
+    uint64_t main_line_leaf_uid_{};
+    bool trees_set_{};
+  };
+
+  // 清空整份棋谱的全部GoNotesRecord，包括暂时无法从记录树访问的悬空笔记。
+  // undo恢复清空前的完整笔记表，redo再次清空，因此整个操作只占用一个undo步骤。
+  class ClearNotesCommand final : public Command {
+  private:
+    [[nodiscard]] int execute(GoNotes &go_notes) override;
+    [[nodiscard]] int undo(GoNotes &go_notes) override;
+    std::unordered_map<uint64_t, std::vector<GoNotesRecord>> original_notes_{};
+    bool notes_set_{};
   };
 
   // 调整指定父节点的直属分支顺序。首次执行时保存原始完整顺序，undo和redo均直接
@@ -536,25 +566,30 @@ public:
   [[nodiscard]] static std::unique_ptr<GoNotes>
   from_sgf_file(const std::string &path, std::string &error_message);
 
-  // 将完整记录树、笔记、标记和棋谱信息保存为UTF-8编码的SGF文件。保存成功返回true；
-  // 失败返回false并填写error_message。保存操作不改变棋局状态及undo/redo记录。
+  // 将完整记录树、笔记、标记和棋谱信息保存为UTF-8编码的SGF文件。写入时先在
+  // 目标目录生成临时文件，并在覆盖已有文件前创建可恢复的临时副本；保存成功后
+  // 删除临时文件。失败返回false并填写error_message，且尽量恢复原文件。保存操作
+  // 不改变棋局状态及undo/redo记录。
   [[nodiscard]] bool save_sgf_file(const std::string &path,
                                    std::string &error_message) const;
 
   // 按B5横版出版模板，将记录树中所有可达笔记导出为PPTX。每层笔记生成一组页面；
-  // 评论过长时自动生成续页。template_path为模板PPTX路径，导出不改变棋局状态及
-  // undo/redo记录。成功返回true；失败返回false并填写error_message。
+  // 评论过长时自动生成续页。template_path为模板PPTX路径；
+  // show_board_coordinates为true时，仅在棋盘上侧和左侧绘制坐标。导出不改变
+  // 棋局状态及undo/redo记录。成功返回true；失败返回false并填写error_message。
   [[nodiscard]] bool
   export_pptx_file(const std::string &path, const std::string &template_path,
                    std::string &error_message,
-                   PptxImageFormat image_format = PptxImageFormat::Svg) const;
+                   PptxImageFormat image_format = PptxImageFormat::Svg,
+                   bool show_board_coordinates = false) const;
 
   // 使用内存中的模板PPTX导出，供模板被打包在GUI资源容器中的客户端使用。
   [[nodiscard]] bool
   export_pptx_file(const std::string &path,
                    const std::vector<uint8_t> &template_data,
                    std::string &error_message,
-                   PptxImageFormat image_format = PptxImageFormat::Svg) const;
+                   PptxImageFormat image_format = PptxImageFormat::Svg,
+                   bool show_board_coordinates = false) const;
 
   // 执行用户指定的棋盘操作命令，成功时将命令推送到undo_stack_。
   // PlaceStoneCommand返回-100且下一手分支存在相同落子时，会转换为RoamingCommand继续执行。
@@ -742,6 +777,10 @@ GoNotes::Command::parse(std::string_view command) {
     uint64_t target_uid{};
     if (parse_integer(fields[1], target_uid))
       return std::make_unique<CutBranchCommand>(target_uid);
+  } else if (fields.size() == 1 && fields[0] == "KEEPMAINLINE") {
+    return std::make_unique<KeepMainLineCommand>();
+  } else if (fields.size() == 1 && fields[0] == "CLEARNOTES") {
+    return std::make_unique<ClearNotesCommand>();
   } else if (fields.size() == 2 && fields[0] == "ROAMING") {
     uint64_t target_uid{};
     if (parse_integer(fields[1], target_uid))
@@ -1044,6 +1083,97 @@ inline int GoNotes::CutBranchCommand::undo(GoNotes &go_notes) {
   }
 
   (void)go_notes.current_cursor_.move_current(go_notes.go_core_);
+  done_ = false;
+  go_notes.message_.clear();
+  return 0;
+}
+
+inline int GoNotes::KeepMainLineCommand::execute(GoNotes &go_notes) {
+  if (done_) {
+    go_notes.message_ = kCommandAlreadyDoneMessage;
+    return -1;
+  }
+  if (!trees_set_) {
+    original_tree_ = go_notes.go_core_.record_tree();
+    main_line_tree_ = original_tree_;
+    start_uid_ = go_notes.current_cursor_.uid;
+    main_line_leaf_uid_ = 0;
+    bool removed_branch{};
+    auto *node = &main_line_tree_;
+    while (!node->children.empty()) {
+      if (node->children.size() > 1) {
+        node->children.erase(node->children.begin() + 1, node->children.end());
+        removed_branch = true;
+      }
+      node = &node->children.front();
+      main_line_leaf_uid_ = node->uid;
+    }
+    if (!removed_branch) {
+      go_notes.message_ = kKeepMainLineFailedMessage;
+      return -1;
+    }
+    trees_set_ = true;
+  }
+
+  if (go_notes.go_core_.load_record_tree(main_line_tree_, {}) != 0 ||
+      go_notes.go_core_.roaming_to(main_line_leaf_uid_) != 0) {
+    (void)go_notes.go_core_.load_record_tree(original_tree_, {});
+    (void)go_notes.go_core_.roaming_to(start_uid_);
+    (void)go_notes.current_cursor_.move_current(go_notes.go_core_);
+    go_notes.message_ = kKeepMainLineFailedMessage;
+    return -1;
+  }
+  (void)go_notes.current_cursor_.move_current(go_notes.go_core_);
+  done_ = true;
+  go_notes.message_.clear();
+  return 0;
+}
+
+inline int GoNotes::KeepMainLineCommand::undo(GoNotes &go_notes) {
+  if (!done_) {
+    go_notes.message_ = kCommandCannotBeUndoneMessage;
+    return -1;
+  }
+  if (go_notes.go_core_.load_record_tree(original_tree_, {}) != 0 ||
+      go_notes.go_core_.roaming_to(start_uid_) != 0) {
+    (void)go_notes.current_cursor_.move_current(go_notes.go_core_);
+    go_notes.message_ = kKeepMainLineFailedMessage;
+    return -1;
+  }
+  (void)go_notes.current_cursor_.move_current(go_notes.go_core_);
+  done_ = false;
+  go_notes.message_.clear();
+  return 0;
+}
+
+inline int GoNotes::ClearNotesCommand::execute(GoNotes &go_notes) {
+  if (done_) {
+    go_notes.message_ = kCommandAlreadyDoneMessage;
+    return -1;
+  }
+  if (!notes_set_) {
+    const auto has_notes =
+        std::any_of(go_notes.notes_.begin(), go_notes.notes_.end(),
+                    [](const auto &entry) { return !entry.second.empty(); });
+    if (!has_notes) {
+      go_notes.message_ = kClearNotesFailedMessage;
+      return -1;
+    }
+    original_notes_ = go_notes.notes_;
+    notes_set_ = true;
+  }
+  go_notes.notes_.clear();
+  done_ = true;
+  go_notes.message_.clear();
+  return 0;
+}
+
+inline int GoNotes::ClearNotesCommand::undo(GoNotes &go_notes) {
+  if (!done_) {
+    go_notes.message_ = kCommandCannotBeUndoneMessage;
+    return -1;
+  }
+  go_notes.notes_ = original_notes_;
   done_ = false;
   go_notes.message_.clear();
   return 0;

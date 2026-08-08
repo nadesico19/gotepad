@@ -73,6 +73,7 @@ func show_load_error(message: String) -> void:
 
 func on_load_sgf_pressed_() -> void:
 	if sgf_file_dialog_open_ or sgf_file_dialog_.visible:
+		sgf_file_dialog_.grab_focus()
 		return
 	sgf_file_dialog_open_ = true
 	set_creation_controls_disabled_(true)
@@ -105,4 +106,5 @@ func set_creation_controls_disabled_(disabled: bool) -> void:
 	for option in options_:
 		option.disabled = disabled
 	create_button_.disabled = disabled
-	load_sgf_button_.disabled = disabled
+	# 文件选择期间仍允许再次点击此按钮，以便将原生对话框提到前台。
+	load_sgf_button_.disabled = false

@@ -642,7 +642,7 @@ void test_gotepad_sgf_roundtrip(std::ofstream &out) {
               "Saved SGF should contain GP[1]");
   expect_true(saved_content.find("XU[0]") != std::string::npos,
               "Saved SGF root should contain XU[0]");
-  expect_true(saved_content.find("AP[Gotepad:0.1.2]") != std::string::npos,
+  expect_true(saved_content.find("AP[Gotepad:0.1.4]") != std::string::npos,
               "Saved SGF should identify Gotepad as its application");
 
   const auto restored =
@@ -690,6 +690,61 @@ void test_gotepad_sgf_roundtrip(std::ofstream &out) {
   out << "\nGotepad SGF roundtrip saved to " << saved_path.u8string() << '\n';
 }
 
+void test_safe_sgf_save_recovery(std::ofstream &out) {
+  namespace filesystem = std::filesystem;
+  auto temporary_directory = filesystem::u8path(".tmp");
+  if (!filesystem::exists(temporary_directory))
+    temporary_directory = filesystem::u8path("../.tmp");
+  filesystem::create_directories(temporary_directory);
+  const auto target = temporary_directory / filesystem::u8path("safe_save.sgf");
+  const auto temporary_path = [&](const std::string &suffix) {
+    const auto temporary_name = "." + target.filename().u8string() +
+                                ".gotepad-" + suffix + ".tmp";
+    return target.parent_path() / filesystem::u8path(temporary_name);
+  };
+  const auto staging = temporary_path("writing");
+  const auto backup = temporary_path("backup");
+
+  filesystem::remove(target);
+  {
+    std::ofstream backup_file(backup, std::ios::binary | std::ios::trunc);
+    backup_file << "original SGF backup";
+  }
+  {
+    std::ofstream staging_file(staging, std::ios::binary | std::ios::trunc);
+    staging_file << "incomplete SGF write";
+  }
+
+  Notes notes{9};
+  std::string error_message{};
+  expect_true(notes.save_sgf_file(target.u8string(), error_message),
+              error_message.c_str());
+  expect_true(filesystem::exists(target), "Safely saved SGF should exist");
+  expect_true(!filesystem::exists(staging),
+              "Successful SGF save should remove its staging file");
+  expect_true(!filesystem::exists(backup),
+              "Successful SGF save should remove its recovery backup");
+  const auto restored = Notes::from_sgf_file(target.u8string(), error_message);
+  expect_true(restored != nullptr,
+              "Safely saved SGF should remain readable after recovery");
+  out << "\nSafe SGF save recovered stale temporary files successfully.\n";
+}
+
+void test_wrongtest_sgf_loads(std::ofstream &out) {
+  namespace filesystem = std::filesystem;
+  auto path = filesystem::u8path("tests/wrongtest.sgf");
+  if (!filesystem::exists(path))
+    path = filesystem::u8path("../tests/wrongtest.sgf");
+  expect_true(filesystem::exists(path), "wrongtest.sgf fixture is missing");
+
+  std::string error_message{};
+  const auto go_notes = Notes::from_sgf_file(path.u8string(), error_message);
+  if (!go_notes)
+    std::cerr << "wrongtest.sgf load error: " << error_message << '\n';
+  expect_true(go_notes != nullptr, "wrongtest.sgf should load successfully");
+  out << "\nwrongtest.sgf loaded successfully.\n";
+}
+
 void replay_sgf_main_variation(std::ofstream &out) {
   const auto document = read_test_document();
   const auto games = document->GetGames();
@@ -735,6 +790,8 @@ int main() {
   test_unicode_sgf_path(out);
   test_localized_game_result_normalization(out);
   test_gotepad_sgf_roundtrip(out);
+  test_safe_sgf_save_recovery(out);
+  test_wrongtest_sgf_loads(out);
   test_sgf_preset_stones();
   replay_sgf_main_variation(out);
 

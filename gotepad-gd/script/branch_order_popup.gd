@@ -2,21 +2,27 @@ class_name BranchOrderPopup
 extends PopupPanel
 
 signal order_accepted(parent_uid: int, ordered_uids: PackedInt64Array)
+signal branch_delete_requested(parent_uid: int, branch_uid: int)
+signal branch_enter_requested(parent_uid: int, branch_uid: int)
 
 @onready var branch_list_: VBoxContainer = \
 	$Margin/Content/Scroll/BranchList
 @onready var accept_button_: Button = $Margin/Content/Header/Accept
 @onready var cancel_button_: Button = $Margin/Content/Header/Cancel
+@onready var delete_confirmation_: ConfirmationDialog = $DeleteConfirmation
 
 var go_notes_: GoNotes
 var parent_uid_: int = -1
 var original_uids_: PackedInt64Array = PackedInt64Array()
 var branches_: Array[Dictionary] = []
+var pending_delete_uid_: int = -1
 
 
 func _ready() -> void:
 	accept_button_.pressed.connect(on_accept_pressed_)
-	cancel_button_.pressed.connect(hide)
+	cancel_button_.pressed.connect(cancel)
+	delete_confirmation_.confirmed.connect(on_delete_confirmed_)
+	delete_confirmation_.canceled.connect(on_delete_canceled_)
 
 
 func rebuild(
@@ -32,7 +38,25 @@ func rebuild(
 
 
 func cancel() -> void:
+	if delete_confirmation_.visible:
+		delete_confirmation_.hide()
+		pending_delete_uid_ = -1
+		return
 	hide()
+
+
+func apply_deleted_branch(branch_uid: int) -> void:
+	for index in range(branches_.size()):
+		if int(branches_[index].get("uid", -1)) == branch_uid:
+			branches_.remove_at(index)
+			break
+	var original_index: int = original_uids_.find(branch_uid)
+	if original_index >= 0:
+		original_uids_.remove_at(original_index)
+	if branches_.is_empty():
+		hide()
+		return
+	rebuild_rows_()
 
 
 func rebuild_rows_() -> void:
@@ -40,6 +64,17 @@ func rebuild_rows_() -> void:
 		branch_list_.remove_child(child)
 		child.queue_free()
 	if go_notes_ == null:
+		return
+	if branches_.is_empty():
+		var empty_label: Label = Label.new()
+		empty_label.custom_minimum_size = Vector2(0.0, 96.0)
+		empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		empty_label.text = "当前局面没有下一手分支"
+		empty_label.add_theme_color_override(
+			&"font_color", Color(0.78, 0.76, 0.70)
+		)
+		branch_list_.add_child(empty_label)
 		return
 
 	var board_size: int = int(go_notes_.call(&"get_board_size"))
@@ -67,13 +102,17 @@ func rebuild_rows_() -> void:
 			branch_title_(branch, index),
 			branch_summary_(branch)
 		)
-		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.branch_double_clicked.connect(request_enter_)
 		row.add_child(card)
 
 		var down_button: Button = make_arrow_button_("↓", "下移这个分支")
 		down_button.disabled = index == branches_.size() - 1
 		down_button.pressed.connect(move_branch_.bind(index, 1))
 		row.add_child(down_button)
+
+		var delete_button: Button = make_delete_button_()
+		delete_button.pressed.connect(request_delete_.bind(uid))
+		row.add_child(delete_button)
 		branch_list_.add_child(row)
 
 
@@ -86,6 +125,14 @@ func make_arrow_button_(text: String, tooltip: String) -> Button:
 	button.tooltip_text = tooltip
 	button.text = text
 	button.add_theme_font_size_override(&"font_size", 28)
+	return button
+
+
+func make_delete_button_() -> Button:
+	var button: Button = make_arrow_button_("✕", "删除这个分支")
+	button.add_theme_color_override(&"font_color", Color(0.96, 0.24, 0.24))
+	button.add_theme_color_override(&"font_hover_color", Color(1.0, 0.4, 0.4))
+	button.add_theme_color_override(&"font_pressed_color", Color(1.0, 0.3, 0.3))
 	return button
 
 
@@ -131,6 +178,31 @@ func move_branch_(index: int, direction: int) -> void:
 	branches_.remove_at(index)
 	branches_.insert(target, branch)
 	rebuild_rows_()
+
+
+func request_delete_(branch_uid: int) -> void:
+	if branch_uid < 0:
+		return
+	pending_delete_uid_ = branch_uid
+	delete_confirmation_.dialog_text = \
+		"确定删除这个分支及其所有后续节点吗？\n此操作可以通过撤销恢复。"
+	delete_confirmation_.popup_centered(Vector2i(460, 180))
+
+
+func request_enter_(branch_uid: int) -> void:
+	if branch_uid >= 0:
+		branch_enter_requested.emit(parent_uid_, branch_uid)
+
+
+func on_delete_confirmed_() -> void:
+	var branch_uid: int = pending_delete_uid_
+	pending_delete_uid_ = -1
+	if branch_uid >= 0:
+		branch_delete_requested.emit(parent_uid_, branch_uid)
+
+
+func on_delete_canceled_() -> void:
+	pending_delete_uid_ = -1
 
 
 func branch_uids_() -> PackedInt64Array:

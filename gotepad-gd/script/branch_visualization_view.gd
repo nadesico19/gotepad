@@ -268,6 +268,8 @@ func _cache_snapshots_(token: int) -> bool:
 		var comment: String = str(
 			node.get("first_note_comment", "")
 		).strip_edges()
+		if title.is_empty():
+			title = _first_comment_line_(comment)
 		if not comment.is_empty():
 			title = kCommentNotebookIcon \
 				if title.is_empty() \
@@ -288,6 +290,13 @@ func _cache_snapshots_(token: int) -> bool:
 			frame_started = Time.get_ticks_usec()
 	snapshot_cache_by_document_[document_id_] = document_cache
 	return true
+
+
+func _first_comment_line_(comment: String) -> String:
+	var normalized: String = comment.replace("\r\n", "\n").replace("\r", "\n")
+	if normalized.is_empty():
+		return ""
+	return normalized.get_slice("\n", 0).strip_edges()
 
 
 func _layout_tree_() -> void:

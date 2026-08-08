@@ -1,7 +1,6 @@
 # Gotepad
 
-Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客户端项目。核心棋盘与棋谱逻辑使用
-C++17 实现，当前桌面界面使用 Godot 4.7.1（非 .NET 版本）和 GDExtension 构建。
+Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客户端项目。核心棋盘与棋谱逻辑使用 C++17 实现，当前桌面界面使用 Godot 4.7.1（非 .NET 版本）和 GDExtension 构建。
 
 项目目前仍处于开发阶段。
 
@@ -12,6 +11,9 @@ C++17 实现，当前桌面界面使用 Godot 4.7.1（非 .NET 版本）和 GDEx
 - 感谢codex，帮我实现了过去想做而没能做的事。
 - 这是一个棋童家长为自家小孩学棋做的笔记工具，一切都围绕个人开发和使用上的便利性，没有太考究的工程和设计要素。
 - 软件未来所有更新内容都会永久开源和免费，如有需要请放心使用。
+- 【重要提醒】请谨慎使用本软件编辑您既有的SGF文件资产，如需编辑请先创建副本。
+  - 软件会在SGF中创建自定义属性，可能会破坏文件与其他SGF软件的兼容性；
+  - 软件仅支持SGF规范的子集，可能会丢弃文件中不支持的属性。
 
 ## 主要功能
 
@@ -53,8 +55,7 @@ third_party/  第三方依赖的放置目录和版本说明
 docs/         项目文档
 ```
 
-核心代码尽量与具体 GUI 技术解耦，以便后续接入其他桌面端或移动端界面。目标平台包括 Windows、
-Linux、macOS、iOS 和 Android。
+核心代码尽量与具体 GUI 技术解耦，以便后续接入其他桌面端或移动端界面。目标平台包括 Windows、Linux、macOS、iOS 和 Android。
 
 ## 构建环境
 
@@ -71,9 +72,7 @@ Linux、macOS、iOS 和 Android。
 - [LunaSVG](https://github.com/sammycage/lunasvg)：将 PPTX 中的棋盘图转换为兼容性更好的 PNG。
 - [Noto CJK](https://github.com/notofonts/noto-cjk)：PPTX 中文排版使用的黑体和宋体，字体文件按 OFL-1.1 随项目提供。
 
-第三方库源码不随本项目仓库发布。请按照各目录中的 `gotepad_info.txt` 获取指定版本，并将源码放到
-对应的 `third_party` 子目录中。PPTX 所用字体位于 `third_party/fonts/noto-cjk`；导出文件不会嵌入字体，
-需要保持版式的用户应先在系统中安装这些字体。完整字体授权文本见该目录下的 `OFL.txt`。
+第三方库源码不随本项目仓库发布。请按照各目录中的 `gotepad_info.txt` 获取指定版本，并将源码放到对应的 `third_party` 子目录中。PPTX 所用字体位于 `third_party/fonts/noto-cjk`；导出文件不会嵌入字体，需要保持版式的用户应先在系统中安装这些字体。完整字体授权文本见该目录下的 `OFL.txt`。
 
 准备好依赖后，可以使用 CMake 构建 Godot 扩展：
 
@@ -82,8 +81,7 @@ cmake -S . -B build -DGODOTCPP_TARGET=template_debug
 cmake --build build --target go_gdext
 ```
 
-扩展会输出到 `gotepad-gd/bin`。随后使用 Godot 4.7.1 打开 `gotepad-gd/project.godot` 即可继续
-开发或运行客户端。
+扩展会输出到 `gotepad-gd/bin`。随后使用 Godot 4.7.1 打开 `gotepad-gd/project.godot` 即可继续开发或运行客户端。
 
 ## 许可证
 

@@ -1,0 +1,8 @@
+Assets: place_stone_0.mp3 through place_stone_4.mp3
+Original files: data/0.mp3 through data/4.mp3 from Sabaki 0.51.1
+Author and copyright holder: Yichuan Shen
+Source: https://github.com/SabakiHQ/Sabaki/releases/tag/v0.51.1
+License: MIT; see LICENSE_SABAKI.txt in this directory
+Retrieved: 2026-08-08
+
+These are real Go stone placement recordings used by Sabaki. The files were renamed for use by Gotepad and are selected randomly when a new move is placed.

@@ -65,7 +65,7 @@ using LibSgfcPlusPlus::SgfcGameType;
 using LibSgfcPlusPlus::SgfcPlusPlusFactory;
 using LibSgfcPlusPlus::SgfcPropertyType;
 
-inline constexpr char kGotepadVersion[] = "0.1.3";
+inline constexpr char kGotepadVersion[] = "0.1.4";
 inline constexpr char kGotepadProfileVersion[] = "1";
 inline constexpr char kInvalidGameResultMessage[] =
     "[GNE0029] SGF result is not valid";
@@ -420,6 +420,146 @@ std::string write_error_(
   return messages.empty() ? "SGF writer rejected the document"
                           : messages.back()->GetFormattedMessageText();
 }
+
+std::filesystem::path save_temporary_path_(const std::filesystem::path &target,
+                                           const std::string &suffix) {
+  const auto temporary_name =
+      "." + target.filename().u8string() + ".gotepad-" + suffix + ".tmp";
+  return target.parent_path() / std::filesystem::u8path(temporary_name);
+}
+
+bool recover_interrupted_sgf_save_(const std::filesystem::path &target,
+                                   const std::filesystem::path &staging,
+                                   const std::filesystem::path &backup,
+                                   std::string &error_message) {
+  std::error_code error{};
+  const bool backup_exists = std::filesystem::exists(backup, error);
+  if (error) {
+    error_message =
+        "Unable to inspect temporary SGF backup: " + error.message();
+    return false;
+  }
+  if (backup_exists) {
+    const bool target_exists = std::filesystem::exists(target, error);
+    if (error) {
+      error_message = "Unable to inspect SGF save target: " + error.message();
+      return false;
+    }
+    if (target_exists)
+      std::filesystem::remove(backup, error);
+    else
+      std::filesystem::rename(backup, target, error);
+    if (error) {
+      error_message =
+          "Unable to recover temporary SGF backup: " + error.message();
+      return false;
+    }
+  }
+  std::filesystem::remove(staging, error);
+  if (error) {
+    error_message =
+        "Unable to remove stale SGF temporary file: " + error.message();
+    return false;
+  }
+  return true;
+}
+
+bool write_staged_sgf_(const std::filesystem::path &staging,
+                       const std::string &content, std::string &error_message) {
+  std::ofstream file(staging, std::ios::binary | std::ios::trunc);
+  if (!file) {
+    error_message = "Unable to open temporary SGF file for writing";
+    return false;
+  }
+  file.write(content.data(), static_cast<std::streamsize>(content.size()));
+  file.flush();
+  file.close();
+  if (!file) {
+    error_message = "Unable to write temporary SGF file";
+    return false;
+  }
+  return true;
+}
+
+bool replace_sgf_from_staging_(const std::filesystem::path &target,
+                               const std::filesystem::path &staging,
+                               const std::filesystem::path &backup,
+                               std::string &error_message) {
+  std::error_code error{};
+  const bool target_exists = std::filesystem::exists(target, error);
+  if (error) {
+    error_message = "Unable to inspect SGF save target: " + error.message();
+    return false;
+  }
+  if (!target_exists) {
+    std::filesystem::rename(staging, target, error);
+    if (!error)
+      return true;
+    error_message = "Unable to install saved SGF file: " + error.message();
+    return false;
+  }
+  if (!std::filesystem::is_regular_file(target, error) || error) {
+    error_message =
+        error ? "Unable to inspect SGF save target: " + error.message()
+              : "SGF save target is not a regular file";
+    return false;
+  }
+  std::filesystem::copy_file(target, backup, error);
+  if (error) {
+    error_message = "Unable to create temporary SGF backup: " + error.message();
+    return false;
+  }
+  std::filesystem::remove(target, error);
+  if (error) {
+    std::error_code cleanup_error{};
+    std::filesystem::remove(backup, cleanup_error);
+    error_message = "Unable to replace existing SGF file: " + error.message();
+    return false;
+  }
+  std::filesystem::rename(staging, target, error);
+  if (error) {
+    const auto replace_error = error.message();
+    std::error_code restore_error{};
+    std::filesystem::rename(backup, target, restore_error);
+    if (restore_error) {
+      error_message =
+          "Unable to install saved SGF file (" + replace_error +
+          "); recovery copy remains at " + backup.u8string() +
+          " because automatic recovery failed: " + restore_error.message();
+    } else {
+      error_message = "Unable to install saved SGF file; the original file "
+                      "was restored: " +
+                      replace_error;
+    }
+    return false;
+  }
+  std::filesystem::remove(backup, error);
+  if (error) {
+    error_message = "SGF was saved, but its temporary backup could not be "
+                    "removed: " +
+                    error.message();
+    return false;
+  }
+  return true;
+}
+
+bool write_sgf_safely_(const std::filesystem::path &target,
+                       const std::string &content, std::string &error_message) {
+  const auto staging = save_temporary_path_(target, "writing");
+  const auto backup = save_temporary_path_(target, "backup");
+  if (!recover_interrupted_sgf_save_(target, staging, backup, error_message))
+    return false;
+  if (!write_staged_sgf_(staging, content, error_message)) {
+    std::error_code cleanup_error{};
+    std::filesystem::remove(staging, cleanup_error);
+    return false;
+  }
+  if (replace_sgf_from_staging_(target, staging, backup, error_message))
+    return true;
+  std::error_code cleanup_error{};
+  std::filesystem::remove(staging, cleanup_error);
+  return false;
+}
 } // namespace
 
 bool GoNotes::save_sgf_file(const std::string &path,
@@ -465,18 +605,8 @@ bool GoNotes::save_sgf_file(const std::string &path,
       return false;
     }
 
-    std::ofstream file(std::filesystem::u8path(path),
-                       std::ios::binary | std::ios::trunc);
-    if (!file) {
-      error_message = "Unable to open SGF file for writing";
-      return false;
-    }
-    file.write(content.data(), static_cast<std::streamsize>(content.size()));
-    if (!file) {
-      error_message = "Unable to write SGF file";
-      return false;
-    }
-    return true;
+    return write_sgf_safely_(std::filesystem::u8path(path), content,
+                             error_message);
   } catch (const std::exception &error) {
     error_message = error.what();
     return false;

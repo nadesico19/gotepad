@@ -12,7 +12,6 @@
 [ext_resource type="Texture2D" uid="uid://dyobdutbpxdug" path="res://assets/ui/history_unavailable.svg" id="14_history_unavailable"]
 [ext_resource type="Texture2D" uid="uid://c2enr5qx1todl" path="res://assets/ui/find_previous.svg" id="15_find_previous"]
 [ext_resource type="Texture2D" uid="uid://75aq6v412p26" path="res://assets/ui/find_next.svg" id="16_find_next"]
-[ext_resource type="Texture2D" uid="uid://dn7fyx3ptxjvt" path="res://assets/ui/cut_branch.svg" id="17_cut_branch"]
 [ext_resource type="Texture2D" uid="uid://ckr6lsc2t27id" path="res://assets/ui/branch_visualization.svg" id="18_branch_visualization"]
 [ext_resource type="PackedScene" path="res://scene/branch_visualization.tscn" id="19_branch_visualization_scene"]
 [ext_resource type="Texture2D" uid="uid://cogmm8vkwpaam" path="res://assets/ui/setup_branch.svg" id="20_setup_branch"]
@@ -219,25 +218,12 @@ expand_icon = true
 [node name="ReorderBranchButton" type="Button" parent="Interface/BoardToolBar" unique_id=733566542]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
-tooltip_text = "调整下一手分支顺序"
+tooltip_text = "调整或删除下一手分支（Ctrl+X）"
 focus_mode = 0
 mouse_default_cursor_shape = 2
 theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.42)
 disabled = true
 icon = ExtResource("27_reorder_branch")
-flat = true
-icon_alignment = 1
-expand_icon = true
-
-[node name="CutBranchButton" type="Button" parent="Interface/BoardToolBar" unique_id=908501091]
-custom_minimum_size = Vector2(56, 56)
-layout_mode = 2
-tooltip_text = "剪切下一手分支（Ctrl+X）"
-focus_mode = 0
-mouse_default_cursor_shape = 2
-theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.55)
-toggle_mode = true
-icon = ExtResource("17_cut_branch")
 flat = true
 icon_alignment = 1
 expand_icon = true
@@ -467,8 +453,46 @@ focus_mode = 0
 mouse_default_cursor_shape = 2
 text = "导出"
 
+[node name="ToolButton" type="MenuButton" parent="Interface"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 252.0
+offset_right = -12.0
+offset_bottom = 288.0
+grow_horizontal = 0
+tooltip_text = "打开非主要功能菜单"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "工具"
+flat = false
+
+[node name="KeepMainLineConfirmation" type="ConfirmationDialog" parent="Interface"]
+title = "确认保留主干"
+transient = true
+exclusive = true
+ok_button_text = "保留主干"
+dialog_text = "将删除第一分支路径以外的全部分支，只保留从棋局起点开始、逐层选择第一分支直到叶节点的主干。\n\n是否继续？此操作可通过一次撤销完整恢复。"
+cancel_button_text = "取消"
+
+[node name="ClearNotesConfirmation" type="ConfirmationDialog" parent="Interface"]
+title = "确认清除笔记"
+transient = true
+exclusive = true
+ok_button_text = "清除笔记"
+dialog_text = "将清除当前棋谱所有局面的标题、评论、棋子编号方式和棋盘标记。\n\n是否继续？此操作可通过一次撤销完整恢复。"
+cancel_button_text = "取消"
+
+[node name="ToolErrorDialog" type="AcceptDialog" parent="Interface"]
+title = "工具操作失败"
+transient = true
+exclusive = true
+ok_button_text = "确定"
+
 [node name="SaveFileDialog" type="FileDialog" parent="Interface" unique_id=452577461]
 title = "保存 SGF 棋谱"
+transient = true
 exclusive = true
 initial_position = 2
 size = Vector2i(760, 520)
@@ -490,6 +514,7 @@ cancel_button_text = "取消"
 
 [node name="ExportFileDialog" type="FileDialog" parent="Interface" unique_id=845669890]
 title = "导出 PPTX 排版"
+transient = true
 exclusive = true
 initial_position = 2
 size = Vector2i(760, 520)

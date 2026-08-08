@@ -10,6 +10,16 @@ const kPendingPanelNone: int = 0
 const kPendingPanelNotes: int = 1
 const kPendingPanelSgfMetadata: int = 2
 const kPendingPanelKatago: int = 3
+const kToolKeepMainLine: int = 0
+const kToolClearNotes: int = 1
+const kToolMenuGap: float = 6.0
+const kUiScaleMinimumHeight: float = 900.0
+const kUiScaleMaximumHeight: float = 2000.0
+const kUiScaleMinimum: float = 1.0
+const kUiScaleMaximum: float = 2.0
+const kWindowStateDebounceSeconds: float = 0.35
+const kWindowMinimumRestoreSize: Vector2i = Vector2i(800, 600)
+const kWindowMinimumVisibleSize: Vector2i = Vector2i(64, 32)
 const kSequentialMarkLetters: String = \
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 const kPptxTemplatePath: String = \
@@ -67,8 +77,6 @@ class DocumentState extends RefCounted:
 	$Interface/BoardToolBar/FindNextButton
 @onready var reorder_branch_button_: Button = \
 	$Interface/BoardToolBar/ReorderBranchButton
-@onready var cut_branch_button_: Button = \
-	$Interface/BoardToolBar/CutBranchButton
 @onready var variation_button_: Button = \
 	$Interface/BoardToolBar/VariationButton
 @onready var branch_visualization_button_: Button = \
@@ -111,6 +119,13 @@ class DocumentState extends RefCounted:
 @onready var save_button_: Button = $Interface/SaveButton
 @onready var save_as_button_: Button = $Interface/SaveAsButton
 @onready var export_button_: Button = $Interface/ExportButton
+@onready var tool_button_: MenuButton = $Interface/ToolButton
+@onready var tool_menu_: PopupMenu = tool_button_.get_popup()
+@onready var keep_main_line_confirmation_: ConfirmationDialog = \
+	$Interface/KeepMainLineConfirmation
+@onready var clear_notes_confirmation_: ConfirmationDialog = \
+	$Interface/ClearNotesConfirmation
+@onready var tool_error_dialog_: AcceptDialog = $Interface/ToolErrorDialog
 @onready var save_file_dialog_: FileDialog = $Interface/SaveFileDialog
 @onready var save_error_dialog_: AcceptDialog = $Interface/SaveErrorDialog
 @onready var save_confirmation_: ConfirmationDialog = \
@@ -138,6 +153,12 @@ var note_mark_original_symbols_: Array[Dictionary] = []
 var pending_save_path_: String = ""
 var pending_side_panel_: int = kPendingPanelNone
 var side_panel_after_variation_: int = kPendingPanelNone
+var branch_popup_command_in_progress_: bool = false
+var active_file_dialog_: FileDialog
+var window_state_save_timer_: Timer
+var last_windowed_position_: Vector2i = Vector2i.ZERO
+var last_windowed_size_: Vector2i = Vector2i(1600, 900)
+var last_window_maximized_: bool = false
 
 
 func _enter_tree() -> void:
@@ -154,6 +175,13 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	get_tree().auto_accept_quit = false
+	restore_window_state_()
+	configure_ui_scaling_()
+	window_state_save_timer_ = Timer.new()
+	window_state_save_timer_.one_shot = true
+	window_state_save_timer_.wait_time = kWindowStateDebounceSeconds
+	window_state_save_timer_.timeout.connect(save_window_state_now_)
+	add_child(window_state_save_timer_)
 	board_size_dialog_.create_requested.connect(on_create_requested_)
 	board_size_dialog_.sgf_load_requested.connect(on_sgf_load_requested_)
 	board_size_dialog_.cancel_requested.connect(
@@ -164,7 +192,6 @@ func _ready() -> void:
 	find_previous_button_.pressed.connect(on_find_previous_requested_)
 	find_next_button_.pressed.connect(on_find_next_requested_)
 	reorder_branch_button_.pressed.connect(on_reorder_branch_requested_)
-	cut_branch_button_.pressed.connect(on_cut_branch_requested_)
 	variation_button_.pressed.connect(on_variation_requested_)
 	branch_visualization_button_.pressed.connect(
 		on_branch_visualization_requested_
@@ -206,7 +233,6 @@ func _ready() -> void:
 	variation_exit_button_.pressed.connect(on_variation_exit_requested_)
 	variation_keep_button_.pressed.connect(on_variation_keep_requested_)
 	board_.find_mode_changed.connect(on_find_mode_changed_)
-	board_.cut_branch_mode_changed.connect(on_cut_branch_mode_changed_)
 	board_.variation_mode_changed.connect(on_variation_mode_changed_)
 	board_.position_changed.connect(on_board_position_changed_)
 	board_.next_color_changed.connect(on_next_color_changed_)
@@ -223,10 +249,21 @@ func _ready() -> void:
 	save_button_.pressed.connect(on_save_requested_)
 	save_as_button_.pressed.connect(on_save_as_requested_)
 	export_button_.pressed.connect(on_export_requested_)
+	tool_menu_.clear()
+	tool_menu_.add_item("保留主干", kToolKeepMainLine)
+	tool_menu_.add_item("清除笔记", kToolClearNotes)
+	tool_menu_.id_pressed.connect(on_tool_menu_id_pressed_)
+	tool_menu_.about_to_popup.connect(on_tool_menu_about_to_popup_)
+	keep_main_line_confirmation_.confirmed.connect(
+		on_keep_main_line_confirmed_
+	)
+	clear_notes_confirmation_.confirmed.connect(on_clear_notes_confirmed_)
 	save_file_dialog_.file_selected.connect(on_save_file_selected_)
+	save_file_dialog_.canceled.connect(on_file_dialog_canceled_)
 	save_confirmation_.confirmed.connect(on_save_confirmed_)
 	save_confirmation_.canceled.connect(on_save_canceled_)
 	export_file_dialog_.file_selected.connect(on_export_file_selected_)
+	export_file_dialog_.canceled.connect(on_file_dialog_canceled_)
 	close_tab_confirmation_.confirmed.connect(on_close_tab_confirmed_)
 	close_tab_confirmation_.canceled.connect(on_close_tab_canceled_)
 	setup_branch_popup_.branch_hovered.connect(
@@ -240,6 +277,12 @@ func _ready() -> void:
 	)
 	branch_order_popup_.order_accepted.connect(
 		on_branch_order_accepted_
+	)
+	branch_order_popup_.branch_delete_requested.connect(
+		on_branch_delete_requested_
+	)
+	branch_order_popup_.branch_enter_requested.connect(
+		on_branch_enter_requested_
 	)
 	var changed_callback: Callable = Callable(
 		self, "on_go_notes_history_changed_"
@@ -267,7 +310,7 @@ func _ready() -> void:
 	preset_accept_button_.pressed.connect(on_preset_accept_requested_)
 	preset_cancel_button_.pressed.connect(on_preset_cancel_requested_)
 	preset_button_.pressed.connect(on_preset_requested_)
-	get_window().size_changed.connect(on_board_layout_changed_)
+	get_window().size_changed.connect(on_window_size_changed_)
 	board_.board_texture_changed.connect(on_board_assets_changed_)
 	board_.set_interactions_locked(
 		board_lock_checkbox_.button_pressed
@@ -279,6 +322,161 @@ func _ready() -> void:
 	update_reorder_branch_button_()
 	refresh_document_tabs_()
 	on_board_layout_changed_()
+
+
+func uses_desktop_window_state_() -> bool:
+	return not OS.has_feature("mobile") and not OS.has_feature("web")
+
+
+func restore_window_state_() -> void:
+	var window: Window = get_window()
+	last_windowed_position_ = window.position
+	last_windowed_size_ = window.size
+	last_window_maximized_ = window.mode == Window.MODE_MAXIMIZED
+	if not uses_desktop_window_state_():
+		return
+	var state: Dictionary = SettingsStore.get_saved_window_state()
+	if state.is_empty():
+		return
+	var position_value: Variant = state.get(
+		"position", last_windowed_position_
+	)
+	var size_value: Variant = state.get("size", last_windowed_size_)
+	if position_value is not Vector2i or size_value is not Vector2i:
+		return
+	var saved_position: Vector2i = position_value as Vector2i
+	var saved_size: Vector2i = size_value as Vector2i
+	var usable_rect: Rect2i = restore_usable_rect_(
+		Rect2i(saved_position, saved_size)
+	)
+	var minimum_size: Vector2i = Vector2i(
+		mini(kWindowMinimumRestoreSize.x, usable_rect.size.x),
+		mini(kWindowMinimumRestoreSize.y, usable_rect.size.y)
+	)
+	var restored_size: Vector2i = Vector2i(
+		clampi(saved_size.x, minimum_size.x, usable_rect.size.x),
+		clampi(saved_size.y, minimum_size.y, usable_rect.size.y)
+	)
+	var overlap: Rect2i = usable_rect.intersection(
+		Rect2i(saved_position, restored_size)
+	)
+	var sufficiently_visible: bool = \
+		overlap.size.x >= kWindowMinimumVisibleSize.x \
+		and overlap.size.y >= kWindowMinimumVisibleSize.y
+	var restored_position: Vector2i
+	if sufficiently_visible:
+		restored_position = Vector2i(
+			clampi(
+				saved_position.x,
+				usable_rect.position.x,
+				usable_rect.end.x - restored_size.x
+			),
+			clampi(
+				saved_position.y,
+				usable_rect.position.y,
+				usable_rect.end.y - restored_size.y
+			)
+		)
+	else:
+		restored_position = usable_rect.position + Vector2i(
+			floori(float(usable_rect.size.x - restored_size.x) / 2.0),
+			floori(float(usable_rect.size.y - restored_size.y) / 2.0)
+		)
+	window.mode = Window.MODE_WINDOWED
+	window.size = restored_size
+	window.position = restored_position
+	last_windowed_position_ = restored_position
+	last_windowed_size_ = restored_size
+	last_window_maximized_ = bool(state.get("maximized", false))
+	if last_window_maximized_:
+		call_deferred(&"restore_maximized_window_")
+
+
+func restore_usable_rect_(saved_rect: Rect2i) -> Rect2i:
+	var screen_count: int = DisplayServer.get_screen_count()
+	if screen_count <= 0:
+		return Rect2i(Vector2i.ZERO, Vector2i(1600, 900))
+	var primary_screen: int = clampi(
+		DisplayServer.get_primary_screen(), 0, screen_count - 1
+	)
+	var selected_rect: Rect2i = DisplayServer.screen_get_usable_rect(
+		primary_screen
+	)
+	var largest_overlap_area: int = 0
+	for screen: int in range(screen_count):
+		var usable_rect: Rect2i = DisplayServer.screen_get_usable_rect(screen)
+		var overlap: Rect2i = usable_rect.intersection(saved_rect)
+		var overlap_area: int = overlap.size.x * overlap.size.y
+		if overlap_area > largest_overlap_area:
+			largest_overlap_area = overlap_area
+			selected_rect = usable_rect
+	return selected_rect
+
+
+func restore_maximized_window_() -> void:
+	get_window().mode = Window.MODE_MAXIMIZED
+
+
+func schedule_window_state_save_() -> void:
+	if not uses_desktop_window_state_() \
+			or window_state_save_timer_ == null:
+		return
+	window_state_save_timer_.start()
+
+
+func save_window_state_now_() -> void:
+	if not uses_desktop_window_state_():
+		return
+	if window_state_save_timer_ != null:
+		window_state_save_timer_.stop()
+	var window: Window = get_window()
+	if window.mode == Window.MODE_WINDOWED:
+		last_windowed_position_ = window.position
+		last_windowed_size_ = window.size
+		last_window_maximized_ = false
+	elif window.mode == Window.MODE_MAXIMIZED:
+		last_window_maximized_ = true
+	var error: Error = SettingsStore.save_window_state(
+		last_windowed_position_,
+		last_windowed_size_,
+		last_window_maximized_
+	)
+	if error != OK:
+		push_warning("Failed to save window state: %s" % error_string(error))
+
+
+func configure_ui_scaling_() -> void:
+	var window: Window = get_window()
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	window.content_scale_size = Vector2i.ZERO
+	window.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_FRACTIONAL
+	update_ui_scale_()
+
+
+func update_ui_scale_() -> void:
+	var window: Window = get_window()
+	var current_scale: float = maxf(window.content_scale_factor, 0.01)
+	var logical_height: float = window.get_visible_rect().size.y
+	var physical_height: float = logical_height * current_scale
+	var height_ratio: float = clampf(
+		(physical_height - kUiScaleMinimumHeight)
+		/ (kUiScaleMaximumHeight - kUiScaleMinimumHeight),
+		0.0,
+		1.0
+	)
+	var target_scale: float = lerpf(
+		kUiScaleMinimum,
+		kUiScaleMaximum,
+		height_ratio
+	)
+	if not is_equal_approx(current_scale, target_scale):
+		window.content_scale_factor = target_scale
+
+
+func on_window_size_changed_() -> void:
+	update_ui_scale_()
+	on_board_layout_changed_()
+	schedule_window_state_save_()
 
 
 func _input(event: InputEvent) -> void:
@@ -376,7 +574,7 @@ func _input(event: InputEvent) -> void:
 			on_find_next_requested_()
 			handled = true
 		KEY_X:
-			on_cut_branch_requested_()
+			on_reorder_branch_requested_()
 			handled = true
 		KEY_E:
 			on_board_lock_toggled_(not board_.is_interactions_locked())
@@ -427,16 +625,6 @@ func on_find_mode_changed_(direction: int) -> void:
 	find_next_button_.set_pressed_no_signal(direction == 1)
 
 
-func on_cut_branch_requested_() -> void:
-	request_after_note_edit_resolution_(
-		Callable(board_, "toggle_cut_branch_mode")
-	)
-
-
-func on_cut_branch_mode_changed_(enabled: bool) -> void:
-	cut_branch_button_.set_pressed_no_signal(enabled)
-
-
 func on_reorder_branch_requested_() -> void:
 	request_after_note_edit_resolution_(
 		Callable(self, "open_reorder_branch_popup_")
@@ -444,28 +632,24 @@ func on_reorder_branch_requested_() -> void:
 
 
 func open_reorder_branch_popup_() -> void:
-	var branches: Array = Array(go_notes_.call(&"get_next_moves"))
-	if branches.size() < 2:
+	var typed_branches: Array[Dictionary] = current_next_branches_()
+	if typed_branches.is_empty():
 		return
 	if setup_branch_popup_.visible:
 		setup_branch_popup_.hide()
-	if cut_branch_button_.button_pressed:
+	if board_.is_cut_branch_mode():
 		board_.toggle_cut_branch_mode()
 	if find_previous_button_.button_pressed:
 		board_.toggle_find_mode(-1)
 	if find_next_button_.button_pressed:
 		board_.toggle_find_mode(1)
-	var typed_branches: Array[Dictionary] = []
-	for value: Variant in branches:
-		if value is Dictionary:
-			typed_branches.append(Dictionary(value))
 	branch_order_popup_.rebuild(
 		go_notes_,
 		int(go_notes_.get_current_uid()),
 		typed_branches
 	)
 	var popup_size: Vector2i = Vector2i(
-		440,
+		488,
 		clampi(92 + typed_branches.size() * 132, 260, 560)
 	)
 	var viewport_size: Vector2i = Vector2i(get_viewport_rect().size)
@@ -502,14 +686,75 @@ func on_branch_order_accepted_(
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
 
 
+func on_branch_delete_requested_(parent_uid: int, branch_uid: int) -> void:
+	if parent_uid != int(go_notes_.get_current_uid()):
+		push_warning("当前局面已经改变，分支删除已放弃。")
+		branch_order_popup_.cancel()
+		return
+	if not current_next_branch_exists_(branch_uid):
+		push_warning("所选分支已不存在。")
+		branch_order_popup_.cancel()
+		return
+
+	branch_popup_command_in_progress_ = true
+	var result: int = int(
+		go_notes_.execute_command("CUTBRANCH,%d;" % branch_uid)
+	)
+	branch_popup_command_in_progress_ = false
+	if result != 0:
+		push_warning(CommandMessages.localize(go_notes_.get_message()))
+		return
+	branch_order_popup_.apply_deleted_branch(branch_uid)
+
+
+func on_branch_enter_requested_(parent_uid: int, branch_uid: int) -> void:
+	if parent_uid != int(go_notes_.get_current_uid()):
+		push_warning("当前局面已经改变，无法进入所选分支。")
+		branch_order_popup_.cancel()
+		return
+	if not current_next_branch_exists_(branch_uid):
+		push_warning("所选分支已不存在。")
+		branch_order_popup_.cancel()
+		return
+
+	branch_popup_command_in_progress_ = true
+	var result: int = int(
+		go_notes_.execute_command("ROAMING,%d;" % branch_uid)
+	)
+	branch_popup_command_in_progress_ = false
+	if result != 0:
+		push_warning(CommandMessages.localize(go_notes_.get_message()))
+		return
+	branch_order_popup_.rebuild(
+		go_notes_,
+		int(go_notes_.get_current_uid()),
+		current_next_branches_()
+	)
+
+
+func current_next_branch_exists_(branch_uid: int) -> bool:
+	for branch: Dictionary in current_next_branches_():
+		if int(branch.get("uid", -1)) == branch_uid:
+			return true
+	return false
+
+
+func current_next_branches_() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value: Variant in Array(go_notes_.call(&"get_next_moves")):
+		if value is Dictionary:
+			result.append(Dictionary(value))
+	return result
+
+
 func update_reorder_branch_button_() -> void:
 	var branch_count: int = Array(
 		go_notes_.call(&"get_next_moves")
 	).size()
-	reorder_branch_button_.disabled = branch_count < 2
+	reorder_branch_button_.disabled = branch_count < 1
 	reorder_branch_button_.tooltip_text = \
-		"调整下一手分支顺序（%d）" % branch_count \
-		if branch_count >= 2 else "当前局面没有可调整的多个分支"
+		"调整或删除下一手分支（%d，Ctrl+X）" % branch_count \
+		if branch_count >= 1 else "当前局面没有可调整或删除的下一手分支"
 
 
 func on_setup_branches_changed_(branches: Array[Dictionary]) -> void:
@@ -607,17 +852,19 @@ func request_save_as_() -> void:
 
 
 func show_save_dialog_() -> void:
-	if save_file_dialog_.visible or export_file_dialog_.visible:
+	if focus_active_file_dialog_():
 		return
 	var document: DocumentState = documents_[active_document_index_]
 	if document.file_path.is_empty():
 		save_file_dialog_.current_file = "%s.sgf" % document.title
 	else:
 		save_file_dialog_.current_path = document.file_path
+	active_file_dialog_ = save_file_dialog_
 	save_file_dialog_.popup_centered_ratio(0.72)
 
 
 func on_save_file_selected_(path: String) -> void:
+	active_file_dialog_ = null
 	var save_path: String = path
 	if save_path.get_extension().to_lower() != "sgf":
 		save_path += ".sgf"
@@ -670,18 +917,75 @@ func on_export_requested_() -> void:
 	request_after_note_edit_resolution_(Callable(self, "request_export_"))
 
 
+func on_tool_menu_id_pressed_(item_id: int) -> void:
+	match item_id:
+		kToolKeepMainLine:
+			request_after_note_edit_resolution_(
+				Callable(self, "request_keep_main_line_")
+			)
+		kToolClearNotes:
+			request_after_note_edit_resolution_(
+				Callable(self, "request_clear_notes_")
+			)
+
+
+func on_tool_menu_about_to_popup_() -> void:
+	call_deferred(&"position_tool_menu_")
+
+
+func position_tool_menu_() -> void:
+	if not tool_menu_.visible:
+		return
+	var button_rect: Rect2 = tool_button_.get_global_rect()
+	var menu_size: Vector2i = tool_menu_.size
+	tool_menu_.position = Vector2i(
+		roundi(button_rect.position.x - float(menu_size.x) - kToolMenuGap),
+		roundi(button_rect.position.y)
+	)
+
+
+func request_keep_main_line_() -> void:
+	keep_main_line_confirmation_.popup_centered(Vector2i(560, 220))
+
+
+func on_keep_main_line_confirmed_() -> void:
+	var result: int = int(go_notes_.execute_command("KEEPMAINLINE;"))
+	if result == 0:
+		return
+	tool_error_dialog_.dialog_text = CommandMessages.localize(
+		str(go_notes_.get_message())
+	)
+	tool_error_dialog_.popup_centered(Vector2i(440, 170))
+
+
+func request_clear_notes_() -> void:
+	clear_notes_confirmation_.popup_centered(Vector2i(560, 220))
+
+
+func on_clear_notes_confirmed_() -> void:
+	var result: int = int(go_notes_.execute_command("CLEARNOTES;"))
+	if result == 0:
+		return
+	tool_error_dialog_.dialog_text = CommandMessages.localize(
+		str(go_notes_.get_message())
+	)
+	tool_error_dialog_.popup_centered(Vector2i(440, 170))
+
+
 func request_export_() -> void:
 	if active_document_index_ < 0 \
 			or active_document_index_ >= documents_.size():
 		return
-	if save_file_dialog_.visible or export_file_dialog_.visible:
+	if focus_active_file_dialog_():
 		return
 	var document: DocumentState = documents_[active_document_index_]
 	export_file_dialog_.current_file = "%s.pptx" % document.title
+	active_file_dialog_ = export_file_dialog_
 	export_file_dialog_.popup_centered_ratio(0.72)
 
 
 func on_export_file_selected_(path: String) -> void:
+	active_file_dialog_ = null
 	var export_path: String = path
 	if export_path.get_extension().to_lower() != "pptx":
 		export_path += ".pptx"
@@ -689,7 +993,8 @@ func on_export_file_selected_(path: String) -> void:
 		&"export_pptx_file",
 		export_path,
 		kPptxTemplatePath,
-		SettingsStore.get_pptx_image_format_name()
+		SettingsStore.get_pptx_image_format_name(),
+		SettingsStore.get_pptx_board_coordinates()
 	))
 	if not exported:
 		export_error_dialog_.dialog_text = CommandMessages.localize(
@@ -698,6 +1003,22 @@ func on_export_file_selected_(path: String) -> void:
 		export_error_dialog_.popup_centered(Vector2i(480, 180))
 		return
 	export_success_dialog_.popup_centered(Vector2i(360, 150))
+
+
+func on_file_dialog_canceled_() -> void:
+	active_file_dialog_ = null
+
+
+func focus_active_file_dialog_() -> bool:
+	if active_file_dialog_ != null:
+		active_file_dialog_.grab_focus()
+		return true
+	for dialog: FileDialog in [save_file_dialog_, export_file_dialog_]:
+		if dialog.visible:
+			active_file_dialog_ = dialog
+			dialog.grab_focus()
+			return true
+	return false
 
 
 func on_document_tab_close_requested_(index: int) -> void:
@@ -1163,7 +1484,7 @@ func perform_redo_now_() -> void:
 
 
 func on_go_notes_history_changed_() -> void:
-	if branch_order_popup_.visible:
+	if branch_order_popup_.visible and not branch_popup_command_in_progress_:
 		branch_order_popup_.cancel()
 	update_history_buttons_()
 	update_preset_button_()
@@ -1211,17 +1532,23 @@ func on_note_edit_resolution_canceled_() -> void:
 		board_.get_find_direction() == -1
 	)
 	find_next_button_.set_pressed_no_signal(board_.get_find_direction() == 1)
-	cut_branch_button_.set_pressed_no_signal(board_.is_cut_branch_mode())
 	preset_button_.set_pressed_no_signal(board_.is_preset_mode())
 
 
 func _notification(what: int) -> void:
-	if what != NOTIFICATION_WM_CLOSE_REQUEST or not is_node_ready():
+	if not is_node_ready():
 		return
+	if what == NOTIFICATION_WM_POSITION_CHANGED:
+		schedule_window_state_save_()
+		return
+	if what != NOTIFICATION_WM_CLOSE_REQUEST:
+		return
+	save_window_state_now_()
 	request_after_note_edit_resolution_(Callable(self, "quit_application_"))
 
 
 func quit_application_() -> void:
+	save_window_state_now_()
 	get_tree().quit()
 
 
@@ -1287,7 +1614,7 @@ func leave_transient_modes_() -> void:
 		board_.toggle_find_mode(-1)
 	if find_next_button_.button_pressed:
 		board_.toggle_find_mode(1)
-	if cut_branch_button_.button_pressed:
+	if board_.is_cut_branch_mode():
 		board_.toggle_cut_branch_mode()
 	if setup_branch_popup_.visible:
 		setup_branch_popup_.hide()

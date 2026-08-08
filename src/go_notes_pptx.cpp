@@ -326,6 +326,27 @@ std::string sequential_label_(size_t index) {
   return {};
 }
 
+std::string board_column_label_(int index) {
+  constexpr std::string_view kColumns = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
+  if (index < 1 || static_cast<size_t>(index) > kColumns.size())
+    return std::to_string(index);
+  return std::string(1, kColumns[static_cast<size_t>(index - 1)]);
+}
+
+std::string coordinate_text_svg_(double x, double y, const std::string &value,
+                                 const std::string &anchor, double font_size,
+                                 bool vertically_centered) {
+  std::ostringstream svg{};
+  svg << "<text x=\"" << svg_number_(x) << "\" y=\"" << svg_number_(y)
+      << "\" text-anchor=\"" << anchor << "\" ";
+  if (vertically_centered)
+    svg << "dominant-baseline=\"alphabetic\" dy=\"0.34em\" ";
+  svg << "font-family=\"Arial,sans-serif\" font-size=\""
+      << svg_number_(font_size) << "\" font-weight=\"400\" fill=\"#161616\">"
+      << xml_escape_(value) << "</text>";
+  return svg.str();
+}
+
 std::string text_svg_(double x, double y, const std::string &value,
                       const std::string &color, double font_size,
                       bool bold = true) {
@@ -372,7 +393,8 @@ std::string symbol_svg_(const std::string &symbol, double x, double y,
 }
 
 BoardDiagram render_board_(const GoNotes &notes, const ExportPage &page,
-                           const GoCoreRecordTreeNode &root) {
+                           const GoCoreRecordTreeNode &root,
+                           bool show_board_coordinates) {
   BoardDiagram result{};
   std::vector<GoCoreRecordTreeNode> path{};
   if (!find_path_(root, page.uid, path))
@@ -448,6 +470,20 @@ BoardDiagram render_board_(const GoNotes &notes, const ExportPage &page,
          "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"800\" "
          "height=\"800\" viewBox=\"0 0 800 800\">"
          "<rect width=\"800\" height=\"800\" fill=\"#ffffff\"/>";
+  if (show_board_coordinates) {
+    const double label_gap = std::max(2.0, cell * 0.05);
+    const double label_font_size = std::clamp(cell * 0.28, 9.0, 12.0);
+    const double left_x = coordinate(1) - stone_radius - label_gap;
+    const double top_y = coordinate(1) - stone_radius - label_gap;
+    for (int index = 1; index <= board_size; ++index) {
+      svg << coordinate_text_svg_(coordinate(index), top_y,
+                                  board_column_label_(index), "middle",
+                                  label_font_size, false)
+          << coordinate_text_svg_(left_x, coordinate(index),
+                                  std::to_string(board_size - index + 1), "end",
+                                  label_font_size, true);
+    }
+  }
   if (board_size > 1) {
     for (int index = 1; index <= board_size; ++index) {
       const double value = coordinate(index);
@@ -898,19 +934,22 @@ bool write_package_(const std::string &path,
 bool GoNotes::export_pptx_file(const std::string &path,
                                const std::string &template_path,
                                std::string &error_message,
-                               PptxImageFormat image_format) const {
+                               PptxImageFormat image_format,
+                               bool show_board_coordinates) const {
   std::vector<uint8_t> template_data{};
   if (!read_file_(template_path, template_data)) {
     error_message = kTemplateReadMessage;
     return false;
   }
-  return export_pptx_file(path, template_data, error_message, image_format);
+  return export_pptx_file(path, template_data, error_message, image_format,
+                          show_board_coordinates);
 }
 
 bool GoNotes::export_pptx_file(const std::string &path,
                                const std::vector<uint8_t> &template_data,
                                std::string &error_message,
-                               PptxImageFormat image_format) const {
+                               PptxImageFormat image_format,
+                               bool show_board_coordinates) const {
   error_message.clear();
   const auto root = go_core_.record_tree();
 
@@ -949,7 +988,8 @@ bool GoNotes::export_pptx_file(const std::string &path,
   }
 
   for (size_t index = 0; index < pages.size(); ++index) {
-    const auto diagram = render_board_(*this, pages[index], root);
+    const auto diagram =
+        render_board_(*this, pages[index], root, show_board_coordinates);
     if (diagram.svg.empty()) {
       error_message = kTemplateInvalidMessage;
       return false;

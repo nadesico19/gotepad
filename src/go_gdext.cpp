@@ -55,7 +55,8 @@ public:
   bool save_sgf_file(const godot::String &path);
   bool export_pptx_file(const godot::String &path,
                         const godot::String &template_path,
-                        const godot::String &image_format);
+                        const godot::String &image_format,
+                        bool show_board_coordinates);
   int64_t execute_command(const godot::String &command);
   int64_t append_note();
   int64_t remove_note(int64_t note_index);
@@ -121,7 +122,8 @@ inline void GoNotes::_bind_methods() {
   godot::ClassDB::bind_method(godot::D_METHOD("save_sgf_file", "path"),
                               &GoNotes::save_sgf_file);
   godot::ClassDB::bind_method(godot::D_METHOD("export_pptx_file", "path",
-                                              "template_path", "image_format"),
+                                              "template_path", "image_format",
+                                              "show_board_coordinates"),
                               &GoNotes::export_pptx_file);
   godot::ClassDB::bind_method(godot::D_METHOD("execute_command", "command"),
                               &GoNotes::execute_command);
@@ -255,7 +257,8 @@ inline bool GoNotes::save_sgf_file(const godot::String &path) {
 
 inline bool GoNotes::export_pptx_file(const godot::String &path,
                                       const godot::String &template_path,
-                                      const godot::String &image_format) {
+                                      const godot::String &image_format,
+                                      bool show_board_coordinates) {
   wrapper_message_ = godot::String{};
   auto *project_settings = godot::ProjectSettings::get_singleton();
   const auto output = project_settings == nullptr
@@ -290,7 +293,7 @@ inline bool GoNotes::export_pptx_file(const godot::String &path,
   }
   std::string error_message{};
   if (!go_notes_->export_pptx_file(output_text, template_data, error_message,
-                                   native_format)) {
+                                   native_format, show_board_coordinates)) {
     wrapper_message_ = godot::String::utf8(error_message.c_str());
     return false;
   }

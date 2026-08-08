@@ -1,9 +1,8 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.3"
+const kGotepadVersion: String = "0.1.4"
 const kKatagoTestTimeoutMsec: int = 5000
-const kKatagoBenchmarkTimeoutMsec: int = 30000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
 const kKatagoBenchmarkThreads: String = \
@@ -11,6 +10,11 @@ const kKatagoBenchmarkThreads: String = \
 const kStatusNeutralColor: Color = Color(0.72, 0.72, 0.75, 1.0)
 const kStatusValidColor: Color = Color(0.4, 0.9, 0.55, 1.0)
 const kStatusErrorColor: Color = Color(1.0, 0.4, 0.4, 1.0)
+const kStatusCanceledColor: Color = Color(0.95, 0.78, 0.28, 1.0)
+const kBenchmarkStateIdle: int = 0
+const kBenchmarkStateRunning: int = 1
+const kBenchmarkStateSucceeded: int = 2
+const kBenchmarkStateFailed: int = 3
 const kBoardNames: Array[String] = [
 	"浅色木纹",
 	"深色木纹"
@@ -54,8 +58,14 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/MoveNumberHeader/AbsoluteMoveNumbers
 @onready var playback_interval_seconds_: SpinBox = \
 	$SettingsPanel/Margin/Options/PlaybackIntervalRow/Seconds
+@onready var stone_sound_volume_: HSlider = \
+	$SettingsPanel/Margin/Options/StoneSoundVolumeRow/Volume
+@onready var stone_sound_volume_value_: Label = \
+	$SettingsPanel/Margin/Options/StoneSoundVolumeRow/Value
 @onready var pptx_image_format_: OptionButton = \
 	$SettingsPanel/Margin/Options/PptxImageFormatRow/Format
+@onready var pptx_board_coordinates_: CheckBox = \
+	$SettingsPanel/Margin/Options/PptxBoardCoordinates
 @onready var katago_executable_path_: LineEdit = \
 	$SettingsPanel/Margin/Options/KatagoExecutableRow/Path
 @onready var katago_executable_browse_: Button = \
@@ -90,6 +100,13 @@ const kStoneWhitePaths: Array[String] = [
 @onready var katago_config_dialog_: FileDialog = $KatagoConfigDialog
 @onready var katago_benchmark_confirmation_: ConfirmationDialog = \
 	$KatagoBenchmarkConfirmation
+@onready var katago_benchmark_window_: Window = $KatagoBenchmarkWindow
+@onready var katago_benchmark_output_edit_: TextEdit = \
+	$KatagoBenchmarkWindow/Panel/Margin/Content/Output
+@onready var katago_benchmark_action_button_: Button = \
+	$KatagoBenchmarkWindow/Panel/Margin/Content/Footer/Action
+@onready var katago_benchmark_save_reminder_: AcceptDialog = \
+	$KatagoBenchmarkWindow/SaveReminder
 @onready var error_label_: Label = \
 	$SettingsPanel/Margin/Options/ErrorLabel
 @onready var action_bar_: VBoxContainer = \
@@ -108,7 +125,9 @@ var opening_move_number_mode_: int
 var opening_move_number_count_: int
 var opening_absolute_move_numbers_: bool
 var opening_playback_interval_seconds_: float
+var opening_stone_sound_volume_: int
 var opening_pptx_image_format_: int
+var opening_pptx_board_coordinates_: bool
 var opening_katago_executable_path_: String
 var opening_katago_model_path_: String
 var opening_katago_analysis_config_path_: String
@@ -123,9 +142,10 @@ var katago_test_output_: String = ""
 var katago_test_started_msec_: int = 0
 var katago_benchmark_process_: Dictionary = {}
 var katago_benchmark_output_: String = ""
-var katago_benchmark_started_msec_: int = 0
+var katago_benchmark_state_: int = kBenchmarkStateIdle
 var pending_katago_benchmark_threads_: int = 0
 var pending_katago_benchmark_batch_size_: int = 0
+var active_katago_file_dialog_: FileDialog
 
 
 func _ready() -> void:
@@ -143,7 +163,9 @@ func _ready() -> void:
 	playback_interval_seconds_.value_changed.connect(
 		on_playback_interval_changed_
 	)
+	stone_sound_volume_.value_changed.connect(on_stone_sound_volume_changed_)
 	pptx_image_format_.item_selected.connect(on_option_selected_)
+	pptx_board_coordinates_.toggled.connect(on_katago_boolean_option_changed_)
 	katago_executable_path_.text_changed.connect(on_katago_path_changed_)
 	katago_model_path_.text_changed.connect(on_katago_path_changed_)
 	katago_analysis_config_path_.text_changed.connect(on_katago_path_changed_)
@@ -170,15 +192,31 @@ func _ready() -> void:
 	)
 	katago_model_dialog_.file_selected.connect(on_katago_model_selected_)
 	katago_config_dialog_.file_selected.connect(on_katago_config_selected_)
+	katago_executable_dialog_.canceled.connect(on_katago_file_dialog_canceled_)
+	katago_model_dialog_.canceled.connect(on_katago_file_dialog_canceled_)
+	katago_config_dialog_.canceled.connect(on_katago_file_dialog_canceled_)
 	katago_test_button_.pressed.connect(on_katago_test_pressed_)
 	katago_benchmark_button_.pressed.connect(on_katago_benchmark_pressed_)
 	katago_benchmark_confirmation_.confirmed.connect(start_katago_benchmark_)
+	katago_benchmark_action_button_.pressed.connect(
+		on_katago_benchmark_action_pressed_
+	)
+	katago_benchmark_window_.close_requested.connect(
+		on_katago_benchmark_window_close_requested_
+	)
+	katago_benchmark_save_reminder_.confirmed.connect(
+		close_katago_benchmark_window_
+	)
+	katago_benchmark_save_reminder_.canceled.connect(
+		close_katago_benchmark_window_
+	)
 	confirm_button_.pressed.connect(on_confirm_pressed_)
 	restore_button_.pressed.connect(on_restore_pressed_)
 	cancel_button_.pressed.connect(on_cancel_pressed_)
 	settings_panel_.hide()
 	action_bar_.hide()
 	error_label_.hide()
+	katago_benchmark_window_.hide()
 	set_process(false)
 
 
@@ -214,7 +252,10 @@ func open_panel_() -> void:
 		SettingsStore.get_absolute_move_numbers()
 	opening_playback_interval_seconds_ = \
 		SettingsStore.get_playback_interval_seconds()
+	opening_stone_sound_volume_ = SettingsStore.get_stone_sound_volume()
 	opening_pptx_image_format_ = SettingsStore.get_pptx_image_format()
+	opening_pptx_board_coordinates_ = \
+		SettingsStore.get_pptx_board_coordinates()
 	opening_katago_executable_path_ = \
 		SettingsStore.get_katago_executable_path()
 	opening_katago_model_path_ = SettingsStore.get_katago_model_path()
@@ -254,7 +295,12 @@ func open_panel_() -> void:
 	playback_interval_seconds_.set_value_no_signal(
 		opening_playback_interval_seconds_
 	)
+	stone_sound_volume_.set_value_no_signal(opening_stone_sound_volume_)
+	update_stone_sound_volume_label_()
 	pptx_image_format_.select(opening_pptx_image_format_)
+	pptx_board_coordinates_.set_pressed_no_signal(
+		opening_pptx_board_coordinates_
+	)
 	katago_executable_path_.text = "" if executable_path_invalid \
 		else opening_katago_executable_path_
 	katago_model_path_.text = "" if model_path_invalid \
@@ -301,6 +347,8 @@ func close_panel_() -> void:
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
 	katago_benchmark_confirmation_.hide()
+	katago_benchmark_save_reminder_.hide()
+	katago_benchmark_window_.hide()
 	settings_panel_.hide()
 	action_bar_.hide()
 	error_label_.hide()
@@ -409,7 +457,10 @@ func has_staged_changes_() -> bool:
 		or selected_move_number_mode_() != opening_move_number_mode_ \
 		or selected_move_number_count_() != opening_move_number_count_ \
 		or selected_absolute_move_numbers_() != opening_absolute_move_numbers_ \
+		or selected_stone_sound_volume_() != opening_stone_sound_volume_ \
 		or selected_pptx_image_format_() != opening_pptx_image_format_ \
+		or selected_pptx_board_coordinates_() \
+			!= opening_pptx_board_coordinates_ \
 		or selected_katago_executable_path_() \
 			!= opening_katago_executable_path_ \
 		or selected_katago_model_path_() != opening_katago_model_path_ \
@@ -466,12 +517,34 @@ func selected_playback_interval_seconds_() -> float:
 	return clampf(playback_interval_seconds_.value, 0.1, 60.0)
 
 
+func selected_stone_sound_volume_() -> int:
+	return clampi(
+		roundi(stone_sound_volume_.value),
+		SettingsStore.kStoneSoundVolumeMinimum,
+		SettingsStore.kStoneSoundVolumeMaximum
+	)
+
+
+func on_stone_sound_volume_changed_(_value: float) -> void:
+	update_stone_sound_volume_label_()
+	on_option_selected_(0)
+
+
+func update_stone_sound_volume_label_() -> void:
+	stone_sound_volume_value_.text = \
+		str(selected_stone_sound_volume_()) + "%"
+
+
 func selected_pptx_image_format_() -> int:
 	return clampi(
 		pptx_image_format_.selected,
 		SettingsStore.kPptxImageFormatSvg,
 		SettingsStore.kPptxImageFormatPng
 	)
+
+
+func selected_pptx_board_coordinates_() -> bool:
+	return pptx_board_coordinates_.button_pressed
 
 
 func selected_katago_executable_path_() -> String:
@@ -532,7 +605,9 @@ func on_confirm_pressed_() -> void:
 		selected_move_number_count_(),
 		selected_absolute_move_numbers_(),
 		selected_playback_interval_seconds_(),
+		selected_stone_sound_volume_(),
 		selected_pptx_image_format_(),
+		selected_pptx_board_coordinates_(),
 		selected_katago_executable_path_(),
 		selected_katago_model_path_(),
 		selected_katago_max_visits_(),
@@ -554,7 +629,9 @@ func on_confirm_pressed_() -> void:
 	opening_move_number_count_ = selected_move_number_count_()
 	opening_absolute_move_numbers_ = selected_absolute_move_numbers_()
 	opening_playback_interval_seconds_ = selected_playback_interval_seconds_()
+	opening_stone_sound_volume_ = selected_stone_sound_volume_()
 	opening_pptx_image_format_ = selected_pptx_image_format_()
+	opening_pptx_board_coordinates_ = selected_pptx_board_coordinates_()
 	opening_katago_executable_path_ = selected_katago_executable_path_()
 	opening_katago_model_path_ = selected_katago_model_path_()
 	opening_katago_analysis_config_path_ = \
@@ -587,7 +664,12 @@ func on_restore_pressed_() -> void:
 	playback_interval_seconds_.set_value_no_signal(
 		opening_playback_interval_seconds_
 	)
+	stone_sound_volume_.set_value_no_signal(opening_stone_sound_volume_)
+	update_stone_sound_volume_label_()
 	pptx_image_format_.select(opening_pptx_image_format_)
+	pptx_board_coordinates_.set_pressed_no_signal(
+		opening_pptx_board_coordinates_
+	)
 	katago_executable_path_.text = opening_katago_executable_path_ \
 		if SettingsStore.is_katago_executable_path_valid(
 			opening_katago_executable_path_
@@ -698,36 +780,54 @@ func update_katago_path_status_(message: String, color: Color) -> void:
 
 
 func on_katago_executable_browse_pressed_() -> void:
-	if is_katago_file_dialog_open_():
+	if focus_active_katago_file_dialog_():
 		return
 	set_dialog_current_path_(
 		katago_executable_dialog_, selected_katago_executable_path_()
 	)
+	active_katago_file_dialog_ = katago_executable_dialog_
 	katago_executable_dialog_.popup_centered_ratio(0.8)
 
 
 func on_katago_model_browse_pressed_() -> void:
-	if is_katago_file_dialog_open_():
+	if focus_active_katago_file_dialog_():
 		return
 	set_dialog_current_path_(
 		katago_model_dialog_, selected_katago_model_path_()
 	)
+	active_katago_file_dialog_ = katago_model_dialog_
 	katago_model_dialog_.popup_centered_ratio(0.8)
 
 
 func on_katago_config_browse_pressed_() -> void:
-	if is_katago_file_dialog_open_():
+	if focus_active_katago_file_dialog_():
 		return
 	set_dialog_current_path_(
 		katago_config_dialog_, selected_katago_analysis_config_path_()
 	)
+	active_katago_file_dialog_ = katago_config_dialog_
 	katago_config_dialog_.popup_centered_ratio(0.8)
 
 
-func is_katago_file_dialog_open_() -> bool:
-	return katago_executable_dialog_.visible \
-			or katago_model_dialog_.visible \
-			or katago_config_dialog_.visible
+func focus_active_katago_file_dialog_() -> bool:
+	if active_katago_file_dialog_ != null:
+		active_katago_file_dialog_.grab_focus()
+		return true
+	var dialogs: Array[FileDialog] = [
+		katago_executable_dialog_,
+		katago_model_dialog_,
+		katago_config_dialog_
+	]
+	for dialog: FileDialog in dialogs:
+		if dialog.visible:
+			active_katago_file_dialog_ = dialog
+			dialog.grab_focus()
+			return true
+	return false
+
+
+func on_katago_file_dialog_canceled_() -> void:
+	active_katago_file_dialog_ = null
 
 
 func set_dialog_current_path_(dialog: FileDialog, path: String) -> void:
@@ -738,18 +838,21 @@ func set_dialog_current_path_(dialog: FileDialog, path: String) -> void:
 
 
 func on_katago_executable_selected_(path: String) -> void:
+	active_katago_file_dialog_ = null
 	katago_executable_path_.text = path
 	refresh_katago_path_status_()
 	on_option_selected_(0)
 
 
 func on_katago_model_selected_(path: String) -> void:
+	active_katago_file_dialog_ = null
 	katago_model_path_.text = path
 	refresh_katago_path_status_()
 	on_option_selected_(0)
 
 
 func on_katago_config_selected_(path: String) -> void:
+	active_katago_file_dialog_ = null
 	katago_analysis_config_path_.text = path
 	refresh_katago_path_status_()
 	on_option_selected_(0)
@@ -878,12 +981,23 @@ func on_katago_benchmark_pressed_() -> void:
 		update_katago_path_status_(validation_error, kStatusErrorColor)
 		return
 	katago_benchmark_confirmation_.dialog_text = \
-		"自动性能检测最长需要30秒，期间会占用较多计算资源。\n" \
+		"自动性能检测会占用较多计算资源。TensorRT等后端首次初始化可能耗时较长，" \
+		+ "检测将持续到完成或由你主动停止。\n" \
 		+ "检测完成后将生成当前设备专用的KataGo分析配置。"
 	katago_benchmark_confirmation_.popup_centered()
 
 
 func start_katago_benchmark_() -> void:
+	pending_katago_benchmark_threads_ = 0
+	pending_katago_benchmark_batch_size_ = 0
+	on_option_selected_(0)
+	katago_benchmark_output_ = ""
+	katago_benchmark_output_edit_.text = "正在启动 KataGo benchmark…"
+	set_katago_benchmark_window_state_(kBenchmarkStateRunning)
+	# 清除上一次打开时保留的尺寸，再由 Godot 根据父视图的实际可用尺寸计算弹窗大小。
+	# 这可以避免最大化窗口和高分屏内容缩放造成物理像素与逻辑尺寸混用。
+	katago_benchmark_window_.reset_size()
+	katago_benchmark_window_.popup_centered_ratio(0.8)
 	var arguments: PackedStringArray = PackedStringArray([
 		"benchmark",
 		"-model", selected_katago_model_path_(),
@@ -903,13 +1017,13 @@ func start_katago_benchmark_() -> void:
 		update_katago_path_status_(
 			"无法启动KataGo性能检测", kStatusErrorColor
 		)
+		katago_benchmark_output_edit_.text = "无法启动 KataGo benchmark。"
+		set_katago_benchmark_window_state_(kBenchmarkStateFailed)
 		return
 	katago_benchmark_process_ = process
-	katago_benchmark_output_ = ""
-	katago_benchmark_started_msec_ = Time.get_ticks_msec()
 	set_katago_controls_enabled_(false)
 	update_katago_path_status_(
-		"正在自动检测性能（最多30秒）…", kStatusNeutralColor
+		"正在自动检测性能…", kStatusNeutralColor
 	)
 	set_process(true)
 
@@ -918,14 +1032,9 @@ func process_katago_benchmark_() -> void:
 	read_katago_benchmark_output_()
 	var pid: int = int(katago_benchmark_process_.get("pid", -1))
 	if pid > 0 and OS.is_process_running(pid):
-		if Time.get_ticks_msec() - katago_benchmark_started_msec_ \
-				>= kKatagoBenchmarkTimeoutMsec:
-			var _kill_error: Error = OS.kill(pid)
-			read_katago_benchmark_output_()
-			finish_katago_benchmark_(true)
 		return
 	read_katago_benchmark_output_()
-	finish_katago_benchmark_(false)
+	finish_katago_benchmark_()
 
 
 func read_katago_benchmark_output_() -> void:
@@ -939,24 +1048,27 @@ func read_katago_benchmark_output_() -> void:
 			continue
 		var bytes: PackedByteArray = pipe.get_buffer(available_bytes)
 		katago_benchmark_output_ += bytes.get_string_from_utf8()
+		katago_benchmark_output_edit_.text = katago_benchmark_output_
+		katago_benchmark_output_edit_.scroll_vertical = \
+			katago_benchmark_output_edit_.get_line_count()
 
 
-func finish_katago_benchmark_(timed_out: bool) -> void:
+func finish_katago_benchmark_() -> void:
 	var best_threads: int = find_best_katago_benchmark_threads_(
 		katago_benchmark_output_
 	)
 	close_katago_benchmark_pipes_()
 	katago_benchmark_process_.clear()
-	katago_benchmark_started_msec_ = 0
 	set_process(false)
 	set_katago_controls_enabled_(true)
 	if best_threads <= 0:
-		var timeout_hint: String = \
-			"；首次OpenCL调优可能需要更久，请稍后重试" if timed_out else ""
 		update_katago_path_status_(
-			"性能检测没有取得有效结果%s" % timeout_hint,
+			"性能检测没有取得有效结果",
 			kStatusErrorColor
 		)
+		if katago_benchmark_output_.is_empty():
+			katago_benchmark_output_edit_.text = "性能检测没有取得有效结果。"
+		set_katago_benchmark_window_state_(kBenchmarkStateFailed)
 		return
 	var batch_size: int = maxi(8, ceili(float(best_threads) / 2.0))
 	katago_analysis_config_path_.text = \
@@ -964,12 +1076,12 @@ func finish_katago_benchmark_(timed_out: bool) -> void:
 	pending_katago_benchmark_threads_ = best_threads
 	pending_katago_benchmark_batch_size_ = batch_size
 	on_option_selected_(0)
-	var limit_note: String = "（达到30秒上限）" if timed_out else ""
 	update_katago_path_status_(
-		"检测完成%s：%d线程，批量%d；请确认保存" \
-			% [limit_note, best_threads, batch_size],
+		"检测完成：%d线程，批量%d；请确认保存" \
+			% [best_threads, batch_size],
 		kStatusValidColor
 	)
+	set_katago_benchmark_window_state_(kBenchmarkStateSucceeded)
 
 
 func find_best_katago_benchmark_threads_(output: String) -> int:
@@ -1018,18 +1130,57 @@ func find_best_threads_from_partial_benchmark_(output: String) -> int:
 	return best_threads
 
 
-func cancel_katago_benchmark_() -> void:
+func set_katago_benchmark_window_state_(state: int) -> void:
+	katago_benchmark_state_ = state
+	match katago_benchmark_state_:
+		kBenchmarkStateRunning:
+			katago_benchmark_action_button_.text = "停止"
+			katago_benchmark_action_button_.tooltip_text = "停止性能检测"
+		kBenchmarkStateSucceeded:
+			katago_benchmark_action_button_.text = "确认"
+			katago_benchmark_action_button_.tooltip_text = "确认检测结果"
+		kBenchmarkStateFailed:
+			katago_benchmark_action_button_.text = "关闭"
+			katago_benchmark_action_button_.tooltip_text = "关闭性能检测窗口"
+		_:
+			katago_benchmark_action_button_.text = "关闭"
+			katago_benchmark_action_button_.tooltip_text = "关闭性能检测窗口"
+
+
+func on_katago_benchmark_action_pressed_() -> void:
+	match katago_benchmark_state_:
+		kBenchmarkStateRunning:
+			cancel_katago_benchmark_(true)
+			close_katago_benchmark_window_()
+		kBenchmarkStateSucceeded:
+			katago_benchmark_save_reminder_.popup_centered(Vector2i(500, 190))
+		_:
+			close_katago_benchmark_window_()
+
+
+func on_katago_benchmark_window_close_requested_() -> void:
+	on_katago_benchmark_action_pressed_()
+
+
+func close_katago_benchmark_window_() -> void:
+	katago_benchmark_save_reminder_.hide()
+	katago_benchmark_window_.hide()
+	katago_benchmark_state_ = kBenchmarkStateIdle
+
+
+func cancel_katago_benchmark_(show_canceled_status: bool = false) -> void:
 	if katago_benchmark_process_.is_empty():
 		return
+	read_katago_benchmark_output_()
 	var pid: int = int(katago_benchmark_process_.get("pid", -1))
 	if pid > 0 and OS.is_process_running(pid):
 		var _kill_error: Error = OS.kill(pid)
 	close_katago_benchmark_pipes_()
 	katago_benchmark_process_.clear()
-	katago_benchmark_output_ = ""
-	katago_benchmark_started_msec_ = 0
 	set_process(false)
 	set_katago_controls_enabled_(true)
+	if show_canceled_status:
+		update_katago_path_status_("已取消性能测试", kStatusCanceledColor)
 
 
 func close_katago_benchmark_pipes_() -> void:
@@ -1059,7 +1210,9 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	custom_move_count_.editable = enabled and custom_moves_.button_pressed
 	absolute_move_numbers_.disabled = not enabled
 	playback_interval_seconds_.editable = enabled
+	stone_sound_volume_.editable = enabled
 	pptx_image_format_.disabled = not enabled
+	pptx_board_coordinates_.disabled = not enabled
 	katago_executable_path_.editable = enabled
 	katago_model_path_.editable = enabled
 	katago_analysis_config_path_.editable = enabled

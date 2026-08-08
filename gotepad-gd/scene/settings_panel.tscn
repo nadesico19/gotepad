@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://script/settings_panel.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
@@ -23,6 +23,18 @@ corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 shadow_color = Color(0, 0, 0, 0.35)
 shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxBenchmarkPanel"]
+bg_color = Color(0.055, 0.055, 0.065, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.42, 0.48, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="SettingsUI" type="Control"]
 layout_mode = 3
@@ -231,6 +243,35 @@ step = 0.1
 value = 1.0
 suffix = " 秒"
 
+[node name="StoneSoundVolumeRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/StoneSoundVolumeRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "落子音效"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/StoneSoundVolumeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Volume" type="HSlider" parent="SettingsPanel/Margin/Options/StoneSoundVolumeRow"]
+custom_minimum_size = Vector2(170, 36)
+layout_mode = 2
+tooltip_text = "设置实际落子时的音效音量"
+max_value = 100.0
+step = 1.0
+value = 50.0
+
+[node name="Value" type="Label" parent="SettingsPanel/Margin/Options/StoneSoundVolumeRow"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+text = "50%"
+horizontal_alignment = 2
+vertical_alignment = 1
+
 [node name="PptxImageFormatRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 theme_override_constants/separation = 8
@@ -249,6 +290,11 @@ mouse_filter = 2
 custom_minimum_size = Vector2(120, 36)
 layout_mode = 2
 tooltip_text = "SVG 保持矢量清晰度；PNG 兼容更多版本的演示软件"
+
+[node name="PptxBoardCoordinates" type="CheckBox" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+tooltip_text = "在导出棋盘的左侧绘制行号、上侧绘制列字母"
+text = "导出棋盘坐标（左侧和上侧）"
 
 [node name="KatagoSeparator" type="HSeparator" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
@@ -439,7 +485,7 @@ custom_minimum_size = Vector2(156, 36)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "自动性能检测"
-tooltip_text = "在30秒内测试适合当前设备的搜索线程和批量大小"
+tooltip_text = "测试适合当前设备的搜索线程和批量大小，可由用户主动停止"
 
 [node name="KatagoStatus" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
@@ -502,6 +548,7 @@ text = "✕"
 
 [node name="KatagoExecutableDialog" type="FileDialog" parent="."]
 title = "选择 KataGo 可执行文件"
+transient = true
 exclusive = true
 size = Vector2i(900, 600)
 file_mode = 0
@@ -511,6 +558,7 @@ use_native_dialog = true
 
 [node name="KatagoModelDialog" type="FileDialog" parent="."]
 title = "选择 KataGo 神经网络模型"
+transient = true
 exclusive = true
 size = Vector2i(900, 600)
 file_mode = 0
@@ -520,6 +568,7 @@ use_native_dialog = true
 
 [node name="KatagoConfigDialog" type="FileDialog" parent="."]
 title = "选择 KataGo Analysis Engine 配置文件"
+transient = true
 exclusive = true
 size = Vector2i(900, 600)
 file_mode = 0
@@ -532,3 +581,59 @@ title = "自动性能检测"
 size = Vector2i(520, 190)
 ok_button_text = "开始检测"
 cancel_button_text = "取消"
+
+[node name="KatagoBenchmarkWindow" type="Window" parent="."]
+title = "KataGo 自动性能检测"
+initial_position = 1
+size = Vector2i(760, 500)
+min_size = Vector2i(560, 360)
+transient = true
+exclusive = true
+
+[node name="Panel" type="PanelContainer" parent="KatagoBenchmarkWindow"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxBenchmarkPanel")
+
+[node name="Margin" type="MarginContainer" parent="KatagoBenchmarkWindow/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="KatagoBenchmarkWindow/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Output" type="TextEdit" parent="KatagoBenchmarkWindow/Panel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+editable = false
+wrap_mode = 1
+scroll_fit_content_height = false
+
+[node name="Footer" type="HBoxContainer" parent="KatagoBenchmarkWindow/Panel/Margin/Content"]
+layout_mode = 2
+
+[node name="Spacer" type="Control" parent="KatagoBenchmarkWindow/Panel/Margin/Content/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Action" type="Button" parent="KatagoBenchmarkWindow/Panel/Margin/Content/Footer"]
+custom_minimum_size = Vector2(104, 38)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "停止"
+
+[node name="SaveReminder" type="AcceptDialog" parent="KatagoBenchmarkWindow"]
+title = "还需保存设置"
+size = Vector2i(500, 190)
+exclusive = true
+dialog_text = "性能检测结果尚未生效。\n请回到设置面板，点击左上角绿色 ✓ 保存设置。"
+ok_button_text = "知道了"
