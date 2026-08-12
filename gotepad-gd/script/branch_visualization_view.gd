@@ -20,6 +20,10 @@ const kTextureCacheLimit: int = 256
 const kActionIconRadius: float = 11.0
 const kActionIconOffset: float = 15.0
 const kActionIconHitRadius: float = 18.0
+const kSelectionActionNone: int = 0
+const kSelectionActionRoam: int = 1
+const kSelectionActionDelete: int = 2
+const kEmulatedMouseSuppressionMsec: int = 250
 const kCommentNotebookIcon: String = "📓"
 
 @onready var exit_button_: Button = $ExitButton
@@ -65,6 +69,9 @@ var pan_: Vector2 = Vector2.ZERO
 var selected_uid_: int = -1
 var dragging_: bool = false
 var last_drag_position_: Vector2 = Vector2.ZERO
+var active_touch_indices_: Dictionary = {}
+var touch_pan_index_: int = -1
+var suppress_emulated_mouse_until_: int = 0
 var generation_token_: int = 0
 var pending_delete_uid_: int = -1
 
@@ -92,10 +99,13 @@ func rebuild(go_notes: GoNotes) -> void:
 	selected_uid_ = -1
 	zoom_ = 1.0
 	pan_ = Vector2.ZERO
+	active_touch_indices_.clear()
+	touch_pan_index_ = -1
+	suppress_emulated_mouse_until_ = 0
 	generation_token_ += 1
 	loading_overlay_.show()
 	progress_bar_.hide()
-	progress_label_.text = "正在分析棋谱分支……"
+	progress_label_.text = tr("正在分析棋谱分支……")
 	selected_order_.clear()
 	snapshots_.clear()
 	node_titles_.clear()
@@ -109,6 +119,8 @@ func rebuild(go_notes: GoNotes) -> void:
 
 func cancel_generation() -> void:
 	generation_token_ += 1
+	active_touch_indices_.clear()
+	touch_pan_index_ = -1
 	loading_overlay_.hide()
 	pending_texture_uids_.clear()
 	pending_texture_uid_set_.clear()
@@ -137,7 +149,7 @@ func _prepare_visualization_(token: int) -> void:
 	progress_bar_.max_value = float(maxi(total, 1))
 	progress_bar_.value = 0.0
 	progress_bar_.show()
-	progress_label_.text = "正在生成棋盘缩略图：0 / %d" % total
+	progress_label_.text = tr("正在生成棋盘缩略图：0 / %d") % total
 	await get_tree().process_frame
 	if token != generation_token_:
 		return
@@ -277,7 +289,7 @@ func _cache_snapshots_(token: int) -> bool:
 		node_titles_[uid] = title
 		var completed: int = index + 1
 		progress_bar_.value = float(completed)
-		progress_label_.text = "正在生成棋盘缩略图：%d / %d" % [
+		progress_label_.text = tr("正在生成棋盘缩略图：%d / %d") % [
 			completed,
 			selected_order_.size(),
 		]
@@ -973,9 +985,23 @@ func _gui_input(event: InputEvent) -> void:
 		_handle_mouse_button_(event as InputEventMouseButton)
 	elif event is InputEventMouseMotion:
 		_handle_mouse_motion_(event as InputEventMouseMotion)
+	elif event is InputEventMagnifyGesture:
+		_handle_magnify_gesture_(event as InputEventMagnifyGesture)
+	elif event is InputEventPanGesture:
+		_handle_pan_gesture_(event as InputEventPanGesture)
+	elif event is InputEventScreenTouch:
+		_handle_screen_touch_(event as InputEventScreenTouch)
+	elif event is InputEventScreenDrag:
+		_handle_screen_drag_(event as InputEventScreenDrag)
 
 
 func _handle_mouse_button_(event: InputEventMouseButton) -> void:
+	if OS.has_feature("android") \
+			and event.button_index == MOUSE_BUTTON_LEFT \
+			and (touch_pan_index_ >= 0 \
+			or Time.get_ticks_msec() <= suppress_emulated_mouse_until_):
+		accept_event()
+		return
 	if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 		_zoom_at_(event.position, kZoomStep)
 		accept_event()
@@ -1007,6 +1033,59 @@ func _handle_mouse_motion_(event: InputEventMouseMotion) -> void:
 	last_drag_position_ = event.position
 	_apply_view_transform_()
 	accept_event()
+
+
+func _handle_magnify_gesture_(event: InputEventMagnifyGesture) -> void:
+	_zoom_at_(event.position, event.factor)
+	accept_event()
+
+
+func _handle_pan_gesture_(event: InputEventPanGesture) -> void:
+	pan_ -= event.delta
+	_apply_view_transform_()
+	accept_event()
+
+
+func _handle_screen_touch_(event: InputEventScreenTouch) -> void:
+	if not OS.has_feature("android"):
+		return
+	if event.pressed:
+		active_touch_indices_[event.index] = true
+		if active_touch_indices_.size() != 1 \
+				or _touch_hits_interactive_content_(event.position):
+			touch_pan_index_ = -1
+			return
+		touch_pan_index_ = event.index
+		accept_event()
+		return
+
+	active_touch_indices_.erase(event.index)
+	if event.index != touch_pan_index_:
+		return
+	touch_pan_index_ = -1
+	suppress_emulated_mouse_until_ = Time.get_ticks_msec() \
+		+ kEmulatedMouseSuppressionMsec
+	accept_event()
+
+
+func _handle_screen_drag_(event: InputEventScreenDrag) -> void:
+	if not OS.has_feature("android") or event.index != touch_pan_index_ \
+			or active_touch_indices_.size() != 1:
+		return
+	pan_ += event.relative
+	_apply_view_transform_()
+	accept_event()
+
+
+func _touch_hits_interactive_content_(screen_position: Vector2) -> bool:
+	if Rect2(exit_button_.position, exit_button_.size).has_point(
+			screen_position
+	):
+		return true
+	if _selection_action_at_screen_position_(screen_position) \
+			!= kSelectionActionNone:
+		return true
+	return _uid_at_screen_position_(screen_position) >= 0
 
 
 func _zoom_at_(screen_position: Vector2, factor: float) -> void:
@@ -1044,8 +1123,20 @@ func _uid_at_screen_position_(screen_position: Vector2) -> int:
 
 
 func _try_selection_action_at_(screen_position: Vector2) -> bool:
+	var action: int = _selection_action_at_screen_position_(screen_position)
+	if action == kSelectionActionRoam:
+		_roam_to_selected_()
+		return true
+	if action == kSelectionActionDelete:
+		pending_delete_uid_ = selected_uid_
+		delete_branch_confirmation_.popup_centered(Vector2i(500, 190))
+		return true
+	return false
+
+
+func _selection_action_at_screen_position_(screen_position: Vector2) -> int:
 	if selected_uid_ < 0 or not node_positions_.has(selected_uid_):
-		return false
+		return kSelectionActionNone
 	var selected_center: Vector2 = Vector2(
 		node_positions_.get(selected_uid_, Vector2.ZERO)
 	)
@@ -1057,19 +1148,16 @@ func _try_selection_action_at_(screen_position: Vector2) -> bool:
 		-selection_half_extent - kActionIconOffset
 	)
 	if check_center.distance_to(screen_position) <= kActionIconHitRadius:
-		_roam_to_selected_()
-		return true
+		return kSelectionActionRoam
 	if selected_uid_ == 0:
-		return false
+		return kSelectionActionNone
 	var delete_center: Vector2 = selected_screen_center + Vector2(
 		selection_half_extent + kActionIconOffset,
 		-selection_half_extent - kActionIconOffset
 	)
 	if delete_center.distance_to(screen_position) <= kActionIconHitRadius:
-		pending_delete_uid_ = selected_uid_
-		delete_branch_confirmation_.popup_centered(Vector2i(500, 190))
-		return true
-	return false
+		return kSelectionActionDelete
+	return kSelectionActionNone
 
 
 func _roam_to_selected_() -> void:
@@ -1092,7 +1180,7 @@ func _on_delete_branch_confirmed_() -> void:
 	var target_uid: int = pending_delete_uid_
 	pending_delete_uid_ = -1
 	if target_uid <= 0 or not full_nodes_.has(target_uid):
-		push_warning("所选局面已经不存在。")
+		push_warning(tr("所选局面已经不存在。"))
 		return
 	var command: String = "CUTBRANCH,%d;" % target_uid
 	var result: int = int(go_notes_.execute_command(command))

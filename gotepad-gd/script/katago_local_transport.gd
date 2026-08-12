@@ -12,10 +12,10 @@ func start_transport() -> bool:
 	if is_transport_running():
 		return true
 	if OS.get_name() == "Android" or OS.get_name() == "iOS":
-		transport_error.emit("移动端暂不支持本地KataGo引擎。")
+		transport_error.emit(tr("移动端暂不支持本地KataGo引擎。"))
 		return false
 	if not SettingsStore.has_valid_katago_paths():
-		transport_error.emit("KataGo路径或配置文件无效，请先打开设置检查。")
+		transport_error.emit(tr("KataGo路径或配置文件无效，请先打开设置检查。"))
 		return false
 	var arguments: PackedStringArray = PackedStringArray([
 		"analysis",
@@ -27,7 +27,7 @@ func start_transport() -> bool:
 		SettingsStore.get_katago_executable_path(), arguments, false
 	)
 	if process_.is_empty():
-		transport_error.emit("无法启动KataGo分析进程。")
+		transport_error.emit(tr("无法启动KataGo分析进程。"))
 		return false
 	stdout_buffer_ = ""
 	stderr_buffer_ = ""
@@ -81,10 +81,10 @@ func _process(_delta: float) -> void:
 	flush_stderr_lines_(true)
 	if not stderr_error_summary_.is_empty():
 		transport_error.emit(
-			"KataGo分析进程异常退出：%s" % stderr_error_summary_
+			tr("KataGo分析进程异常退出：%s") % stderr_error_summary_
 		)
 	else:
-		transport_error.emit("KataGo分析进程已意外退出，请查看详细日志。")
+		transport_error.emit(tr("KataGo分析进程已意外退出，请查看详细日志。"))
 	close_pipes_()
 	process_.clear()
 	set_process(false)

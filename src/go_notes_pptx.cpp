@@ -129,6 +129,85 @@ bool write_file_(const std::string &path, const void *data, size_t size) {
   return static_cast<bool>(output);
 }
 
+bool ensure_parent_directory_(const std::string &path) {
+  const auto output_path = utf8_path_(path);
+  if (!output_path.has_parent_path())
+    return true;
+  std::error_code error{};
+  std::filesystem::create_directories(output_path.parent_path(), error);
+  return !error;
+}
+
+class PackageWriter {
+public:
+  PackageWriter() = default;
+  PackageWriter(const PackageWriter &) = delete;
+  PackageWriter &operator=(const PackageWriter &) = delete;
+
+  ~PackageWriter() {
+    if (initialized_)
+      mz_zip_writer_end(&archive_);
+#ifndef _WIN32
+    if (!finished_ && !path_.empty()) {
+      std::error_code error{};
+      std::filesystem::remove(utf8_path_(path_), error);
+    }
+#endif
+  }
+
+  bool open(const std::string &path) {
+    path_ = path;
+    if (!ensure_parent_directory_(path))
+      return false;
+#ifdef _WIN32
+    initialized_ = mz_zip_writer_init_heap(&archive_, 0, 256 * 1024) != 0;
+#else
+    initialized_ = mz_zip_writer_init_file(&archive_, path.c_str(), 0) != 0;
+#endif
+    return initialized_;
+  }
+
+  bool add(const std::string &name, const std::vector<uint8_t> &data) {
+    return initialized_ &&
+           mz_zip_writer_add_mem(&archive_, name.c_str(), data.data(),
+                                 data.size(), MZ_BEST_SPEED) != 0;
+  }
+
+  bool finish() {
+    if (!initialized_)
+      return false;
+#ifdef _WIN32
+    void *output = nullptr;
+    size_t output_size = 0;
+    bool valid = mz_zip_writer_finalize_heap_archive(&archive_, &output,
+                                                     &output_size) != 0;
+    mz_zip_writer_end(&archive_);
+    initialized_ = false;
+    if (valid)
+      valid = write_file_(path_, output, output_size);
+    mz_free(output);
+    finished_ = valid;
+    return valid;
+#else
+    const bool valid = mz_zip_writer_finalize_archive(&archive_) != 0;
+    mz_zip_writer_end(&archive_);
+    initialized_ = false;
+    finished_ = valid;
+    if (!valid) {
+      std::error_code error{};
+      std::filesystem::remove(utf8_path_(path_), error);
+    }
+    return valid;
+#endif
+  }
+
+private:
+  mz_zip_archive archive_{};
+  std::string path_{};
+  bool initialized_{};
+  bool finished_{};
+};
+
 std::vector<uint8_t> bytes_(std::string value) {
   return {value.begin(), value.end()};
 }
@@ -902,54 +981,29 @@ bool read_template_(const std::vector<uint8_t> &archive_bytes,
          parts.find("ppt/slideMasters/slideMaster1.xml") != parts.end();
 }
 
-bool write_package_(const std::string &path,
-                    const std::map<std::string, std::vector<uint8_t>> &parts) {
-  mz_zip_archive archive{};
-  if (!mz_zip_writer_init_heap(&archive, 0, 256 * 1024))
-    return false;
-  bool valid = true;
-  for (const auto &[name, data] : parts) {
-    if (!mz_zip_writer_add_mem(&archive, name.c_str(), data.data(), data.size(),
-                               MZ_BEST_SPEED)) {
-      valid = false;
-      break;
-    }
-  }
-  void *output = nullptr;
-  size_t output_size = 0;
-  if (valid)
-    valid = mz_zip_writer_finalize_heap_archive(&archive, &output,
-                                                &output_size) != 0;
-  mz_zip_writer_end(&archive);
-  if (!valid) {
-    mz_free(output);
-    return false;
-  }
-  valid = write_file_(path, output, output_size);
-  mz_free(output);
-  return valid;
-}
 } // namespace
 
 bool GoNotes::export_pptx_file(const std::string &path,
                                const std::string &template_path,
                                std::string &error_message,
                                PptxImageFormat image_format,
-                               bool show_board_coordinates) const {
+                               bool show_board_coordinates,
+                               const PptxProgressCallback &progress) const {
   std::vector<uint8_t> template_data{};
   if (!read_file_(template_path, template_data)) {
     error_message = kTemplateReadMessage;
     return false;
   }
   return export_pptx_file(path, template_data, error_message, image_format,
-                          show_board_coordinates);
+                          show_board_coordinates, progress);
 }
 
 bool GoNotes::export_pptx_file(const std::string &path,
                                const std::vector<uint8_t> &template_data,
                                std::string &error_message,
                                PptxImageFormat image_format,
-                               bool show_board_coordinates) const {
+                               bool show_board_coordinates,
+                               const PptxProgressCallback &progress) const {
   error_message.clear();
   const auto root = go_core_.record_tree();
 
@@ -960,6 +1014,8 @@ bool GoNotes::export_pptx_file(const std::string &path,
     error_message = kNoNotesMessage;
     return false;
   }
+  if (progress)
+    progress(0, pages.size());
 
   std::map<std::string, std::vector<uint8_t>> parts{};
   std::string slide_template{};
@@ -987,6 +1043,19 @@ bool GoNotes::export_pptx_file(const std::string &path,
     }
   }
 
+  PackageWriter writer{};
+  if (!writer.open(path)) {
+    error_message = kPptxWriteMessage;
+    return false;
+  }
+  for (const auto &[name, data] : parts) {
+    if (!writer.add(name, data)) {
+      error_message = kPptxWriteMessage;
+      return false;
+    }
+  }
+  parts.clear();
+
   for (size_t index = 0; index < pages.size(); ++index) {
     const auto diagram =
         render_board_(*this, pages[index], root, show_board_coordinates);
@@ -1001,22 +1070,34 @@ bool GoNotes::export_pptx_file(const std::string &path,
       return false;
     }
     const auto number = std::to_string(index + 1);
-    parts["ppt/slides/slide" + number + ".xml"] = bytes_(slide);
-    parts["ppt/slides/_rels/slide" + number + ".xml.rels"] =
-        bytes_(slide_relationships_(index + 1, image_format));
+    if (!writer.add("ppt/slides/slide" + number + ".xml", bytes_(slide)) ||
+        !writer.add("ppt/slides/_rels/slide" + number + ".xml.rels",
+                    bytes_(slide_relationships_(index + 1, image_format)))) {
+      error_message = kPptxWriteMessage;
+      return false;
+    }
     if (image_format == PptxImageFormat::Png) {
       std::vector<uint8_t> png{};
       if (!svg_to_png_(diagram.svg, png)) {
         error_message = kPptxRasterizeMessage;
         return false;
       }
-      parts["ppt/media/board" + number + ".png"] = std::move(png);
+      if (!writer.add("ppt/media/board" + number + ".png", png)) {
+        error_message = kPptxWriteMessage;
+        return false;
+      }
     } else {
-      parts["ppt/media/board" + number + ".svg"] = bytes_(diagram.svg);
+      if (!writer.add("ppt/media/board" + number + ".svg",
+                      bytes_(diagram.svg))) {
+        error_message = kPptxWriteMessage;
+        return false;
+      }
     }
+    if (progress)
+      progress(index + 1, pages.size());
   }
 
-  if (!write_package_(path, parts)) {
+  if (!writer.finish()) {
     error_message = kPptxWriteMessage;
     return false;
   }

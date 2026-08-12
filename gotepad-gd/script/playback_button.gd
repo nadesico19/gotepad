@@ -10,8 +10,12 @@ func set_playing(playing: bool) -> void:
 	if playing_ == playing:
 		return
 	playing_ = playing
-	tooltip_text = "停止播放" if playing_ else "播放棋局"
+	tooltip_text = tr("停止播放") if playing_ else tr("播放棋局")
 	queue_redraw()
+
+
+func refresh_localized_texts() -> void:
+	tooltip_text = tr("停止播放") if playing_ else tr("播放棋局")
 
 
 func _draw() -> void:

@@ -784,12 +784,23 @@ std::unique_ptr<GoNotes> GoNotes::from_sgf_file(const std::string &path,
     if (!read_sgf_file_content_(path, sgf_content, error_message))
       return nullptr;
 
+    return from_sgf_content(sgf_content, error_message);
+  } catch (const std::exception &error) {
+    error_message = error.what();
+    return nullptr;
+  }
+}
+
+std::unique_ptr<GoNotes> GoNotes::from_sgf_content(const std::string &content,
+                                                   std::string &error_message) {
+  error_message.clear();
+  try {
     const auto reader = SgfcPlusPlusFactory::CreateDocumentReader();
-    if (reader && is_valid_utf8_(sgf_content)) {
+    if (reader && is_valid_utf8_(content)) {
       reader->GetArguments()->AddArgument(SgfcArgumentType::DefaultEncoding,
                                           "UTF-8");
     }
-    const auto result = reader ? reader->ReadSgfContent(sgf_content) : nullptr;
+    const auto result = reader ? reader->ReadSgfContent(content) : nullptr;
     if (!result || !result->IsSgfDataValid()) {
       error_message = "Unable to read a valid SGF file";
       return nullptr;
@@ -810,6 +821,7 @@ std::unique_ptr<GoNotes> GoNotes::from_sgf_file(const std::string &path,
     }
     const auto board_size = static_cast<int>(size.Rows);
     auto go_notes = std::make_unique<GoNotes>(board_size);
+    go_notes->sgf_metadata_ = {};
 
     const auto root = game->GetRootNode();
     bool trust_gotepad_uids{};

@@ -3,12 +3,26 @@ extends Node
 signal textures_changed
 signal move_numbers_changed
 signal playback_interval_changed
+signal move_confirmation_changed(enabled: bool)
 signal katago_paths_changed
 signal katago_analysis_settings_changed
+signal language_changed(locale: String)
+signal horizontal_safe_margin_changed(margin: int)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 15
+const kSchemaVersion: int = 20
+const kLanguageSimplifiedChinese: String = "zh_CN"
+const kLanguageJapanese: String = "ja"
+const kLanguageKorean: String = "ko"
+const kLanguageEnglish: String = "en"
+const kDefaultLanguage: String = kLanguageSimplifiedChinese
+const kSupportedLanguages: Array[String] = [
+	kLanguageSimplifiedChinese,
+	kLanguageJapanese,
+	kLanguageKorean,
+	kLanguageEnglish,
+]
 const kMoveNumberModeOne: int = 0
 const kMoveNumberModeTen: int = 1
 const kMoveNumberModeAll: int = 2
@@ -20,6 +34,10 @@ const kDefaultPlaybackIntervalSeconds: float = 1.0
 const kStoneSoundVolumeMinimum: int = 0
 const kStoneSoundVolumeMaximum: int = 100
 const kDefaultStoneSoundVolume: int = 50
+const kDefaultHorizontalSafeMargin: int = 0
+const kHorizontalSafeMarginMaximum: int = 512
+const kDefaultDesktopMoveConfirmation: bool = false
+const kDefaultMobileMoveConfirmation: bool = true
 const kPptxImageFormatSvg: int = 0
 const kPptxImageFormatPng: int = 1
 const kDefaultPptxImageFormat: int = kPptxImageFormatSvg
@@ -56,11 +74,15 @@ var white_texture_path_: String = kDefaultWhiteTexturePath
 var board_texture_: Texture2D = kDefaultBoardTexture
 var black_texture_: Texture2D = kDefaultBlackTexture
 var white_texture_: Texture2D = kDefaultWhiteTexture
+var language_: String = kDefaultLanguage
 var move_number_mode_: int = kDefaultMoveNumberMode
 var move_number_count_: int = kDefaultMoveNumberCount
 var absolute_move_numbers_: bool = kDefaultAbsoluteMoveNumbers
 var playback_interval_seconds_: float = kDefaultPlaybackIntervalSeconds
 var stone_sound_volume_: int = kDefaultStoneSoundVolume
+var horizontal_safe_margin_: int = kDefaultHorizontalSafeMargin
+var move_confirmation_enabled_: bool = kDefaultMobileMoveConfirmation \
+	if OS.has_feature("mobile") else kDefaultDesktopMoveConfirmation
 var pptx_image_format_: int = kDefaultPptxImageFormat
 var pptx_board_coordinates_: bool = kDefaultPptxBoardCoordinates
 var katago_executable_path_: String = kDefaultKatagoExecutablePath
@@ -80,6 +102,7 @@ var saved_window_maximized_: bool = false
 
 func _ready() -> void:
 	load_config_()
+	apply_runtime_language_(language_)
 	load_window_state_()
 	ensure_managed_katago_analysis_config_()
 	load_textures_()
@@ -95,6 +118,25 @@ func get_black_stone_texture() -> Texture2D:
 
 func get_white_stone_texture() -> Texture2D:
 	return white_texture_
+
+
+func get_language() -> String:
+	return language_
+
+
+func is_supported_language(locale: String) -> bool:
+	return kSupportedLanguages.has(locale)
+
+
+func preview_language(locale: String) -> bool:
+	if not is_supported_language(locale):
+		return false
+	apply_runtime_language_(locale)
+	return true
+
+
+func restore_saved_language() -> void:
+	apply_runtime_language_(language_)
 
 
 func get_board_texture_path() -> String:
@@ -126,6 +168,14 @@ func get_playback_interval_seconds() -> float:
 
 func get_stone_sound_volume() -> int:
 	return stone_sound_volume_
+
+
+func get_horizontal_safe_margin() -> int:
+	return horizontal_safe_margin_
+
+
+func get_move_confirmation_enabled() -> bool:
+	return move_confirmation_enabled_
 
 
 func get_pptx_image_format() -> int:
@@ -169,6 +219,8 @@ func get_katago_game_analysis_visits() -> int:
 
 
 func get_katago_analysis_config_path() -> String:
+	if OS.get_name() == "Android":
+		return get_managed_katago_analysis_config_path()
 	return katago_analysis_config_path_
 
 
@@ -254,6 +306,7 @@ func write_managed_katago_analysis_config(
 
 
 func set_settings(
+		language: String,
 		board_path: String,
 		black_path: String,
 		white_path: String,
@@ -262,6 +315,8 @@ func set_settings(
 		absolute_move_numbers: bool,
 		playback_interval_seconds: float,
 		stone_sound_volume: int,
+		horizontal_safe_margin: int,
+		move_confirmation_enabled: bool,
 		pptx_image_format: int,
 		pptx_board_coordinates: bool,
 		katago_executable_path: String,
@@ -273,6 +328,7 @@ func set_settings(
 		katago_game_analysis_visits: int,
 		katago_analysis_config_path: String
 ) -> Error:
+	var previous_language: String = language_
 	var previous_board_path: String = board_texture_path_
 	var previous_black_path: String = black_texture_path_
 	var previous_white_path: String = white_texture_path_
@@ -281,6 +337,8 @@ func set_settings(
 	var previous_absolute_move_numbers: bool = absolute_move_numbers_
 	var previous_playback_interval: float = playback_interval_seconds_
 	var previous_stone_sound_volume: int = stone_sound_volume_
+	var previous_horizontal_safe_margin: int = horizontal_safe_margin_
+	var previous_move_confirmation_enabled: bool = move_confirmation_enabled_
 	var previous_pptx_image_format: int = pptx_image_format_
 	var previous_pptx_board_coordinates: bool = pptx_board_coordinates_
 	var previous_katago_executable_path: String = katago_executable_path_
@@ -295,6 +353,7 @@ func set_settings(
 		katago_game_analysis_visits_
 	var previous_katago_analysis_config_path: String = \
 		katago_analysis_config_path_
+	language_ = language if is_supported_language(language) else kDefaultLanguage
 	board_texture_path_ = board_path
 	black_texture_path_ = black_path
 	white_texture_path_ = white_path
@@ -309,6 +368,10 @@ func set_settings(
 		kStoneSoundVolumeMinimum,
 		kStoneSoundVolumeMaximum
 	)
+	horizontal_safe_margin_ = clampi(
+		horizontal_safe_margin, 0, kHorizontalSafeMarginMaximum
+	)
+	move_confirmation_enabled_ = move_confirmation_enabled
 	pptx_image_format_ = clampi(
 		pptx_image_format, kPptxImageFormatSvg, kPptxImageFormatPng
 	)
@@ -322,10 +385,14 @@ func set_settings(
 	katago_analysis_pv_length_ = maxi(katago_analysis_pv_length, 1)
 	katago_show_score_lead_ = katago_show_score_lead
 	katago_game_analysis_visits_ = maxi(katago_game_analysis_visits, 1)
-	katago_analysis_config_path_ = katago_analysis_config_path.strip_edges()
+	katago_analysis_config_path_ = get_managed_katago_analysis_config_path() \
+		if OS.get_name() == "Android" \
+		else katago_analysis_config_path.strip_edges()
 
 	var error: Error = save_config_()
 	if error != OK:
+		language_ = previous_language
+		apply_runtime_language_(previous_language)
 		board_texture_path_ = previous_board_path
 		black_texture_path_ = previous_black_path
 		white_texture_path_ = previous_white_path
@@ -334,6 +401,8 @@ func set_settings(
 		absolute_move_numbers_ = previous_absolute_move_numbers
 		playback_interval_seconds_ = previous_playback_interval
 		stone_sound_volume_ = previous_stone_sound_volume
+		horizontal_safe_margin_ = previous_horizontal_safe_margin
+		move_confirmation_enabled_ = previous_move_confirmation_enabled
 		pptx_image_format_ = previous_pptx_image_format
 		pptx_board_coordinates_ = previous_pptx_board_coordinates
 		katago_executable_path_ = previous_katago_executable_path
@@ -345,6 +414,8 @@ func set_settings(
 		katago_game_analysis_visits_ = previous_katago_game_analysis_visits
 		katago_analysis_config_path_ = previous_katago_analysis_config_path
 		return error
+	if language_ != previous_language:
+		apply_runtime_language_(language_)
 	if board_path != previous_board_path or black_path != previous_black_path \
 			or white_path != previous_white_path:
 		load_textures_()
@@ -357,6 +428,10 @@ func set_settings(
 		playback_interval_seconds_, previous_playback_interval
 	):
 		playback_interval_changed.emit()
+	if move_confirmation_enabled_ != previous_move_confirmation_enabled:
+		move_confirmation_changed.emit(move_confirmation_enabled_)
+	if horizontal_safe_margin_ != previous_horizontal_safe_margin:
+		horizontal_safe_margin_changed.emit(horizontal_safe_margin_)
 	if katago_executable_path_ != previous_katago_executable_path \
 			or katago_model_path_ != previous_katago_model_path \
 			or katago_analysis_config_path_ \
@@ -376,12 +451,20 @@ func set_settings(
 
 func reload() -> void:
 	load_config_()
+	apply_runtime_language_(language_)
 	load_textures_()
 	textures_changed.emit()
 	move_numbers_changed.emit()
 	playback_interval_changed.emit()
+	move_confirmation_changed.emit(move_confirmation_enabled_)
+	horizontal_safe_margin_changed.emit(horizontal_safe_margin_)
 	katago_paths_changed.emit()
 	katago_analysis_settings_changed.emit()
+
+
+func apply_runtime_language_(locale: String) -> void:
+	TranslationServer.set_locale(locale)
+	language_changed.emit(locale)
 
 
 func load_window_state_() -> void:
@@ -432,6 +515,11 @@ func load_config_() -> void:
 		"schema_version",
 		0
 	))
+	language_ = str(config.get_value(
+		"general", "language", kDefaultLanguage
+	))
+	if not is_supported_language(language_):
+		language_ = kDefaultLanguage
 
 	board_texture_path_ = str(config.get_value(
 		"board",
@@ -484,6 +572,11 @@ func load_config_() -> void:
 		kStoneSoundVolumeMinimum,
 		kStoneSoundVolumeMaximum
 	)
+	move_confirmation_enabled_ = bool(config.get_value(
+		"gameplay",
+		"move_confirmation_enabled",
+		default_move_confirmation_enabled_()
+	))
 	pptx_image_format_ = clampi(int(config.get_value(
 		"export",
 		"pptx_image_format",
@@ -494,6 +587,11 @@ func load_config_() -> void:
 		"pptx_board_coordinates",
 		kDefaultPptxBoardCoordinates
 	))
+	horizontal_safe_margin_ = clampi(int(config.get_value(
+		"display",
+		"horizontal_safe_margin",
+		kDefaultHorizontalSafeMargin
+	)), 0, kHorizontalSafeMarginMaximum)
 	katago_executable_path_ = str(config.get_value(
 		"katago",
 		"executable_path",
@@ -529,14 +627,23 @@ func load_config_() -> void:
 		"game_analysis_visits",
 		kDefaultKatagoGameAnalysisVisits
 	)), 1)
-	katago_analysis_config_path_ = str(config.get_value(
-		"katago",
-		"analysis_config_path",
-		get_managed_katago_analysis_config_path()
-	)).strip_edges()
+	katago_analysis_config_path_ = get_managed_katago_analysis_config_path() \
+		if OS.get_name() == "Android" else str(config.get_value(
+			"katago",
+			"analysis_config_path",
+			get_managed_katago_analysis_config_path()
+		)).strip_edges()
 
 	if schema_version < 11:
 		katago_game_analysis_visits_ = kDefaultKatagoGameAnalysisVisits
+	if schema_version < 20 and OS.get_name() == "Android":
+		var managed_config_error: Error = \
+			write_managed_katago_analysis_config(1, 1)
+		if managed_config_error != OK:
+			push_warning(
+				"Failed to migrate Android KataGo config: %s" \
+					% error_string(managed_config_error)
+			)
 	if schema_version < kSchemaVersion:
 		error = save_config_()
 		if error != OK:
@@ -573,6 +680,7 @@ func migrate_white_texture_path_(path: String) -> String:
 func save_config_() -> Error:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value("general", "schema_version", kSchemaVersion)
+	config.set_value("general", "language", language_)
 	config.set_value("board", "path", board_texture_path_)
 	config.set_value("stones", "black_path", black_texture_path_)
 	config.set_value("stones", "white_path", white_texture_path_)
@@ -589,6 +697,12 @@ func save_config_() -> Error:
 		playback_interval_seconds_
 	)
 	config.set_value("audio", "stone_sound_volume", stone_sound_volume_)
+	config.set_value(
+		"display", "horizontal_safe_margin", horizontal_safe_margin_
+	)
+	config.set_value(
+		"gameplay", "move_confirmation_enabled", move_confirmation_enabled_
+	)
 	config.set_value("export", "pptx_image_format", pptx_image_format_)
 	config.set_value(
 		"export", "pptx_board_coordinates", pptx_board_coordinates_
@@ -613,6 +727,7 @@ func save_config_() -> Error:
 
 
 func reset_settings_() -> void:
+	language_ = kDefaultLanguage
 	board_texture_path_ = kDefaultBoardTexturePath
 	black_texture_path_ = kDefaultBlackTexturePath
 	white_texture_path_ = kDefaultWhiteTexturePath
@@ -621,6 +736,8 @@ func reset_settings_() -> void:
 	absolute_move_numbers_ = kDefaultAbsoluteMoveNumbers
 	playback_interval_seconds_ = kDefaultPlaybackIntervalSeconds
 	stone_sound_volume_ = kDefaultStoneSoundVolume
+	horizontal_safe_margin_ = kDefaultHorizontalSafeMargin
+	move_confirmation_enabled_ = default_move_confirmation_enabled_()
 	pptx_image_format_ = kDefaultPptxImageFormat
 	pptx_board_coordinates_ = kDefaultPptxBoardCoordinates
 	katago_executable_path_ = kDefaultKatagoExecutablePath
@@ -633,10 +750,19 @@ func reset_settings_() -> void:
 	katago_analysis_config_path_ = get_managed_katago_analysis_config_path()
 
 
+func default_move_confirmation_enabled_() -> bool:
+	return kDefaultMobileMoveConfirmation if OS.has_feature("mobile") \
+		else kDefaultDesktopMoveConfirmation
+
+
 func ensure_managed_katago_analysis_config_() -> void:
 	if FileAccess.file_exists(kManagedKatagoConfigPath):
 		return
-	var error: Error = write_managed_katago_analysis_config(6, 8)
+	var default_threads: int = 1 if OS.get_name() == "Android" else 6
+	var default_batch_size: int = 1 if OS.get_name() == "Android" else 8
+	var error: Error = write_managed_katago_analysis_config(
+		default_threads, default_batch_size
+	)
 	if error != OK:
 		push_warning(
 			"Failed to create managed KataGo config: %s" % error_string(error)
@@ -647,16 +773,21 @@ func build_managed_katago_config_(
 		search_threads: int,
 		batch_size: int
 ) -> String:
+	var cache_power: int = 16 if OS.get_name() == "Android" else 20
+	var mutex_pool_power: int = 14 if OS.get_name() == "Android" else 17
 	return """# Generated by Gotepad. This file may be regenerated by performance detection.
 reportAnalysisWinratesAs = BLACK
 maxVisits = 500
 numAnalysisThreads = 1
 numSearchThreadsPerAnalysisThread = %d
 nnMaxBatchSize = %d
-nnCacheSizePowerOfTwo = 20
-nnMutexPoolSizePowerOfTwo = 17
+nnCacheSizePowerOfTwo = %d
+nnMutexPoolSizePowerOfTwo = %d
 nnRandomize = true
-""" % [maxi(search_threads, 1), maxi(batch_size, 1)]
+""" % [
+		maxi(search_threads, 1), maxi(batch_size, 1),
+		cache_power, mutex_pool_power
+	]
 
 
 func load_textures_() -> void:

@@ -1,19 +1,29 @@
 # Gotepad
 
-Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客户端项目。核心棋盘与棋谱逻辑使用 C++17 实现，当前桌面界面使用 Godot 4.7.1（非 .NET 版本）和 GDExtension 构建。
+Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客户端项目。核心棋盘与棋谱逻辑使用 C++17 实现，客户端使用 Godot 4.7.1（非 .NET 版本）和 GDExtension 构建。目前可运行于 Windows x64，以及 Android 9 或更高版本的 arm64-v8a 横屏设备；Linux、macOS 和 iOS 尚处于计划适配阶段。
 
 项目目前仍处于开发阶段。
 
 使用方法请参阅 [Gotepad 用户手册](docs/user_manual.md)。
 
+## 获取发行版
+
+预编译版本将发布在本仓库的 [GitHub Releases](../../releases) 页面，版本变化参见 [更新记录](docs/version_log.md)。请只从本项目发布页或可信来源获取程序。
+
+- Windows x64 版以单文件 `Gotepad.exe` 提供，无需安装；KataGo 分析功能需要用户另外部署桌面版 KataGo、模型和配置。
+- Android 版以 arm64-v8a APK 提供，支持 Android 9 及更高版本；手动安装时可能需要按系统提示允许从当前来源安装应用。
+
 ## <u>本项目中为数不多来自人类的话语</u>
 
-- 感谢codex，帮我实现了过去想做而没能做的事。
+- 感谢 codex ，帮我实现了过去想做而没能做的事。
 - 这是一个棋童家长为自家小孩学棋做的笔记工具，一切都围绕个人开发和使用上的便利性，没有太考究的工程和设计要素。
 - 软件未来所有更新内容都会永久开源和免费，如有需要请放心使用。
+- 项目编译所必要的本项目专属文件均已上传。
+  - 第三方库均在 third_party 中对应的子目录下放置了 gotepad_info.txt ，记录了版本和部署方法等信息。
+  - 推荐使用 AI 自动进行构建。
 - 【重要提醒】请谨慎使用本软件编辑您既有的SGF文件资产，如需编辑请先创建副本。
-  - 软件会在SGF中创建自定义属性，可能会破坏文件与其他SGF软件的兼容性；
-  - 软件仅支持SGF规范的子集，可能会丢弃文件中不支持的属性。
+  - 软件会在 SGF 中创建自定义属性，可能会破坏文件与其他 SGF 软件的兼容性；
+  - 软件仅支持 SGF 规范的子集，可能会丢弃文件中不支持的属性。
 
 ## 主要功能
 
@@ -22,8 +32,11 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 - 支持读取、编辑和保存 SGF 棋谱，包括棋谱信息、局面评论及常用棋盘标记。
 - 支持为同一局面记录多层笔记，并设置棋子编号方式。
 - 支持将带有棋盘图和笔记的内容排版导出为可继续编辑的 PPTX 文件。
-- 支持接入本地 KataGo 引擎，查看候选点、胜率、目差和候选变化图。
+- 支持 KataGo 局面分析，查看候选点、胜率、目差和候选变化图；Windows 使用用户部署的外部引擎，Android 内置 OpenCL/Eigen 后端和轻量模型。
 - Godot 客户端提供多标签、棋局播放、查找棋子、变化图及纹理设置等界面功能。
+- 提供中文、日本语、한국어和 English 四种界面语言。
+- 提供 Android 触控布局、屏幕安全边距和落子防误触等移动端适配。
+- 保存 SGF 时采用临时副本保护，降低覆盖写入过程中原文件损坏的风险。
 
 ## 界面预览
 
@@ -55,12 +68,13 @@ third_party/  第三方依赖的放置目录和版本说明
 docs/         项目文档
 ```
 
-核心代码尽量与具体 GUI 技术解耦，以便后续接入其他桌面端或移动端界面。目标平台包括 Windows、Linux、macOS、iOS 和 Android。
+核心代码尽量与具体 GUI 技术解耦，以便后续接入其他桌面端或移动端界面。当前重点维护 Windows 和 Android 客户端，Linux、macOS 和 iOS 为后续目标平台。
 
 ## 构建环境
 
 - CMake 3.20 或更高版本
 - 支持 C++17 的编译器
+- Python 3（用于生成 `godot-cpp` 绑定代码）
 - Godot 4.7.1 非 .NET 版本
 - 与 Godot 4.7 API 匹配的 `godot-cpp`
 
@@ -71,6 +85,9 @@ docs/         项目文档
 - [miniz](https://github.com/richgel999/miniz)：PPTX 导出所需的 ZIP 归档支持。
 - [LunaSVG](https://github.com/sammycage/lunasvg)：将 PPTX 中的棋盘图转换为兼容性更好的 PNG。
 - [Noto CJK](https://github.com/notofonts/noto-cjk)：PPTX 中文排版使用的黑体和宋体，字体文件按 OFL-1.1 随项目提供。
+- [KataGo](https://github.com/lightvector/KataGo)：围棋局面分析引擎；桌面端使用外部程序，Android 端编译为内置分析后端。
+- [Eigen](https://gitlab.com/libeigen/eigen)：Android 内置 KataGo 的 CPU 后端。
+- [OpenCL-Headers](https://github.com/KhronosGroup/OpenCL-Headers)：Android 内置 KataGo 的 OpenCL 后端编译依赖。
 
 第三方库源码不随本项目仓库发布。请按照各目录中的 `gotepad_info.txt` 获取指定版本，并将源码放到对应的 `third_party` 子目录中。PPTX 所用字体位于 `third_party/fonts/noto-cjk`；导出文件不会嵌入字体，需要保持版式的用户应先在系统中安装这些字体。完整字体授权文本见该目录下的 `OFL.txt`。
 
@@ -82,6 +99,32 @@ cmake --build build --target go_gdext
 ```
 
 扩展会输出到 `gotepad-gd/bin`。随后使用 Godot 4.7.1 打开 `gotepad-gd/project.godot` 即可继续开发或运行客户端。
+
+### Android 构建
+
+Android 版本目前只构建 `arm64-v8a`，最低支持 Android 9（API 28），并按横屏界面设计。构建环境还需要：
+
+- JDK 17；
+- Android SDK；
+- Android NDK r28；
+- 分别指向上述环境的 `JAVA_HOME`、`ANDROID_HOME` 和 `ANDROID_NDK_HOME` 环境变量。
+
+准备好 `third_party/katago` 中说明的 KataGo、Eigen 和 OpenCL Headers 源码，以及 `gotepad-gd/assets/katago` 中由 Git LFS 管理的模型后，需要使用 Android NDK 交叉编译 Android GDExtension、内置 Eigen 后端和隔离运行的 OpenCL 后端，再通过 Godot 的 Android 自定义构建模板导出 APK。Android 会优先尝试设备公开的 OpenCL GPU 实现，OpenCL 不可用、初始化失败或分析服务异常退出时自动回退到 Eigen CPU 后端；APK 本身不包含设备厂商的 OpenCL 驱动。
+
+正式发布 APK 必须使用自行创建并长期妥善保存的 release keystore。签名密钥一旦遗失，就无法再以相同应用身份为用户提供覆盖升级；不要将密钥或密码提交到仓库。可使用 JDK 17 的 `keytool` 创建密钥，命令会交互询问密码和证书信息：
+
+```powershell
+keytool -genkeypair -v -keystore gotepad-release.jks -alias gotepad -keyalg RSA -keysize 4096 -validity 10000
+```
+
+请把生成的密钥保存在仓库以外并做好备份，在本地 Godot Android Release 导出预设中配置 keystore、alias 和密码。不要把包含签名路径或凭据的本地导出配置发布到仓库。
+
+### 平台使用差异
+
+- Windows 版的 KataGo 通过设置面板选择本地可执行文件、模型和配置；Android 版使用内置后端和内部配置，不需要选择这些路径。
+- Android 版目前不支持从其他应用直接分享 SGF 到 Gotepad，请使用程序内的系统文件选择器加载棋谱。
+- Android 版导出 PPTX 时仅支持 SVG 棋盘图片；PNG 模式目前不可用。SVG 版可使用 Microsoft PowerPoint App 浏览和编辑，WPS 等兼容软件可能无法显示其中的 SVG 图片。
+- OpenCL 后端首次运行需要针对当前 GPU 调优，启动时间可能明显长于后续运行；持续分析会增加耗电和发热。
 
 ## 许可证
 

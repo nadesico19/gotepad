@@ -15,7 +15,7 @@ corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
 
 [node name="BranchOrderPopup" type="PopupPanel"]
-size = Vector2i(488, 460)
+size = Vector2i(548, 460)
 theme_override_styles/panel = SubResource("StyleBoxFlat_popup")
 script = ExtResource("1_script")
 

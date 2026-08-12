@@ -1,8 +1,9 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://script/settings_panel.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
 [ext_resource type="Texture2D" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
+[ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="4_fixed_width_button"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroupMoveNumbers"]
 
@@ -47,6 +48,7 @@ mouse_filter = 2
 script = ExtResource("1_script")
 
 [node name="SettingsButton" type="Button" parent="."]
+custom_minimum_size = Vector2(72, 36)
 layout_mode = 0
 anchor_left = 1.0
 anchor_right = 1.0
@@ -58,17 +60,19 @@ grow_horizontal = 0
 mouse_filter = 0
 focus_mode = 0
 mouse_default_cursor_shape = 2
+clip_text = true
+script = ExtResource("4_fixed_width_button")
+source_text = "设置"
 tooltip_text = "程序设置（Ctrl+O）"
-text = "设置"
 
 [node name="SettingsPanel" type="PanelContainer" parent="."]
 layout_mode = 0
 anchor_left = 1.0
 anchor_bottom = 1.0
 anchor_right = 1.0
-offset_left = -500.0
+offset_left = -506.0
 offset_top = 12.0
-offset_right = -84.0
+offset_right = -90.0
 offset_bottom = -12.0
 grow_horizontal = 0
 grow_vertical = 2
@@ -97,6 +101,35 @@ layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
 text = "设置"
+
+[node name="LanguageLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "界面语言"
+
+[node name="LanguageOption" type="OptionButton" parent="SettingsPanel/Margin/Options"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="HorizontalSafeMarginRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/HorizontalSafeMarginRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "屏幕左右边距（移动端用）"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/HorizontalSafeMarginRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Pixels" type="SpinBox" parent="SettingsPanel/Margin/Options/HorizontalSafeMarginRow"]
+custom_minimum_size = Vector2(136, 36)
+layout_mode = 2
+max_value = 512.0
+step = 1.0
+suffix = " px"
 
 [node name="BoardLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
@@ -271,6 +304,11 @@ layout_mode = 2
 text = "50%"
 horizontal_alignment = 2
 vertical_alignment = 1
+
+[node name="MoveConfirmation" type="CheckBox" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+tooltip_text = "落子后先显示半透明棋子，确认后才写入棋谱"
+text = "落子防误触"
 
 [node name="PptxImageFormatRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
@@ -505,14 +543,32 @@ theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
 text = "保存设置失败"
 autowrap_mode = 2
 
-[node name="ActionBar" type="VBoxContainer" parent="."]
+[node name="CloseButton" type="Button" parent="."]
 layout_mode = 0
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -488.0
 offset_top = 30.0
 offset_right = -452.0
-offset_bottom = 146.0
+offset_bottom = 66.0
+grow_horizontal = 0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+tooltip_text = "关闭设置"
+text = "✕"
+
+[node name="ActionBar" type="VBoxContainer" parent="."]
+layout_mode = 0
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -488.0
+offset_top = 74.0
+offset_right = -452.0
+offset_bottom = 190.0
 grow_horizontal = 0
 theme_override_constants/separation = 8
 
@@ -635,5 +691,5 @@ text = "停止"
 title = "还需保存设置"
 size = Vector2i(500, 190)
 exclusive = true
-dialog_text = "性能检测结果尚未生效。\n请回到设置面板，点击左上角绿色 ✓ 保存设置。"
+dialog_text = "DIALOG_BENCHMARK_SAVE_REMINDER"
 ok_button_text = "知道了"

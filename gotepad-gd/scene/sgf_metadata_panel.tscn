@@ -101,6 +101,7 @@ text = "✕"
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+theme_override_constants/scrollbar_h_separation = 12
 
 [node name="Form" type="VBoxContainer" parent="Panel/Margin/Content/Scroll"]
 layout_mode = 2
@@ -167,7 +168,7 @@ layout_mode = 2
 text = "结果"
 [node name="Result" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
 layout_mode = 2
-placeholder_text = "例如 B+R、W+2.5、0"
+placeholder_text = "例如 B+R / W+2.5 / 0"
 
 [node name="RulesLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
 layout_mode = 2

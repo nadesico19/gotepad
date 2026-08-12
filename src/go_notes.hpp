@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <functional>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -172,6 +173,7 @@ struct GoNotesPositionSnapshot {
 class GoNotes {
 public:
   enum class PptxImageFormat : uint8_t { Svg, Png };
+  using PptxProgressCallback = std::function<void(size_t, size_t)>;
 
   // 定义围棋笔记支持的操作命令基类。
   class Command {
@@ -559,12 +561,23 @@ public:
     std::vector<std::pair<std::string, std::string>> old_values_{};
   };
 
-  explicit GoNotes(int ngrids) : go_core_(ngrids) {}
+  explicit GoNotes(int ngrids) : go_core_(ngrids) {
+    sgf_metadata_.komi = "7.5";
+  }
+
+  // 创建用于耗时只读任务的独立快照。快照包含完整棋局树、笔记和SGF信息，
+  // 但不复制undo/redo命令栈，后续对原对象的操作不会影响快照。
+  [[nodiscard]] std::unique_ptr<GoNotes> clone_for_reading() const;
 
   // 从SGF文件创建完整的GoNotes。导入期间直接构造尚未对外发布的状态，不生成undo/redo记录；
   // 成功后游标位于第一分支的最后一个节点，失败时返回空unique_ptr并填写error_message。
   [[nodiscard]] static std::unique_ptr<GoNotes>
   from_sgf_file(const std::string &path, std::string &error_message);
+
+  // 从内存中的完整SGF内容创建GoNotes。该接口不负责文件系统访问，供无法直接使用
+  // std::ifstream读取文件的平台适配层调用；其余导入行为与from_sgf_file一致。
+  [[nodiscard]] static std::unique_ptr<GoNotes>
+  from_sgf_content(const std::string &content, std::string &error_message);
 
   // 将完整记录树、笔记、标记和棋谱信息保存为UTF-8编码的SGF文件。写入时先在
   // 目标目录生成临时文件，并在覆盖已有文件前创建可恢复的临时副本；保存成功后
@@ -581,7 +594,8 @@ public:
   export_pptx_file(const std::string &path, const std::string &template_path,
                    std::string &error_message,
                    PptxImageFormat image_format = PptxImageFormat::Svg,
-                   bool show_board_coordinates = false) const;
+                   bool show_board_coordinates = false,
+                   const PptxProgressCallback &progress = {}) const;
 
   // 使用内存中的模板PPTX导出，供模板被打包在GUI资源容器中的客户端使用。
   [[nodiscard]] bool
@@ -589,7 +603,8 @@ public:
                    const std::vector<uint8_t> &template_data,
                    std::string &error_message,
                    PptxImageFormat image_format = PptxImageFormat::Svg,
-                   bool show_board_coordinates = false) const;
+                   bool show_board_coordinates = false,
+                   const PptxProgressCallback &progress = {}) const;
 
   // 执行用户指定的棋盘操作命令，成功时将命令推送到undo_stack_。
   // PlaceStoneCommand返回-100且下一手分支存在相同落子时，会转换为RoamingCommand继续执行。
@@ -700,6 +715,17 @@ private:
   std::vector<std::unique_ptr<Command>> undo_stack_{};
   std::vector<std::unique_ptr<Command>> redo_stack_{};
 };
+
+inline std::unique_ptr<GoNotes> GoNotes::clone_for_reading() const {
+  auto snapshot = std::make_unique<GoNotes>(go_core_.ngrids());
+  snapshot->notes_ = notes_;
+  snapshot->error_uid_ = error_uid_;
+  snapshot->sgf_metadata_ = sgf_metadata_;
+  snapshot->go_core_ = go_core_;
+  snapshot->message_ = message_;
+  snapshot->current_cursor_ = current_cursor_;
+  return snapshot;
+}
 
 inline std::unique_ptr<GoNotes::Command>
 GoNotes::Command::parse(std::string_view command) {
@@ -1713,7 +1739,10 @@ inline int GoNotes::ReplaceSymbolMarks::execute(GoNotes &go_notes) {
     return -1;
   }
   for (size_t index = 0; index < symbol_marks_.size(); ++index) {
-    const auto &[row, column, symbol] = symbol_marks_[index];
+    const auto &mark = symbol_marks_[index];
+    const auto row = std::get<0>(mark);
+    const auto column = std::get<1>(mark);
+    const auto &symbol = std::get<2>(mark);
     if (!go_notes.is_note_position_in_range_(row, column)) {
       go_notes.message_ = kNotePositionOutsideBoardMessage;
       return -1;
@@ -1830,7 +1859,9 @@ inline int GoNotes::UpdateSgfMetadataCommand::execute(GoNotes &go_notes) {
 
   std::vector<std::pair<std::string, std::string>> normalized{};
   normalized.reserve(changes_.size());
-  for (const auto &[name, value] : changes_) {
+  for (const auto &change : changes_) {
+    const auto &name = change.first;
+    const auto &value = change.second;
     if (!member_for(name)) {
       go_notes.message_ = kUnknownSgfMetadataFieldMessage;
       return -1;
@@ -1911,7 +1942,9 @@ inline int GoNotes::UpdateSgfMetadataCommand::undo(GoNotes &go_notes) {
       {"game_comment", &GoNotesSgfMetadata::game_comment},
       {"opening", &GoNotesSgfMetadata::opening},
   };
-  for (const auto &[name, value] : old_values_) {
+  for (const auto &old_value : old_values_) {
+    const auto &name = old_value.first;
+    const auto &value = old_value.second;
     const auto field =
         std::find_if(std::begin(kFields), std::end(kFields),
                      [&name](const auto &item) { return item.first == name; });

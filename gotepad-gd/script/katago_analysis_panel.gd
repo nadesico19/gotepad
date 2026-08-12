@@ -131,7 +131,7 @@ func on_board_position_changed(uid: int) -> void:
 	elif state_ == kStatePaused and current_query_id_.is_empty():
 		paused_result_.clear()
 		state_ = kStateIdle
-		status_label_.text = "局面已改变，请重新开始分析"
+		status_label_.text = tr("局面已改变，请重新开始分析")
 		update_controls_()
 
 
@@ -163,7 +163,7 @@ func on_pause_pressed_() -> void:
 	if state_ != kStateAnalyzing:
 		return
 	state_ = kStatePaused
-	status_label_.text = "已暂停界面刷新，KataGo仍在分析"
+	status_label_.text = tr("已暂停界面刷新，KataGo仍在分析")
 	update_controls_()
 
 
@@ -172,7 +172,7 @@ func on_stop_pressed_() -> void:
 		return
 	terminate_current_query_()
 	state_ = kStateStopping
-	status_label_.text = "正在停止分析…"
+	status_label_.text = tr("正在停止分析…")
 	update_controls_()
 
 
@@ -195,7 +195,7 @@ func on_continuous_toggled_(enabled: bool) -> void:
 		current_query_id_ = ""
 		current_max_playouts_ = 0
 		state_ = kStateIdle
-		status_label_.text = "持续分析已关闭"
+		status_label_.text = tr("持续分析已关闭")
 	update_controls_()
 
 
@@ -205,13 +205,13 @@ func start_current_analysis_(continuous: bool, max_playouts: int = 0) -> void:
 	var path: PackedInt64Array = board_.get_playback_path()
 	var current_index: int = path.find(board_.get_view_uid())
 	if current_index < 0:
-		on_service_error_("当前局面不在播放路径中。")
+		on_service_error_(tr("当前局面不在播放路径中。"))
 		return
 	var context: Dictionary = KataGoQueryBuilder.build_context(
 		go_notes_, path, current_index
 	)
 	if context.is_empty():
-		on_service_error_("无法构造当前局面的KataGo请求。")
+		on_service_error_(tr("无法构造当前局面的KataGo请求。"))
 		return
 	current_uid_ = board_.get_view_uid()
 	query_turn_uids_.erase(current_query_id_)
@@ -237,9 +237,9 @@ func start_current_analysis_(continuous: bool, max_playouts: int = 0) -> void:
 		update_controls_()
 		return
 	state_ = kStateContinuous if continuous else kStateAnalyzing
-	status_label_.text = "正在分析当前局面…" \
+	status_label_.text = tr("正在分析当前局面…") \
 		if current_max_playouts_ <= 0 \
-		else "正在加大计算量：%d maxplayouts…" % current_max_playouts_
+		else tr("正在加大计算量：%d maxplayouts…") % current_max_playouts_
 	update_controls_()
 
 
@@ -255,7 +255,7 @@ func on_analyze_game_pressed_() -> void:
 		go_notes_, board_.get_playback_path()
 	)
 	if contexts.is_empty():
-		on_service_error_("无法构造整局分析请求。")
+		on_service_error_(tr("无法构造整局分析请求。"))
 		return
 	batch_query_id_ = service_.next_query_id("game-group")
 	batch_member_ids_.clear()
@@ -287,10 +287,10 @@ func on_analyze_game_pressed_() -> void:
 			return
 	if batch_member_ids_.is_empty():
 		batch_query_id_ = ""
-		on_service_error_("播放路径没有可分析的局面。")
+		on_service_error_(tr("播放路径没有可分析的局面。"))
 		return
-	analyze_game_button_.text = "取消整局分析"
-	status_label_.text = "正在分析整条播放路径：0/%d" % \
+	analyze_game_button_.text = tr("取消整局分析")
+	status_label_.text = tr("正在分析整条播放路径：0/%d") % \
 		batch_pending_turns_.size()
 	update_controls_()
 
@@ -314,11 +314,11 @@ func handle_current_result_(result: Dictionary) -> void:
 	current_query_id_ = ""
 	if state_ == kStateStopping:
 		state_ = kStateIdle
-		status_label_.text = "分析已停止"
+		status_label_.text = tr("分析已停止")
 	elif state_ == kStateAnalyzing:
 		state_ = kStateIdle
 	elif state_ == kStatePaused:
-		status_label_.text = "分析已完成，点击播放按钮显示最终结果"
+		status_label_.text = tr("分析已完成，点击播放按钮显示最终结果")
 	update_controls_()
 
 
@@ -333,9 +333,10 @@ func apply_current_result_(result: Dictionary) -> void:
 	refresh_curve_()
 	var visits: int = int(root_info.get("visits", 0))
 	var progress_name: String = \
-		"分析中" if bool(result.get("isDuringSearch", false)) else "分析完成"
+		tr("分析中") if bool(result.get("isDuringSearch", false)) \
+		else tr("分析完成")
 	if current_max_playouts_ > 0:
-		status_label_.text = "%s · %d visits · 目标 %d maxplayouts" % [
+		status_label_.text = tr("%s · %d visits · 目标 %d maxplayouts") % [
 			progress_name, visits, current_max_playouts_
 		]
 	else:
@@ -364,15 +365,15 @@ func handle_batch_result_(result: Dictionary) -> void:
 	for member_id: String in batch_member_ids_:
 		total += Dictionary(query_turn_uids_.get(member_id, {})).size()
 	var completed: int = total - batch_pending_turns_.size()
-	status_label_.text = "正在分析整条播放路径：%d/%d" % [completed, total]
+	status_label_.text = tr("正在分析整条播放路径：%d/%d") % [completed, total]
 	if not batch_pending_turns_.is_empty():
 		return
 	for member_id: String in batch_member_ids_:
 		query_turn_uids_.erase(member_id)
 	batch_member_ids_.clear()
 	batch_query_id_ = ""
-	analyze_game_button_.text = "分析整条播放路径"
-	status_label_.text = "整局分析完成"
+	analyze_game_button_.text = tr("分析整条播放路径")
+	status_label_.text = tr("整局分析完成")
 	update_controls_()
 
 
@@ -397,7 +398,7 @@ func refresh_candidates_(move_infos: Array) -> void:
 			item.set_text(variation_column, "—")
 		else:
 			item.set_cell_mode(variation_column, TreeItem.CELL_MODE_STRING)
-			item.set_text(variation_column, "进入")
+			item.set_text(variation_column, tr("进入"))
 			item.set_text_alignment(
 				variation_column, HORIZONTAL_ALIGNMENT_CENTER
 			)
@@ -407,7 +408,7 @@ func refresh_candidates_(move_infos: Array) -> void:
 			item.set_custom_color(
 				variation_column, Color(0.96, 0.96, 0.93, 1.0)
 			)
-			item.set_tooltip_text(variation_column, "进入候选变化图")
+			item.set_tooltip_text(variation_column, tr("进入候选变化图"))
 			candidate_pvs_[index] = pv
 			item.set_metadata(variation_column, index)
 	if board_ != null and panel_.visible:
@@ -461,11 +462,11 @@ func configure_tree_() -> void:
 	candidates_.columns = 4 if show_score else 3
 	candidates_.column_titles_visible = true
 	candidates_.hide_root = true
-	candidates_.set_column_title(0, "位置")
-	candidates_.set_column_title(1, "黑胜率")
+	candidates_.set_column_title(0, tr("位置"))
+	candidates_.set_column_title(1, tr("黑胜率"))
 	if show_score:
-		candidates_.set_column_title(2, "目差")
-	candidates_.set_column_title(variation_column, "变化图")
+		candidates_.set_column_title(2, tr("目差"))
+	candidates_.set_column_title(variation_column, tr("变化图"))
 	candidates_.set_column_expand(0, true)
 	candidates_.set_column_expand(1, true)
 	if show_score:
@@ -508,8 +509,8 @@ func stop_batch_query_() -> void:
 	batch_member_ids_.clear()
 	batch_query_id_ = ""
 	batch_pending_turns_.clear()
-	analyze_game_button_.text = "分析整条播放路径"
-	status_label_.text = "整局分析已取消"
+	analyze_game_button_.text = tr("分析整条播放路径")
+	status_label_.text = tr("整局分析已取消")
 	update_controls_()
 
 
@@ -533,7 +534,7 @@ func on_service_error_(message: String) -> void:
 	batch_member_ids_.clear()
 	query_turn_uids_.clear()
 	batch_pending_turns_.clear()
-	analyze_game_button_.text = "分析整条播放路径"
+	analyze_game_button_.text = tr("分析整条播放路径")
 	update_controls_()
 
 
@@ -553,7 +554,7 @@ func on_query_error_(query_id: String, message: String) -> void:
 
 
 func on_service_warning_(message: String) -> void:
-	status_label_.text = compact_status_message_("KataGo警告：%s" % message)
+	status_label_.text = compact_status_message_(tr("KataGo警告：%s") % message)
 
 
 func batch_result_key_(query_id: String, turn: int) -> String:
@@ -577,16 +578,24 @@ func on_analysis_settings_changed_() -> void:
 	if signature == cached_request_settings_signature_:
 		refresh_candidates_(latest_move_infos_)
 		refresh_curve_()
-		status_label_.text = "分析显示设置已更新"
+		status_label_.text = tr("分析显示设置已更新")
 		return
 	cached_request_settings_signature_ = signature
-	clear_analysis_cache_("分析设置已更新")
+	clear_analysis_cache_(tr("分析设置已更新"))
 
 
 func on_analysis_paths_changed_() -> void:
 	if service_ != null:
 		service_.shutdown()
-	clear_analysis_cache_("KataGo引擎设置已更新")
+	clear_analysis_cache_(tr("KataGo引擎设置已更新"))
+
+
+func refresh_localized_texts() -> void:
+	refresh_candidates_(latest_move_infos_)
+	if batch_query_id_.is_empty():
+		analyze_game_button_.text = tr("分析整条播放路径")
+	else:
+		analyze_game_button_.text = tr("取消整局分析")
 
 
 func clear_analysis_cache_(message: String) -> void:

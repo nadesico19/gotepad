@@ -70,7 +70,7 @@ func rebuild_rows_() -> void:
 		empty_label.custom_minimum_size = Vector2(0.0, 96.0)
 		empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		empty_label.text = "当前局面没有下一手分支"
+		empty_label.text = tr("当前局面没有下一手分支")
 		empty_label.add_theme_color_override(
 			&"font_color", Color(0.78, 0.76, 0.70)
 		)
@@ -89,7 +89,7 @@ func rebuild_rows_() -> void:
 
 		var row: HBoxContainer = HBoxContainer.new()
 		row.add_theme_constant_override(&"separation", 6)
-		var up_button: Button = make_arrow_button_("↑", "上移这个分支")
+		var up_button: Button = make_arrow_button_("↑", tr("上移这个分支"))
 		up_button.disabled = index == 0
 		up_button.pressed.connect(move_branch_.bind(index, -1))
 		row.add_child(up_button)
@@ -105,7 +105,11 @@ func rebuild_rows_() -> void:
 		card.branch_double_clicked.connect(request_enter_)
 		row.add_child(card)
 
-		var down_button: Button = make_arrow_button_("↓", "下移这个分支")
+		var enter_button: Button = make_enter_button_()
+		enter_button.pressed.connect(request_enter_.bind(uid))
+		row.add_child(enter_button)
+
+		var down_button: Button = make_arrow_button_("↓", tr("下移这个分支"))
 		down_button.disabled = index == branches_.size() - 1
 		down_button.pressed.connect(move_branch_.bind(index, 1))
 		row.add_child(down_button)
@@ -129,26 +133,36 @@ func make_arrow_button_(text: String, tooltip: String) -> Button:
 
 
 func make_delete_button_() -> Button:
-	var button: Button = make_arrow_button_("✕", "删除这个分支")
+	var button: Button = make_arrow_button_("✕", tr("删除这个分支"))
 	button.add_theme_color_override(&"font_color", Color(0.96, 0.24, 0.24))
 	button.add_theme_color_override(&"font_hover_color", Color(1.0, 0.4, 0.4))
 	button.add_theme_color_override(&"font_pressed_color", Color(1.0, 0.3, 0.3))
 	return button
 
 
+func make_enter_button_() -> Button:
+	var button: Button = make_arrow_button_(tr("进入"), tr("进入这个分支"))
+	button.custom_minimum_size.x = 52.0
+	button.add_theme_font_size_override(&"font_size", 17)
+	button.add_theme_color_override(&"font_color", Color(0.62, 0.82, 1.0))
+	button.add_theme_color_override(&"font_hover_color", Color(0.76, 0.9, 1.0))
+	button.add_theme_color_override(&"font_pressed_color", Color(0.48, 0.7, 1.0))
+	return button
+
+
 func branch_title_(branch: Dictionary, index: int) -> String:
 	var preset_stones: Array = Array(branch.get("preset_stones", []))
 	if int(branch.get("color", 0)) == 0 and not preset_stones.is_empty():
-		return "预置分支 %d" % (index + 1)
-	var color_name: String = "黑" \
-		if int(branch.get("color", 0)) == 1 else "白"
-	return "%s方落子分支 %d" % [color_name, index + 1]
+		return tr("预置分支 %d") % (index + 1)
+	var color_name: String = tr("黑") \
+		if int(branch.get("color", 0)) == 1 else tr("白")
+	return tr("%s方落子分支 %d") % [color_name, index + 1]
 
 
 func branch_summary_(branch: Dictionary) -> String:
 	var preset_stones: Array = Array(branch.get("preset_stones", []))
 	if int(branch.get("color", 0)) != 0 or preset_stones.is_empty():
-		return "第 %d 行，第 %d 列" % [
+		return tr("第 %d 行，第 %d 列") % [
 			int(branch.get("row", 0)),
 			int(branch.get("column", 0))
 		]
@@ -164,7 +178,7 @@ func branch_summary_(branch: Dictionary) -> String:
 				black_count += 1
 			2:
 				white_count += 1
-	return "黑 +%d　白 +%d　清除 %d" % [
+	return tr("黑 +%d　白 +%d　清除 %d") % [
 		black_count, white_count, clear_count
 	]
 
@@ -184,8 +198,7 @@ func request_delete_(branch_uid: int) -> void:
 	if branch_uid < 0:
 		return
 	pending_delete_uid_ = branch_uid
-	delete_confirmation_.dialog_text = \
-		"确定删除这个分支及其所有后续节点吗？\n此操作可以通过撤销恢复。"
+	delete_confirmation_.dialog_text = tr("DIALOG_DELETE_ORDER_BRANCH_MESSAGE")
 	delete_confirmation_.popup_centered(Vector2i(460, 180))
 
 
@@ -203,6 +216,11 @@ func on_delete_confirmed_() -> void:
 
 func on_delete_canceled_() -> void:
 	pending_delete_uid_ = -1
+
+
+func refresh_localized_texts() -> void:
+	if go_notes_ != null:
+		rebuild_rows_()
 
 
 func branch_uids_() -> PackedInt64Array:

@@ -12,7 +12,10 @@ var query_serial_: int = 0
 
 
 func _ready() -> void:
-	set_transport(KataGoLocalTransport.new())
+	if OS.get_name() == "Android":
+		set_transport(KataGoAndroidTransport.new())
+	else:
+		set_transport(KataGoLocalTransport.new())
 
 
 func set_transport(transport: KataGoTransport) -> void:
@@ -33,7 +36,7 @@ func next_query_id(prefix: String) -> String:
 
 func submit_query(query: Dictionary) -> bool:
 	if transport_ == null:
-		service_error.emit("KataGo分析传输层尚未初始化。")
+		service_error.emit(tr("KataGo分析传输层尚未初始化。"))
 		return false
 	if not transport_.is_transport_running():
 		if not transport_.start_transport():
@@ -42,7 +45,7 @@ func submit_query(query: Dictionary) -> bool:
 	var line: String = JSON.stringify(query, "", false)
 	if transport_.send_line(line):
 		return true
-	service_error.emit("无法向KataGo发送分析请求。")
+	service_error.emit(tr("无法向KataGo发送分析请求。"))
 	return false
 
 
@@ -69,19 +72,19 @@ func is_running() -> bool:
 func on_transport_line_(line: String) -> void:
 	var parsed: Variant = JSON.parse_string(line)
 	if parsed is not Dictionary:
-		service_error.emit("KataGo返回了无法解析的数据。")
+		service_error.emit(tr("KataGo返回了无法解析的数据。"))
 		return
 	var result: Dictionary = Dictionary(parsed)
 	if result.has("error"):
 		var query_id: String = str(result.get("id", ""))
-		var message: String = str(result.get("error", "KataGo分析失败。"))
+		var message: String = str(result.get("error", tr("KataGo分析失败。")))
 		if query_id.is_empty():
 			service_error.emit(message)
 		else:
 			query_error.emit(query_id, message)
 		return
 	if result.has("warning"):
-		service_warning.emit(str(result.get("warning", "KataGo分析警告。")))
+		service_warning.emit(str(result.get("warning", tr("KataGo分析警告。"))))
 		return
 	result_received.emit(result)
 

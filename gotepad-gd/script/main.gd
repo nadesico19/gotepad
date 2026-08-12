@@ -24,6 +24,7 @@ const kSequentialMarkLetters: String = \
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 const kPptxTemplatePath: String = \
 	"res://assets/publication/go_book_b5_landscape_template.pptx"
+const kPptxCopyBytesPerFrame: int = 1024 * 1024
 
 
 class DocumentState extends RefCounted:
@@ -38,105 +39,139 @@ class DocumentState extends RefCounted:
 @onready var camera_: Camera2D = $Camera
 @onready var background_layer_: CanvasLayer = $Background
 @onready var interface_layer_: CanvasLayer = $Interface
+@onready var interface_safe_area_: Control = $Interface/SafeArea
 @onready var branch_visualization_layer_: CanvasLayer = \
 	$BranchVisualizationLayer
+@onready var branch_visualization_safe_area_: Control = \
+	$BranchVisualizationLayer/SafeArea
 @onready var branch_visualization_: Control = \
-	$BranchVisualizationLayer/BranchVisualization
+	$BranchVisualizationLayer/SafeArea/BranchVisualization
 @onready var note_mark_layer_: CanvasLayer = $NoteMarkLayer
+@onready var note_mark_safe_area_: Control = $NoteMarkLayer/SafeArea
 @onready var note_mark_toolbar_: VBoxContainer = \
-	$NoteMarkLayer/NoteMarkToolBar
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar
 @onready var next_mark_label_: Label = \
-	$NoteMarkLayer/NoteMarkToolBar/NextMarkLabel
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/NextMarkLabel
 @onready var note_triangle_button_: Button = \
-	$NoteMarkLayer/NoteMarkToolBar/Triangle
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Triangle
 @onready var note_square_button_: Button = \
-	$NoteMarkLayer/NoteMarkToolBar/Square
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Square
 @onready var note_circle_button_: Button = \
-	$NoteMarkLayer/NoteMarkToolBar/Circle
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Circle
 @onready var note_cross_button_: Button = \
-	$NoteMarkLayer/NoteMarkToolBar/Cross
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Cross
 @onready var note_erase_button_: Button = \
-	$NoteMarkLayer/NoteMarkToolBar/Erase
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Erase
 @onready var note_mark_accept_button_: Button = \
-	$NoteMarkLayer/NoteMarkToolBar/Accept
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Accept
 @onready var note_mark_cancel_button_: Button = \
-	$NoteMarkLayer/NoteMarkToolBar/Cancel
-@onready var board_size_dialog_: BoardSizeDialog = $Interface/BoardSizeDialog
-@onready var board_toolbar_: AdaptiveToolbar = $Interface/BoardToolBar
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Cancel
+@onready var board_size_dialog_: BoardSizeDialog = $Interface/SafeArea/BoardSizeDialog
+@onready var board_toolbar_: AdaptiveToolbar = $Interface/SafeArea/BoardToolBar
 @onready var variation_toolbar_: VBoxContainer = \
-	$Interface/VariationToolBar
+	$Interface/SafeArea/VariationToolBar
 @onready var variation_exit_button_: Button = \
-	$Interface/VariationToolBar/ExitButton
+	$Interface/SafeArea/VariationToolBar/ExitButton
 @onready var variation_keep_button_: Button = \
-	$Interface/VariationToolBar/KeepBranchButton
-@onready var undo_button_: Button = $Interface/BoardToolBar/UndoButton
-@onready var redo_button_: Button = $Interface/BoardToolBar/RedoButton
+	$Interface/SafeArea/VariationToolBar/KeepBranchButton
+@onready var variation_takeback_button_: Button = \
+	$Interface/SafeArea/VariationToolBar/TakebackButton
+@onready var pending_move_accept_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/PendingMoveAcceptButton
+@onready var pending_move_cancel_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/PendingMoveCancelButton
+@onready var variation_pending_move_accept_button_: Button = \
+	$Interface/SafeArea/VariationToolBar/PendingMoveAcceptButton
+@onready var variation_pending_move_cancel_button_: Button = \
+	$Interface/SafeArea/VariationToolBar/PendingMoveCancelButton
+@onready var undo_button_: Button = $Interface/SafeArea/BoardToolBar/UndoButton
+@onready var redo_button_: Button = $Interface/SafeArea/BoardToolBar/RedoButton
 @onready var find_previous_button_: Button = \
-	$Interface/BoardToolBar/FindPreviousButton
+	$Interface/SafeArea/BoardToolBar/FindPreviousButton
 @onready var find_next_button_: Button = \
-	$Interface/BoardToolBar/FindNextButton
+	$Interface/SafeArea/BoardToolBar/FindNextButton
 @onready var reorder_branch_button_: Button = \
-	$Interface/BoardToolBar/ReorderBranchButton
+	$Interface/SafeArea/BoardToolBar/ReorderBranchButton
 @onready var variation_button_: Button = \
-	$Interface/BoardToolBar/VariationButton
+	$Interface/SafeArea/BoardToolBar/VariationButton
 @onready var branch_visualization_button_: Button = \
-	$Interface/BoardToolBar/BranchVisualizationButton
-@onready var notes_button_: Button = $Interface/BoardToolBar/NotesButton
-@onready var notes_panel_: NotesPanel = $Interface/NotesPanel
+	$Interface/SafeArea/BoardToolBar/BranchVisualizationButton
+@onready var notes_button_: Button = $Interface/SafeArea/BoardToolBar/NotesButton
+@onready var notes_panel_: NotesPanel = $Interface/SafeArea/NotesPanel
 @onready var sgf_metadata_button_: Button = \
-	$Interface/BoardToolBar/SgfMetadataButton
+	$Interface/SafeArea/BoardToolBar/SgfMetadataButton
 @onready var sgf_metadata_panel_: SgfMetadataPanel = \
-	$Interface/SgfMetadataPanel
+	$Interface/SafeArea/SgfMetadataPanel
 @onready var katago_analysis_service_: KataGoAnalysisService = \
 	$KataGoAnalysisService
 @onready var katago_analysis_button_: Button = \
-	$Interface/BoardToolBar/KatagoAnalysisButton
+	$Interface/SafeArea/BoardToolBar/KatagoAnalysisButton
 @onready var katago_analysis_panel_: KataGoAnalysisPanel = \
-	$Interface/KatagoAnalysisPanel
-@onready var settings_ui_: Control = $Interface/SettingsUI
+	$Interface/SafeArea/KatagoAnalysisPanel
+@onready var settings_ui_: Control = $Interface/SafeArea/SettingsUI
 @onready var undo_unavailable_mark_: TextureRect = \
-	$Interface/BoardToolBar/UndoButton/UnavailableMark
+	$Interface/SafeArea/BoardToolBar/UndoButton/UnavailableMark
 @onready var redo_unavailable_mark_: TextureRect = \
-	$Interface/BoardToolBar/RedoButton/UnavailableMark
+	$Interface/SafeArea/BoardToolBar/RedoButton/UnavailableMark
 @onready var board_lock_checkbox_: CheckBox = \
-	$Interface/BoardToolBar/BoardLockControl/CheckBox
+	$Interface/SafeArea/BoardToolBar/BoardLockControl/CheckBox
 @onready var next_color_button_: Button = \
-	$Interface/BoardToolBar/NextColorButton
+	$Interface/SafeArea/BoardToolBar/NextColorButton
+@onready var preset_black_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/PresetBlackButton
+@onready var preset_black_active_mark_: Label = \
+	$Interface/SafeArea/BoardToolBar/PresetBlackButton/ActiveMark
+@onready var preset_white_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/PresetWhiteButton
+@onready var preset_white_active_mark_: Label = \
+	$Interface/SafeArea/BoardToolBar/PresetWhiteButton/ActiveMark
 @onready var preset_accept_button_: Button = \
-	$Interface/BoardToolBar/PresetAcceptButton
+	$Interface/SafeArea/BoardToolBar/PresetAcceptButton
 @onready var preset_cancel_button_: Button = \
-	$Interface/BoardToolBar/PresetCancelButton
+	$Interface/SafeArea/BoardToolBar/PresetCancelButton
+@onready var preset_erase_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/PresetEraseButton
 @onready var setup_branch_button_: Button = \
-	$Interface/BoardToolBar/SetupBranchButton
+	$Interface/SafeArea/BoardToolBar/SetupBranchButton
 @onready var setup_branch_count_: Label = \
-	$Interface/BoardToolBar/SetupBranchButton/CountBadge
+	$Interface/SafeArea/BoardToolBar/SetupBranchButton/CountBadge
 @onready var setup_branch_popup_: SetupBranchPopup = \
-	$Interface/SetupBranchPopup
+	$Interface/SafeArea/SetupBranchPopup
 @onready var branch_order_popup_: BranchOrderPopup = \
-	$Interface/BranchOrderPopup
-@onready var document_tab_bar_: DocumentTabBar = $Interface/DocumentTabBar
-@onready var new_tab_button_: Button = $Interface/NewTabButton
-@onready var save_button_: Button = $Interface/SaveButton
-@onready var save_as_button_: Button = $Interface/SaveAsButton
-@onready var export_button_: Button = $Interface/ExportButton
-@onready var tool_button_: MenuButton = $Interface/ToolButton
+	$Interface/SafeArea/BranchOrderPopup
+@onready var document_tab_bar_: DocumentTabBar = $Interface/SafeArea/DocumentTabBar
+@onready var new_tab_button_: Button = $Interface/SafeArea/NewTabButton
+@onready var save_button_: Button = $Interface/SafeArea/SaveButton
+@onready var save_as_button_: Button = $Interface/SafeArea/SaveAsButton
+@onready var export_button_: Button = $Interface/SafeArea/ExportButton
+@onready var tool_button_: MenuButton = $Interface/SafeArea/ToolButton
+@onready var mobile_playback_buttons_: VBoxContainer = \
+	$Interface/SafeArea/MobilePlaybackButtons
+@onready var mobile_playback_next_button_: Button = \
+	$Interface/SafeArea/MobilePlaybackButtons/NextButton
+@onready var mobile_playback_previous_button_: Button = \
+	$Interface/SafeArea/MobilePlaybackButtons/PreviousButton
 @onready var tool_menu_: PopupMenu = tool_button_.get_popup()
 @onready var keep_main_line_confirmation_: ConfirmationDialog = \
-	$Interface/KeepMainLineConfirmation
+	$Interface/SafeArea/KeepMainLineConfirmation
 @onready var clear_notes_confirmation_: ConfirmationDialog = \
-	$Interface/ClearNotesConfirmation
-@onready var tool_error_dialog_: AcceptDialog = $Interface/ToolErrorDialog
-@onready var save_file_dialog_: FileDialog = $Interface/SaveFileDialog
-@onready var save_error_dialog_: AcceptDialog = $Interface/SaveErrorDialog
+	$Interface/SafeArea/ClearNotesConfirmation
+@onready var tool_error_dialog_: AcceptDialog = $Interface/SafeArea/ToolErrorDialog
+@onready var save_file_dialog_: FileDialog = $Interface/SafeArea/SaveFileDialog
+@onready var save_error_dialog_: AcceptDialog = $Interface/SafeArea/SaveErrorDialog
 @onready var save_confirmation_: ConfirmationDialog = \
-	$Interface/SaveConfirmation
-@onready var export_file_dialog_: FileDialog = $Interface/ExportFileDialog
+	$Interface/SafeArea/SaveConfirmation
+@onready var export_file_dialog_: FileDialog = $Interface/SafeArea/ExportFileDialog
 @onready var export_error_dialog_: AcceptDialog = \
-	$Interface/ExportErrorDialog
+	$Interface/SafeArea/ExportErrorDialog
 @onready var export_success_dialog_: AcceptDialog = \
-	$Interface/ExportSuccessDialog
+	$Interface/SafeArea/ExportSuccessDialog
+@onready var export_progress_dialog_: AcceptDialog = \
+	$Interface/SafeArea/ExportProgressDialog
+@onready var export_progress_bar_: ProgressBar = \
+	$Interface/SafeArea/ExportProgressDialog/ProgressBar
 @onready var close_tab_confirmation_: ConfirmationDialog = \
-	$Interface/CloseTabConfirmation
+	$Interface/SafeArea/CloseTabConfirmation
 @onready var preset_button_: Button = $Board/PresetButton
 @onready var preset_unavailable_mark_: TextureRect = \
 	$Board/PresetButton/UnavailableMark
@@ -155,6 +190,15 @@ var pending_side_panel_: int = kPendingPanelNone
 var side_panel_after_variation_: int = kPendingPanelNone
 var branch_popup_command_in_progress_: bool = false
 var active_file_dialog_: FileDialog
+var export_thread_: Thread
+var export_notes_: GoNotes
+var export_in_progress_: bool = false
+var export_target_path_: String = ""
+var export_temporary_path_: String = ""
+var export_copy_source_: FileAccess
+var export_copy_target_: FileAccess
+var export_copy_total_: int = 0
+var export_copy_current_: int = 0
 var window_state_save_timer_: Timer
 var last_windowed_position_: Vector2i = Vector2i.ZERO
 var last_windowed_size_: Vector2i = Vector2i(1600, 900)
@@ -164,7 +208,7 @@ var last_window_maximized_: bool = false
 func _enter_tree() -> void:
 	var document: DocumentState = DocumentState.new()
 	document.notes = GoNotes.new()
-	document.title = unique_document_title_("新建笔记")
+	document.title = unique_document_title_(tr("新建笔记"))
 	documents_.append(document)
 	active_document_index_ = 0
 	go_notes_ = document.notes
@@ -175,8 +219,22 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	get_tree().auto_accept_quit = false
+	export_progress_dialog_.get_ok_button().hide()
+	export_progress_dialog_.close_requested.connect(
+		on_export_progress_close_requested_
+	)
 	restore_window_state_()
 	configure_ui_scaling_()
+	board_toolbar_.move_child(
+		preset_black_button_, next_color_button_.get_index() + 1
+	)
+	board_toolbar_.move_child(
+		preset_white_button_, preset_black_button_.get_index() + 1
+	)
+	board_toolbar_.move_child(
+		preset_erase_button_, preset_white_button_.get_index() + 1
+	)
+	reorder_board_toolbar_buttons_()
 	window_state_save_timer_ = Timer.new()
 	window_state_save_timer_.one_shot = true
 	window_state_save_timer_.wait_time = kWindowStateDebounceSeconds
@@ -232,10 +290,23 @@ func _ready() -> void:
 	)
 	variation_exit_button_.pressed.connect(on_variation_exit_requested_)
 	variation_keep_button_.pressed.connect(on_variation_keep_requested_)
+	variation_takeback_button_.pressed.connect(on_variation_takeback_requested_)
+	pending_move_accept_button_.pressed.connect(on_pending_move_accept_requested_)
+	pending_move_cancel_button_.pressed.connect(on_pending_move_cancel_requested_)
+	variation_pending_move_accept_button_.pressed.connect(
+		on_pending_move_accept_requested_
+	)
+	variation_pending_move_cancel_button_.pressed.connect(
+		on_pending_move_cancel_requested_
+	)
 	board_.find_mode_changed.connect(on_find_mode_changed_)
 	board_.variation_mode_changed.connect(on_variation_mode_changed_)
 	board_.position_changed.connect(on_board_position_changed_)
+	board_.playback_navigation_changed.connect(
+		on_playback_navigation_changed_
+	)
 	board_.next_color_changed.connect(on_next_color_changed_)
+	board_.pending_move_changed.connect(on_pending_move_changed_)
 	board_.preset_mode_changed.connect(on_preset_mode_changed_)
 	board_.note_mark_cancel_requested.connect(on_note_mark_cancel_requested_)
 	board_.note_mark_draft_changed.connect(on_note_mark_draft_changed_)
@@ -249,9 +320,14 @@ func _ready() -> void:
 	save_button_.pressed.connect(on_save_requested_)
 	save_as_button_.pressed.connect(on_save_as_requested_)
 	export_button_.pressed.connect(on_export_requested_)
-	tool_menu_.clear()
-	tool_menu_.add_item("保留主干", kToolKeepMainLine)
-	tool_menu_.add_item("清除笔记", kToolClearNotes)
+	mobile_playback_next_button_.pressed.connect(
+		on_mobile_playback_requested_.bind(1)
+	)
+	mobile_playback_previous_button_.pressed.connect(
+		on_mobile_playback_requested_.bind(-1)
+	)
+	refresh_tool_menu_()
+	refresh_file_dialog_filters_()
 	tool_menu_.id_pressed.connect(on_tool_menu_id_pressed_)
 	tool_menu_.about_to_popup.connect(on_tool_menu_about_to_popup_)
 	keep_main_line_confirmation_.confirmed.connect(
@@ -290,6 +366,12 @@ func _ready() -> void:
 	go_notes_.connect(&"changed", changed_callback)
 	board_lock_checkbox_.toggled.connect(on_board_lock_toggled_)
 	next_color_button_.pressed.connect(on_next_color_requested_)
+	preset_black_button_.pressed.connect(
+		on_preset_color_requested_.bind(kBlack)
+	)
+	preset_white_button_.pressed.connect(
+		on_preset_color_requested_.bind(kWhite)
+	)
 	note_triangle_button_.pressed.connect(
 		on_note_symbol_selected_.bind("TR")
 	)
@@ -309,17 +391,29 @@ func _ready() -> void:
 	note_mark_cancel_button_.pressed.connect(on_note_mark_cancel_requested_)
 	preset_accept_button_.pressed.connect(on_preset_accept_requested_)
 	preset_cancel_button_.pressed.connect(on_preset_cancel_requested_)
+	preset_erase_button_.toggled.connect(on_preset_erase_toggled_)
 	preset_button_.pressed.connect(on_preset_requested_)
 	get_window().size_changed.connect(on_window_size_changed_)
+	SettingsStore.horizontal_safe_margin_changed.connect(
+		apply_horizontal_safe_margin_
+	)
+	apply_horizontal_safe_margin_(SettingsStore.get_horizontal_safe_margin())
 	board_.board_texture_changed.connect(on_board_assets_changed_)
 	board_.set_interactions_locked(
 		board_lock_checkbox_.button_pressed
 	)
 	update_history_buttons_()
+	update_variation_takeback_button_()
 	update_preset_button_()
 	update_next_color_button_(board_.get_next_color())
+	on_pending_move_changed_(board_.has_pending_move())
 	on_setup_branches_changed_(board_.get_setup_branches())
 	update_reorder_branch_button_()
+	on_playback_navigation_changed_(
+		board_.can_navigate_playback(-1),
+		board_.can_navigate_playback(1)
+	)
+	update_mobile_playback_visibility_()
 	refresh_document_tabs_()
 	on_board_layout_changed_()
 
@@ -475,11 +569,30 @@ func update_ui_scale_() -> void:
 
 func on_window_size_changed_() -> void:
 	update_ui_scale_()
+	apply_horizontal_safe_margin_(SettingsStore.get_horizontal_safe_margin())
 	on_board_layout_changed_()
 	schedule_window_state_save_()
 
 
+func apply_horizontal_safe_margin_(requested_margin: int) -> void:
+	var viewport_width: float = get_viewport_rect().size.x
+	var maximum_margin: float = maxf((viewport_width - 320.0) * 0.5, 0.0)
+	var applied_margin: float = minf(float(maxi(requested_margin, 0)), maximum_margin)
+	for safe_area: Control in [
+		interface_safe_area_,
+		branch_visualization_safe_area_,
+		note_mark_safe_area_,
+	]:
+		safe_area.offset_left = applied_margin
+		safe_area.offset_right = -applied_margin
+	camera_.set(&"horizontal_safe_margin", applied_margin)
+	camera_.call(&"update_zoom_")
+	call_deferred(&"on_board_layout_changed_")
+
+
 func _input(event: InputEvent) -> void:
+	if export_in_progress_:
+		return
 	if export_success_dialog_.visible and event is InputEventKey:
 		var success_key_event: InputEventKey = event as InputEventKey
 		if success_key_event.pressed and not success_key_event.echo \
@@ -632,6 +745,7 @@ func on_reorder_branch_requested_() -> void:
 
 
 func open_reorder_branch_popup_() -> void:
+	board_.cancel_pending_move()
 	var typed_branches: Array[Dictionary] = current_next_branches_()
 	if typed_branches.is_empty():
 		return
@@ -649,18 +763,25 @@ func open_reorder_branch_popup_() -> void:
 		typed_branches
 	)
 	var popup_size: Vector2i = Vector2i(
-		488,
+		548,
 		clampi(92 + typed_branches.size() * 132, 260, 560)
 	)
 	var viewport_size: Vector2i = Vector2i(get_viewport_rect().size)
+	var safe_left: float = interface_safe_area_.global_position.x
+	var safe_right: float = safe_left + interface_safe_area_.size.x
 	var popup_position: Vector2 = Vector2(
 		reorder_branch_button_.global_position.x \
 			+ reorder_branch_button_.size.x + 8.0,
 		reorder_branch_button_.global_position.y
 	)
-	if popup_position.x + popup_size.x > viewport_size.x - 8:
+	if popup_position.x + popup_size.x > safe_right - 8.0:
 		popup_position.x = reorder_branch_button_.global_position.x \
 			- float(popup_size.x) - 8.0
+	popup_position.x = clampf(
+		popup_position.x,
+		safe_left + 8.0,
+		maxf(safe_right - float(popup_size.x) - 8.0, safe_left + 8.0)
+	)
 	popup_position.y = clampf(
 		popup_position.y,
 		8.0,
@@ -677,7 +798,7 @@ func on_branch_order_accepted_(
 	ordered_uids: PackedInt64Array
 ) -> void:
 	if parent_uid != int(go_notes_.get_current_uid()):
-		push_warning("当前局面已经改变，分支顺序调整已放弃。")
+		push_warning(tr("当前局面已经改变，分支顺序调整已放弃。"))
 		return
 	var result: int = int(
 		go_notes_.call(&"reorder_branches", parent_uid, ordered_uids)
@@ -688,11 +809,11 @@ func on_branch_order_accepted_(
 
 func on_branch_delete_requested_(parent_uid: int, branch_uid: int) -> void:
 	if parent_uid != int(go_notes_.get_current_uid()):
-		push_warning("当前局面已经改变，分支删除已放弃。")
+		push_warning(tr("当前局面已经改变，分支删除已放弃。"))
 		branch_order_popup_.cancel()
 		return
 	if not current_next_branch_exists_(branch_uid):
-		push_warning("所选分支已不存在。")
+		push_warning(tr("所选分支已不存在。"))
 		branch_order_popup_.cancel()
 		return
 
@@ -709,11 +830,11 @@ func on_branch_delete_requested_(parent_uid: int, branch_uid: int) -> void:
 
 func on_branch_enter_requested_(parent_uid: int, branch_uid: int) -> void:
 	if parent_uid != int(go_notes_.get_current_uid()):
-		push_warning("当前局面已经改变，无法进入所选分支。")
+		push_warning(tr("当前局面已经改变，无法进入所选分支。"))
 		branch_order_popup_.cancel()
 		return
 	if not current_next_branch_exists_(branch_uid):
-		push_warning("所选分支已不存在。")
+		push_warning(tr("所选分支已不存在。"))
 		branch_order_popup_.cancel()
 		return
 
@@ -753,8 +874,9 @@ func update_reorder_branch_button_() -> void:
 	).size()
 	reorder_branch_button_.disabled = branch_count < 1
 	reorder_branch_button_.tooltip_text = \
-		"调整或删除下一手分支（%d，Ctrl+X）" % branch_count \
-		if branch_count >= 1 else "当前局面没有可调整或删除的下一手分支"
+		tr("调整或删除下一手分支（%d，Ctrl+X）") % branch_count \
+		if branch_count >= 1 \
+		else tr("当前局面没有可调整或删除的下一手分支")
 
 
 func on_setup_branches_changed_(branches: Array[Dictionary]) -> void:
@@ -764,8 +886,8 @@ func on_setup_branches_changed_(branches: Array[Dictionary]) -> void:
 		and not board_.is_preset_mode()
 	setup_branch_button_.visible = available
 	setup_branch_count_.text = str(setup_branches_.size())
-	setup_branch_button_.tooltip_text = \
-		"选择下一步的预置棋子分支（%d）" % setup_branches_.size()
+	setup_branch_button_.tooltip_text = tr("选择下一步的预置棋子分支（%d）") \
+		% setup_branches_.size()
 	if setup_branch_popup_.visible:
 		setup_branch_popup_.hide()
 	update_reorder_branch_button_()
@@ -773,6 +895,7 @@ func on_setup_branches_changed_(branches: Array[Dictionary]) -> void:
 
 
 func on_setup_branch_requested_() -> void:
+	board_.cancel_pending_move()
 	if setup_branches_.is_empty():
 		return
 	setup_branch_popup_.rebuild(go_notes_, setup_branches_)
@@ -781,14 +904,21 @@ func on_setup_branch_requested_() -> void:
 		clampi(76 + setup_branches_.size() * 132, 220, 520)
 	)
 	var viewport_size: Vector2i = Vector2i(get_viewport_rect().size)
+	var safe_left: float = interface_safe_area_.global_position.x
+	var safe_right: float = safe_left + interface_safe_area_.size.x
 	var popup_position: Vector2 = Vector2(
 		setup_branch_button_.global_position.x \
 			+ setup_branch_button_.size.x + 8.0,
 		setup_branch_button_.global_position.y
 	)
-	if popup_position.x + popup_size.x > viewport_size.x - 8:
+	if popup_position.x + popup_size.x > safe_right - 8.0:
 		popup_position.x = setup_branch_button_.global_position.x \
 			- float(popup_size.x) - 8.0
+	popup_position.x = clampf(
+		popup_position.x,
+		safe_left + 8.0,
+		maxf(safe_right - float(popup_size.x) - 8.0, safe_left + 8.0)
+	)
 	popup_position.y = clampf(
 		popup_position.y,
 		8.0,
@@ -810,7 +940,7 @@ func on_setup_branch_preview_cleared_() -> void:
 
 func on_setup_branch_selected_(uid: int) -> void:
 	if not board_.roam_to_setup_branch(uid):
-		push_warning("所选预置棋子分支已经不存在。")
+		push_warning(tr("所选预置棋子分支已经不存在。"))
 
 
 func on_new_tab_requested_() -> void:
@@ -820,7 +950,7 @@ func on_new_tab_requested_() -> void:
 func create_new_tab_() -> void:
 	var document: DocumentState = DocumentState.new()
 	document.notes = GoNotes.new()
-	document.title = unique_document_title_("新建笔记")
+	document.title = unique_document_title_(tr("新建笔记"))
 	documents_.append(document)
 	switch_document_(documents_.size() - 1)
 
@@ -866,14 +996,18 @@ func show_save_dialog_() -> void:
 func on_save_file_selected_(path: String) -> void:
 	active_file_dialog_ = null
 	var save_path: String = path
-	if save_path.get_extension().to_lower() != "sgf":
+	if not save_path.begins_with("content://") \
+			and save_path.get_extension().to_lower() != "sgf":
 		save_path += ".sgf"
 	request_save_confirmation_(save_path)
 
 
 func request_save_confirmation_(path: String) -> void:
 	pending_save_path_ = path
-	save_confirmation_.dialog_text = "是否将当前棋谱保存到：\n%s" % path
+	var display_path: String = DocumentDisplayName.from_path(path)
+	if display_path.is_empty():
+		display_path = path
+	save_confirmation_.dialog_text = tr("DIALOG_SAVE_TO_PATH") % display_path
 	save_confirmation_.popup_centered(Vector2i(520, 190))
 
 
@@ -903,9 +1037,9 @@ func save_document_to_(path: String) -> bool:
 
 	var document: DocumentState = documents_[active_document_index_]
 	document.file_path = path
-	var file_name: String = path.get_file()
+	var file_name: String = DocumentDisplayName.from_path(path)
 	if file_name.is_empty():
-		file_name = "新建笔记.sgf"
+		file_name = tr("新建笔记.sgf")
 	document.title = unique_document_title_(
 		file_name, active_document_index_
 	)
@@ -929,6 +1063,63 @@ func on_tool_menu_id_pressed_(item_id: int) -> void:
 			)
 
 
+func refresh_tool_menu_() -> void:
+	tool_menu_.clear()
+	tool_menu_.add_item(tr("保留主干"), kToolKeepMainLine)
+	tool_menu_.add_item(tr("清除笔记"), kToolClearNotes)
+
+
+func refresh_file_dialog_filters_() -> void:
+	save_file_dialog_.filters = PackedStringArray([
+		"*.sgf ; %s" % tr("SGF 棋谱"),
+	])
+	export_file_dialog_.filters = PackedStringArray([
+		"*.pptx ; %s" % tr("PowerPoint 演示文稿"),
+	])
+
+
+func refresh_localized_ui_() -> void:
+	refresh_tool_menu_()
+	refresh_file_dialog_filters_()
+	var used_titles: Dictionary = {}
+	for document: DocumentState in documents_:
+		if not document.file_path.is_empty():
+			used_titles[document.title] = true
+	var untitled_base: String = tr("新建笔记")
+	var untitled_suffix: int = 1
+	for document: DocumentState in documents_:
+		if not document.file_path.is_empty():
+			continue
+		var candidate: String = untitled_base if untitled_suffix == 1 \
+			else "%s %d" % [untitled_base, untitled_suffix]
+		while used_titles.has(candidate):
+			untitled_suffix += 1
+			candidate = "%s %d" % [untitled_base, untitled_suffix]
+		document.title = candidate
+		used_titles[candidate] = true
+		untitled_suffix += 1
+	refresh_document_tabs_()
+	update_reorder_branch_button_()
+	if not setup_branches_.is_empty():
+		setup_branch_button_.tooltip_text = tr(
+			"选择下一步的预置棋子分支（%d）"
+		) % setup_branches_.size()
+	update_next_color_button_(board_.get_next_color())
+	on_preset_mode_changed_(board_.is_preset_mode())
+	for localized_node: Node in [
+		board_,
+		board_size_dialog_,
+		notes_panel_,
+		sgf_metadata_panel_,
+		katago_analysis_panel_,
+		branch_order_popup_,
+		setup_branch_popup_,
+		branch_visualization_,
+	]:
+		if localized_node.has_method(&"refresh_localized_texts"):
+			localized_node.call(&"refresh_localized_texts")
+
+
 func on_tool_menu_about_to_popup_() -> void:
 	call_deferred(&"position_tool_menu_")
 
@@ -939,7 +1130,10 @@ func position_tool_menu_() -> void:
 	var button_rect: Rect2 = tool_button_.get_global_rect()
 	var menu_size: Vector2i = tool_menu_.size
 	tool_menu_.position = Vector2i(
-		roundi(button_rect.position.x - float(menu_size.x) - kToolMenuGap),
+		roundi(maxf(
+			button_rect.position.x - float(menu_size.x) - kToolMenuGap,
+			interface_safe_area_.global_position.x
+		)),
 		roundi(button_rect.position.y)
 	)
 
@@ -978,6 +1172,9 @@ func request_export_() -> void:
 		return
 	if focus_active_file_dialog_():
 		return
+	if android_png_export_unavailable_():
+		show_android_png_export_unavailable_()
+		return
 	var document: DocumentState = documents_[active_document_index_]
 	export_file_dialog_.current_file = "%s.pptx" % document.title
 	active_file_dialog_ = export_file_dialog_
@@ -987,22 +1184,208 @@ func request_export_() -> void:
 func on_export_file_selected_(path: String) -> void:
 	active_file_dialog_ = null
 	var export_path: String = path
-	if export_path.get_extension().to_lower() != "pptx":
+	if not export_path.begins_with("content://") \
+			and export_path.get_extension().to_lower() != "pptx":
 		export_path += ".pptx"
-	var exported: bool = bool(go_notes_.call(
-		&"export_pptx_file",
-		export_path,
-		kPptxTemplatePath,
-		SettingsStore.get_pptx_image_format_name(),
-		SettingsStore.get_pptx_board_coordinates()
-	))
-	if not exported:
-		export_error_dialog_.dialog_text = CommandMessages.localize(
-			str(go_notes_.get_message())
+	start_pptx_export_(export_path)
+
+
+func start_pptx_export_(path: String) -> void:
+	if export_in_progress_:
+		return
+	if android_png_export_unavailable_():
+		show_android_png_export_unavailable_()
+		return
+	var template_file: FileAccess = FileAccess.open(
+		kPptxTemplatePath, FileAccess.READ
+	)
+	if template_file == null:
+		on_pptx_export_finished_(
+			false, "[GNE0026] cannot read PPTX template"
 		)
+		return
+	var template_data: PackedByteArray = template_file.get_buffer(
+		template_file.get_length()
+	)
+	template_file.close()
+	if template_data.is_empty():
+		on_pptx_export_finished_(
+			false, "[GNE0027] invalid PPTX template"
+		)
+		return
+	var temporary_file: FileAccess = FileAccess.create_temp(
+		FileAccess.WRITE_READ, "gotepad-pptx-", "pptx", true
+	)
+	if temporary_file == null:
+		on_pptx_export_finished_(false, tr("无法创建 PPTX 临时文件。"))
+		return
+	export_temporary_path_ = temporary_file.get_path_absolute()
+	temporary_file.close()
+	var snapshot_value: Variant = go_notes_.call(
+		&"create_pptx_export_snapshot"
+	)
+	export_notes_ = snapshot_value as GoNotes
+	if export_notes_ == null:
+		on_pptx_export_finished_(false, tr("无法创建 PPTX 导出快照。"))
+		return
+	export_in_progress_ = true
+	export_target_path_ = path
+	export_progress_bar_.min_value = 0.0
+	export_progress_bar_.max_value = 1.0
+	export_progress_bar_.value = 0.0
+	export_progress_dialog_.dialog_text = tr("正在准备导出…")
+	export_progress_dialog_.popup_centered(Vector2i(520, 190))
+	export_thread_ = Thread.new()
+	var start_error: Error = export_thread_.start(
+		Callable(self, "export_pptx_worker_").bind(
+			export_notes_,
+			export_temporary_path_,
+			template_data,
+			SettingsStore.get_pptx_image_format_name(),
+			SettingsStore.get_pptx_board_coordinates()
+		)
+	)
+	if start_error != OK:
+		on_pptx_export_finished_(
+			false, "Unable to start PPTX export thread: %s" \
+				% error_string(start_error)
+		)
+
+
+func android_png_export_unavailable_() -> bool:
+	return OS.get_name() == "Android" \
+		and SettingsStore.get_pptx_image_format_name().to_lower() == "png"
+
+
+func show_android_png_export_unavailable_() -> void:
+	export_error_dialog_.dialog_text = tr(
+		"目前安卓端由于技术原因，不支持将棋盘导出为PNG图片，请切换至SVG模式再导出。SVG图片版的PPTX可使用Microsoft官方版Powerpoint App浏览编辑，请注意WPS可能无法显示SVG图片。"
+	)
+	export_error_dialog_.popup_centered(Vector2i(640, 240))
+
+
+func export_pptx_worker_(
+	notes: GoNotes,
+	path: String,
+	template_data: PackedByteArray,
+	image_format: String,
+	show_board_coordinates: bool
+) -> bool:
+	return bool(notes.call(
+		&"export_pptx_local_file",
+		path,
+		template_data,
+		image_format,
+		show_board_coordinates
+	))
+
+
+func on_pptx_export_finished_(exported: bool, message: String) -> void:
+	export_thread_ = null
+	if export_copy_source_ != null:
+		export_copy_source_.close()
+	if export_copy_target_ != null:
+		export_copy_target_.close()
+	export_copy_source_ = null
+	export_copy_target_ = null
+	if not export_temporary_path_.is_empty():
+		DirAccess.remove_absolute(export_temporary_path_)
+	export_notes_ = null
+	export_in_progress_ = false
+	export_target_path_ = ""
+	export_temporary_path_ = ""
+	export_copy_total_ = 0
+	export_copy_current_ = 0
+	export_progress_dialog_.hide()
+	if not exported:
+		export_error_dialog_.dialog_text = CommandMessages.localize(message)
 		export_error_dialog_.popup_centered(Vector2i(480, 180))
 		return
 	export_success_dialog_.popup_centered(Vector2i(360, 150))
+
+
+func on_export_progress_close_requested_() -> void:
+	if export_in_progress_:
+		export_progress_dialog_.call_deferred(
+			&"popup_centered", Vector2i(520, 190)
+		)
+
+
+func _process(_delta: float) -> void:
+	if not export_in_progress_:
+		return
+	if export_copy_source_ != null:
+		copy_pptx_output_chunk_()
+		return
+	if export_thread_ != null and not export_thread_.is_alive():
+		var exported: bool = bool(export_thread_.wait_to_finish())
+		export_thread_ = null
+		var message: String = "" if exported \
+			else str(export_notes_.get_message())
+		if not exported:
+			on_pptx_export_finished_(false, message)
+			return
+		begin_pptx_output_copy_()
+		return
+	if export_notes_ == null:
+		return
+	var progress: PackedInt64Array = PackedInt64Array(
+		export_notes_.call(&"get_pptx_export_progress")
+	)
+	if progress.size() < 2:
+		return
+	var current: int = maxi(int(progress[0]), 0)
+	var total: int = maxi(int(progress[1]), 0)
+	export_progress_bar_.max_value = float(maxi(total, 1))
+	export_progress_bar_.value = float(current)
+	if total > 0:
+		export_progress_dialog_.dialog_text = tr(
+			"正在导出第 %d / %d 页…"
+		) % [current, total]
+	else:
+		export_progress_dialog_.dialog_text = tr("正在准备导出…")
+
+
+func begin_pptx_output_copy_() -> void:
+	export_copy_source_ = FileAccess.open(
+		export_temporary_path_, FileAccess.READ
+	)
+	if export_copy_source_ == null:
+		on_pptx_export_finished_(false, tr("无法读取已生成的 PPTX 临时文件。"))
+		return
+	export_copy_target_ = FileAccess.open(export_target_path_, FileAccess.WRITE)
+	if export_copy_target_ == null:
+		on_pptx_export_finished_(false, tr("无法写入所选的 PPTX 文件。"))
+		return
+	export_copy_total_ = int(export_copy_source_.get_length())
+	export_copy_current_ = 0
+	export_progress_bar_.max_value = float(maxi(export_copy_total_, 1))
+	export_progress_bar_.value = 0.0
+	export_progress_dialog_.dialog_text = tr("正在写入目标文件…")
+
+
+func copy_pptx_output_chunk_() -> void:
+	var remaining: int = export_copy_total_ - export_copy_current_
+	if remaining <= 0:
+		export_copy_target_.flush()
+		var write_error: Error = export_copy_target_.get_error()
+		export_copy_source_.close()
+		export_copy_target_.close()
+		export_copy_source_ = null
+		export_copy_target_ = null
+		if write_error != OK:
+			on_pptx_export_finished_(false, tr("无法写入所选的 PPTX 文件。"))
+			return
+		on_pptx_export_finished_(true, "")
+		return
+	var bytes_to_copy: int = mini(remaining, kPptxCopyBytesPerFrame)
+	var data: PackedByteArray = export_copy_source_.get_buffer(bytes_to_copy)
+	if data.size() != bytes_to_copy \
+			or not export_copy_target_.store_buffer(data):
+		on_pptx_export_finished_(false, tr("无法写入所选的 PPTX 文件。"))
+		return
+	export_copy_current_ += bytes_to_copy
+	export_progress_bar_.value = float(export_copy_current_)
 
 
 func on_file_dialog_canceled_() -> void:
@@ -1031,7 +1414,7 @@ func request_document_tab_close_(index: int) -> void:
 	if index < 0 or index >= documents_.size():
 		return
 	pending_close_index_ = index
-	close_tab_confirmation_.dialog_text = "是否关闭标签“%s”？" \
+	close_tab_confirmation_.dialog_text = tr("是否关闭标签“%s”？") \
 		% documents_[index].title
 	close_tab_confirmation_.popup_centered()
 
@@ -1050,7 +1433,7 @@ func on_close_tab_confirmed_() -> void:
 		if documents_.is_empty():
 			var replacement: DocumentState = DocumentState.new()
 			replacement.notes = GoNotes.new()
-			replacement.title = unique_document_title_("新建笔记")
+			replacement.title = unique_document_title_(tr("新建笔记"))
 			documents_.append(replacement)
 		switch_document_(mini(index, documents_.size() - 1))
 		return
@@ -1072,6 +1455,7 @@ func on_branch_visualization_requested_() -> void:
 
 
 func open_branch_visualization_() -> void:
+	board_.cancel_pending_move()
 	if setup_branch_popup_.visible:
 		setup_branch_popup_.hide()
 	if katago_analysis_panel_.is_panel_open():
@@ -1200,13 +1584,34 @@ func enter_katago_variation_(pv: Array) -> void:
 	if not board_.enter_analysis_variation(pv):
 		side_panel_after_variation_ = kPendingPanelNone
 		katago_analysis_panel_.open_panel(go_notes_, board_)
-		push_warning("无法根据KataGo候选进入变化图。")
+		push_warning(tr("无法根据KataGo候选进入变化图。"))
 
 
 func on_board_position_changed_(uid: int) -> void:
+	update_variation_takeback_button_()
 	if board_.is_variation_mode():
 		return
 	katago_analysis_panel_.on_board_position_changed(uid)
+
+
+func on_playback_navigation_changed_(
+		can_previous: bool,
+		can_next: bool
+) -> void:
+	mobile_playback_previous_button_.disabled = not can_previous
+	mobile_playback_next_button_.disabled = not can_next
+
+
+func on_mobile_playback_requested_(direction: int) -> void:
+	var _navigated: bool = board_.navigate_playback(direction)
+
+
+func update_mobile_playback_visibility_() -> void:
+	var document_initialized: bool = active_document_index_ >= 0 \
+		and active_document_index_ < documents_.size() \
+		and documents_[active_document_index_].initialized
+	mobile_playback_buttons_.visible = OS.has_feature("android") \
+		and document_initialized and not board_.is_preset_mode()
 
 
 func on_displayed_note_marks_changed_(
@@ -1290,7 +1695,7 @@ func update_note_mark_toolbar_() -> void:
 		var mark_count: int = board_.get_note_sequential_mark_count()
 		next_mark_label_.text = kSequentialMarkLetters.substr(
 			clampi(mark_count, 0, kSequentialMarkLetters.length() - 1), 1
-		) if mark_count < kSequentialMarkLetters.length() else "满"
+		) if mark_count < kSequentialMarkLetters.length() else tr("满")
 
 
 func on_note_mark_accept_requested_() -> void:
@@ -1350,7 +1755,7 @@ func on_variation_requested_() -> void:
 
 func enter_variation_() -> void:
 	if not board_.enter_variation_mode():
-		push_warning("无法从当前盘面进入变化图。")
+		push_warning(tr("无法从当前盘面进入变化图。"))
 
 
 func on_variation_exit_requested_() -> void:
@@ -1359,7 +1764,34 @@ func on_variation_exit_requested_() -> void:
 
 func on_variation_keep_requested_() -> void:
 	if not board_.keep_variation_branch():
-		push_warning("无法将当前变化图保留到主棋谱。")
+		push_warning(tr("无法将当前变化图保留到主棋谱。"))
+
+
+func on_variation_takeback_requested_() -> void:
+	board_.request_takeback()
+
+
+func on_pending_move_accept_requested_() -> void:
+	request_after_note_edit_resolution_(Callable(board_, "accept_pending_move"))
+
+
+func on_pending_move_cancel_requested_() -> void:
+	board_.cancel_pending_move()
+
+
+func on_pending_move_changed_(active: bool) -> void:
+	pending_move_accept_button_.visible = active \
+		and not board_.is_variation_mode() and not board_.is_preset_mode()
+	pending_move_cancel_button_.visible = pending_move_accept_button_.visible
+	variation_pending_move_accept_button_.visible = active \
+		and board_.is_variation_mode()
+	variation_pending_move_cancel_button_.visible = \
+		variation_pending_move_accept_button_.visible
+	call_deferred(&"position_board_toolbar_")
+
+
+func update_variation_takeback_button_() -> void:
+	variation_takeback_button_.disabled = not board_.can_request_takeback()
 
 
 func on_variation_mode_changed_(enabled: bool) -> void:
@@ -1368,6 +1800,8 @@ func on_variation_mode_changed_(enabled: bool) -> void:
 		katago_analysis_panel_.close_panel()
 	board_toolbar_.visible = not enabled
 	variation_toolbar_.visible = enabled
+	update_mobile_playback_visibility_()
+	update_variation_takeback_button_()
 	preset_button_.visible = not enabled
 	setup_branch_button_.visible = not enabled \
 		and not setup_branches_.is_empty()
@@ -1390,11 +1824,15 @@ func restore_side_panel_after_variation_() -> void:
 
 
 func on_next_color_requested_() -> void:
+	if board_.is_preset_erase_mode():
+		preset_erase_button_.set_pressed_no_signal(false)
+		board_.set_preset_erase_mode(false)
 	board_.toggle_next_color()
 
 
 func on_next_color_changed_(color: int) -> void:
 	update_next_color_button_(color)
+	update_preset_tool_selection_()
 
 
 func on_preset_requested_() -> void:
@@ -1420,37 +1858,73 @@ func on_preset_cancel_requested_() -> void:
 	var _canceled: bool = board_.cancel_preset_mode()
 
 
+func on_preset_erase_toggled_(enabled: bool) -> void:
+	board_.set_preset_erase_mode(enabled)
+	update_preset_tool_selection_()
+
+
+func on_preset_color_requested_(color: int) -> void:
+	preset_erase_button_.set_pressed_no_signal(false)
+	board_.set_preset_erase_mode(false)
+	board_.select_next_color(color)
+	update_preset_tool_selection_()
+
+
+func update_preset_tool_selection_() -> void:
+	var erasing: bool = board_.is_preset_erase_mode()
+	var color: int = board_.get_next_color()
+	var black_active: bool = not erasing and color == kBlack
+	var white_active: bool = not erasing and color == kWhite
+	preset_black_button_.set_pressed_no_signal(black_active)
+	preset_white_button_.set_pressed_no_signal(white_active)
+	preset_black_active_mark_.visible = black_active
+	preset_white_active_mark_.visible = white_active
+	preset_erase_button_.set_pressed_no_signal(erasing)
+
+
 func on_preset_mode_changed_(enabled: bool) -> void:
 	if enabled and katago_analysis_panel_.is_panel_open():
 		katago_analysis_panel_.close_panel()
 	preset_button_.set_pressed_no_signal(enabled)
-	preset_button_.tooltip_text = \
-		"正在预置棋子（Esc 取消）" if enabled else "预置棋子（Ctrl+H）"
+	if not enabled:
+		preset_erase_button_.set_pressed_no_signal(false)
+	preset_button_.tooltip_text = tr("正在预置棋子（Esc 取消）") \
+		if enabled else tr("预置棋子（Ctrl+H）")
 	update_preset_toolbar_(enabled)
+	update_preset_tool_selection_()
 	update_preset_button_()
+	update_mobile_playback_visibility_()
 
 
 func update_preset_toolbar_(enabled: bool) -> void:
 	for child: Node in board_toolbar_.get_children():
 		if child is Control:
 			(child as Control).visible = not enabled
-	next_color_button_.visible = true
+	next_color_button_.visible = not enabled
+	preset_black_button_.visible = enabled
+	preset_white_button_.visible = enabled
+	preset_erase_button_.visible = enabled
 	preset_accept_button_.visible = enabled
 	preset_cancel_button_.visible = enabled
 	if not enabled:
 		setup_branch_button_.visible = not setup_branches_.is_empty() \
 			and not board_.is_variation_mode()
+	on_pending_move_changed_(board_.has_pending_move())
 	call_deferred(&"position_board_toolbar_")
 
 
 func update_next_color_button_(color: int) -> void:
 	next_color_button_.icon = board_.get_next_color_texture()
+	preset_black_button_.icon = board_.get_stone_texture(kBlack)
+	preset_white_button_.icon = board_.get_stone_texture(kWhite)
 	if color == kBlack:
-		next_color_button_.tooltip_text = \
+		next_color_button_.tooltip_text = tr(
 			"当前黑方落子；点击或按 Ctrl+Q 切换为白方"
+		)
 	elif color == kWhite:
-		next_color_button_.tooltip_text = \
+		next_color_button_.tooltip_text = tr(
 			"当前白方落子；点击或按 Ctrl+Q 切换为黑方"
+		)
 
 
 func perform_undo_() -> bool:
@@ -1538,10 +2012,15 @@ func on_note_edit_resolution_canceled_() -> void:
 func _notification(what: int) -> void:
 	if not is_node_ready():
 		return
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		refresh_localized_ui_()
+		return
 	if what == NOTIFICATION_WM_POSITION_CHANGED:
 		schedule_window_state_save_()
 		return
 	if what != NOTIFICATION_WM_CLOSE_REQUEST:
+		return
+	if export_in_progress_:
 		return
 	save_window_state_now_()
 	request_after_note_edit_resolution_(Callable(self, "quit_application_"))
@@ -1571,7 +2050,7 @@ func switch_document_(index: int) -> void:
 	active_document_index_ = index
 	go_notes_ = incoming.notes
 	if not board_.bind_go_notes(go_notes_):
-		push_error("无法切换到所选棋局标签。")
+		push_error(tr("无法切换到所选棋局标签。"))
 		active_document_index_ = previous_index
 		go_notes_ = previous_notes
 		var _restored: bool = board_.bind_go_notes(go_notes_)
@@ -1588,6 +2067,7 @@ func switch_document_(index: int) -> void:
 		board_size_dialog_.hide()
 	else:
 		board_size_dialog_.show_dialog()
+	update_mobile_playback_visibility_()
 	update_history_buttons_()
 	update_preset_button_()
 	update_next_color_button_(board_.get_next_color())
@@ -1677,6 +2157,7 @@ func on_create_requested_(board_size: int) -> void:
 	if board_.initialize_board(board_size):
 		if active_document_index_ >= 0:
 			documents_[active_document_index_].initialized = true
+		update_mobile_playback_visibility_()
 		board_size_dialog_.hide()
 	else:
 		board_size_dialog_.show_dialog()
@@ -1721,6 +2202,28 @@ func on_board_assets_changed_() -> void:
 	on_board_layout_changed_()
 
 
+func reorder_board_toolbar_buttons_() -> void:
+	# 落子确认和预置分支是临时入口，仍保留在常驻按钮之前。
+	var insertion_index: int = setup_branch_button_.get_index() + 1
+	var ordered_buttons: Array[Control] = [
+		undo_button_,
+		redo_button_,
+		reorder_branch_button_,
+		branch_visualization_button_,
+		variation_button_,
+		board_lock_checkbox_.get_parent() as Control,
+		next_color_button_,
+		notes_button_,
+		sgf_metadata_button_,
+		katago_analysis_button_,
+		find_previous_button_,
+		find_next_button_,
+	]
+	for button: Control in ordered_buttons:
+		board_toolbar_.move_child(button, insertion_index)
+		insertion_index += 1
+
+
 func position_board_toolbar_() -> void:
 	if board_.texture == null:
 		return
@@ -1733,10 +2236,13 @@ func position_board_toolbar_() -> void:
 		board_rect.position.y
 	)
 	var toolbar_position: Vector2 = Vector2(
-		roundf(board_top_right.x + kBoardToolbarGap),
+		roundf(
+			board_top_right.x + kBoardToolbarGap
+			- interface_safe_area_.global_position.x
+		),
 		roundf(board_top_left.y)
 	)
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var viewport_size: Vector2 = interface_safe_area_.size
 	board_toolbar_.set_available_height(
 		maxf(viewport_size.y - toolbar_position.y - kBoardToolbarGap, 56.0)
 	)
@@ -1766,7 +2272,7 @@ func position_side_panels_() -> void:
 			and not sgf_metadata_panel_.is_panel_open() \
 			and not katago_analysis_panel_.is_panel_open():
 		return
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var viewport_size: Vector2 = interface_safe_area_.size
 	var right: float = viewport_size.x - 96.0
 	var left: float = board_toolbar_.position.x \
 		+ board_toolbar_.size.x + kBoardToolbarGap
@@ -1799,7 +2305,10 @@ func position_note_mark_toolbar_() -> void:
 		board_rect.end.x, board_rect.position.y
 	)
 	note_mark_toolbar_.position = Vector2(
-		roundf(board_top_right.x + kBoardToolbarGap),
+		roundf(
+			board_top_right.x + kBoardToolbarGap
+			- note_mark_safe_area_.global_position.x
+		),
 		roundf(board_top_left.y)
 	)
 
@@ -1813,9 +2322,16 @@ func on_sgf_load_requested_(path: String) -> void:
 	if load_succeeded:
 		if active_document_index_ >= 0:
 			var document: DocumentState = documents_[active_document_index_]
-			var file_name: String = path.get_file()
+			var file_name: String = DocumentDisplayName.from_path(path)
 			if file_name.is_empty():
-				file_name = "新建笔记"
+				var metadata: Dictionary = Dictionary(
+					go_notes_.call(&"get_sgf_metadata")
+				)
+				file_name = DocumentDisplayName.sanitize(
+					str(metadata.get("game_name", ""))
+				)
+			if file_name.is_empty():
+				file_name = tr("新建笔记")
 			document.title = unique_document_title_(
 				file_name, active_document_index_
 			)
@@ -1826,6 +2342,7 @@ func on_sgf_load_requested_(path: String) -> void:
 		board_lock_checkbox_.set_pressed_no_signal(true)
 		board_.set_interactions_locked(true)
 		update_history_buttons_()
+		update_mobile_playback_visibility_()
 		board_size_dialog_.hide()
 	else:
 		board_size_dialog_.show_load_error(go_notes_.get_message())
@@ -1865,6 +2382,9 @@ func activate_existing_sgf_document_(path: String) -> bool:
 func normalized_file_path_(path: String) -> String:
 	if path.is_empty():
 		return ""
+	if path.begins_with("content://"):
+		# Android 文档 URI 是访问身份，不可做路径简化或百分号解码。
+		return path
 	var normalized: String = ProjectSettings.globalize_path(
 		path
 	).simplify_path().replace("\\", "/")

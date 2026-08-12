@@ -31,7 +31,7 @@ func rebuild(go_notes: GoNotes, branches: Array[Dictionary]) -> void:
 			uid,
 			board_size,
 			states,
-			"预置分支 %d" % (index + 1),
+			tr("预置分支 %d") % (index + 1),
 			make_summary_(branch)
 		)
 		card.branch_hovered.connect(on_card_hovered_)
@@ -54,7 +54,7 @@ func make_summary_(branch: Dictionary) -> String:
 				black_count += 1
 			2:
 				white_count += 1
-	return "黑 +%d　白 +%d　清除 %d" % [
+	return tr("黑 +%d　白 +%d　清除 %d") % [
 		black_count, white_count, clear_count
 	]
 

@@ -6,6 +6,7 @@
 
 #include "go_notes.hpp"
 
+#include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/ref_counted.hpp>
@@ -15,10 +16,12 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/char_string.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/packed_int64_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -28,8 +31,82 @@
 #include <utility>
 #include <vector>
 
+#ifdef GOTEPAD_KATAGO_MERGED
+namespace nd::go::katago::gdext {
+void initialize_katago_gdext(godot::ModuleInitializationLevel level);
+void uninitialize_katago_gdext(godot::ModuleInitializationLevel level);
+} // namespace nd::go::katago::gdext
+#endif
+
 namespace nd::go::gdext {
 inline constexpr char kInvalidBoardSizeMessage[] = "ngrids must be in [1, 52]";
+
+inline bool is_android_document_uri_(const godot::String &path) {
+  return path.begins_with("content://");
+}
+
+inline std::string utf8_text_(const godot::String &value) {
+  const godot::CharString utf8 = value.utf8();
+  return {utf8.get_data(), static_cast<size_t>(utf8.length())};
+}
+
+bool create_native_temporary_output_(const godot::String &extension,
+                                     godot::String &godot_path,
+                                     std::string &native_path,
+                                     godot::String &error_message) {
+  const auto temporary = godot::FileAccess::create_temp(
+      godot::FileAccess::WRITE_READ, "gotepad-transfer-", extension, true);
+  if (temporary.is_null()) {
+    error_message = "Unable to create temporary output file";
+    return false;
+  }
+  godot_path = temporary->get_path_absolute();
+  temporary->close();
+  native_path = utf8_text_(godot_path);
+  return true;
+}
+
+void remove_temporary_output_(const godot::String &path) {
+  if (!path.is_empty())
+    static_cast<void>(godot::DirAccess::remove_absolute(path));
+}
+
+bool copy_temporary_output_to_document_(const godot::String &temporary_path,
+                                        const godot::String &document_uri,
+                                        godot::String &error_message) {
+  const auto source =
+      godot::FileAccess::open(temporary_path, godot::FileAccess::READ);
+  if (source.is_null()) {
+    error_message = "Unable to read generated temporary file";
+    return false;
+  }
+  const uint64_t length = source->get_length();
+  if (length > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    error_message = "Generated file is too large";
+    return false;
+  }
+  const auto bytes = source->get_buffer(static_cast<int64_t>(length));
+  if (static_cast<uint64_t>(bytes.size()) != length) {
+    error_message = "Unable to read complete generated file";
+    return false;
+  }
+
+  const auto target =
+      godot::FileAccess::open(document_uri, godot::FileAccess::WRITE);
+  if (target.is_null()) {
+    error_message = "Unable to open selected Android document for writing";
+    return false;
+  }
+  const bool stored = target->store_buffer(bytes);
+  target->flush();
+  const godot::Error write_error = target->get_error();
+  target->close();
+  if (!stored || write_error != godot::Error::OK) {
+    error_message = "Unable to write selected Android document";
+    return false;
+  }
+  return true;
+}
 
 inline godot::Array
 preset_stones_to_array_(const std::vector<GoCorePresetStone> &preset_stones) {
@@ -57,6 +134,11 @@ public:
                         const godot::String &template_path,
                         const godot::String &image_format,
                         bool show_board_coordinates);
+  [[nodiscard]] godot::Ref<GoNotes> create_pptx_export_snapshot() const;
+  bool export_pptx_local_file(const godot::String &path,
+                              const godot::PackedByteArray &template_data,
+                              const godot::String &image_format,
+                              bool show_board_coordinates);
   int64_t execute_command(const godot::String &command);
   int64_t append_note();
   int64_t remove_note(int64_t note_index);
@@ -98,6 +180,7 @@ public:
   [[nodiscard]] godot::Array get_notes_at(int64_t uid) const;
   [[nodiscard]] godot::String get_first_note_title_at(int64_t uid) const;
   [[nodiscard]] godot::Dictionary get_sgf_metadata() const;
+  [[nodiscard]] godot::PackedInt64Array get_pptx_export_progress() const;
   [[nodiscard]] bool can_undo() const;
   [[nodiscard]] bool can_redo() const;
 
@@ -110,6 +193,8 @@ private:
 
   std::unique_ptr<nd::go::GoNotes> go_notes_;
   godot::String wrapper_message_{};
+  std::atomic<int64_t> pptx_export_current_{};
+  std::atomic<int64_t> pptx_export_total_{};
 };
 
 inline GoNotes::GoNotes() : go_notes_(std::make_unique<nd::go::GoNotes>(19)) {}
@@ -125,6 +210,12 @@ inline void GoNotes::_bind_methods() {
                                               "template_path", "image_format",
                                               "show_board_coordinates"),
                               &GoNotes::export_pptx_file);
+  godot::ClassDB::bind_method(godot::D_METHOD("create_pptx_export_snapshot"),
+                              &GoNotes::create_pptx_export_snapshot);
+  godot::ClassDB::bind_method(godot::D_METHOD("export_pptx_local_file", "path",
+                                              "template_data", "image_format",
+                                              "show_board_coordinates"),
+                              &GoNotes::export_pptx_local_file);
   godot::ClassDB::bind_method(godot::D_METHOD("execute_command", "command"),
                               &GoNotes::execute_command);
   godot::ClassDB::bind_method(godot::D_METHOD("append_note"),
@@ -200,6 +291,8 @@ inline void GoNotes::_bind_methods() {
                               &GoNotes::get_first_note_title_at);
   godot::ClassDB::bind_method(godot::D_METHOD("get_sgf_metadata"),
                               &GoNotes::get_sgf_metadata);
+  godot::ClassDB::bind_method(godot::D_METHOD("get_pptx_export_progress"),
+                              &GoNotes::get_pptx_export_progress);
   godot::ClassDB::bind_method(godot::D_METHOD("can_undo"), &GoNotes::can_undo);
   godot::ClassDB::bind_method(godot::D_METHOD("can_redo"), &GoNotes::can_redo);
   ADD_SIGNAL(godot::MethodInfo("changed"));
@@ -227,11 +320,29 @@ inline bool GoNotes::reset(int64_t ngrids) {
 
 inline bool GoNotes::load_sgf_file(const godot::String &path) {
   wrapper_message_ = godot::String{};
-  const godot::CharString utf8_path = path.utf8();
-  const std::string path_text{utf8_path.get_data(),
-                              static_cast<size_t>(utf8_path.length())};
+  const auto file = godot::FileAccess::open(path, godot::FileAccess::READ);
+  if (file.is_null()) {
+    wrapper_message_ = "Unable to open SGF file";
+    return false;
+  }
+
+  const uint64_t length = file->get_length();
+  if (length > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    wrapper_message_ = "SGF file is too large";
+    return false;
+  }
+  const auto buffer = file->get_buffer(static_cast<int64_t>(length));
+  if (static_cast<uint64_t>(buffer.size()) != length) {
+    wrapper_message_ = "Unable to read SGF file";
+    return false;
+  }
+  std::string content{};
+  if (!buffer.is_empty()) {
+    content.assign(reinterpret_cast<const char *>(buffer.ptr()),
+                   static_cast<size_t>(buffer.size()));
+  }
   std::string error_message{};
-  auto replacement = nd::go::GoNotes::from_sgf_file(path_text, error_message);
+  auto replacement = nd::go::GoNotes::from_sgf_content(content, error_message);
   if (!replacement) {
     wrapper_message_ = godot::String::utf8(error_message.c_str());
     return false;
@@ -244,14 +355,28 @@ inline bool GoNotes::load_sgf_file(const godot::String &path) {
 
 inline bool GoNotes::save_sgf_file(const godot::String &path) {
   wrapper_message_ = godot::String{};
-  const godot::CharString utf8_path = path.utf8();
-  const std::string path_text{utf8_path.get_data(),
-                              static_cast<size_t>(utf8_path.length())};
+  const bool document_output = is_android_document_uri_(path);
+  godot::String temporary_path{};
+  std::string path_text{};
+  if (document_output) {
+    if (!create_native_temporary_output_("sgf", temporary_path, path_text,
+                                         wrapper_message_))
+      return false;
+  } else {
+    path_text = utf8_text_(path);
+  }
   std::string error_message{};
   if (!go_notes_->save_sgf_file(path_text, error_message)) {
+    remove_temporary_output_(temporary_path);
     wrapper_message_ = godot::String::utf8(error_message.c_str());
     return false;
   }
+  if (document_output && !copy_temporary_output_to_document_(
+                             temporary_path, path, wrapper_message_)) {
+    remove_temporary_output_(temporary_path);
+    return false;
+  }
+  remove_temporary_output_(temporary_path);
   return true;
 }
 
@@ -260,13 +385,9 @@ inline bool GoNotes::export_pptx_file(const godot::String &path,
                                       const godot::String &image_format,
                                       bool show_board_coordinates) {
   wrapper_message_ = godot::String{};
+  pptx_export_current_.store(0, std::memory_order_relaxed);
+  pptx_export_total_.store(0, std::memory_order_relaxed);
   auto *project_settings = godot::ProjectSettings::get_singleton();
-  const auto output = project_settings == nullptr
-                          ? path
-                          : project_settings->globalize_path(path);
-  const godot::CharString output_utf8 = output.utf8();
-  const std::string output_text{output_utf8.get_data(),
-                                static_cast<size_t>(output_utf8.length())};
   const auto template_file =
       godot::FileAccess::open(template_path, godot::FileAccess::READ);
   if (template_file.is_null()) {
@@ -291,13 +412,99 @@ inline bool GoNotes::export_pptx_file(const godot::String &path,
     wrapper_message_ = "[GNE0033] unsupported PPTX image format";
     return false;
   }
+
+  const bool document_output = is_android_document_uri_(path);
+  godot::String temporary_path{};
+  std::string output_text{};
+  if (document_output) {
+    if (!create_native_temporary_output_("pptx", temporary_path, output_text,
+                                         wrapper_message_))
+      return false;
+  } else {
+    const auto output = project_settings == nullptr
+                            ? path
+                            : project_settings->globalize_path(path);
+    output_text = utf8_text_(output);
+  }
   std::string error_message{};
+  const auto progress = [this](size_t current, size_t total) {
+    pptx_export_current_.store(static_cast<int64_t>(current),
+                               std::memory_order_relaxed);
+    pptx_export_total_.store(static_cast<int64_t>(total),
+                             std::memory_order_relaxed);
+  };
   if (!go_notes_->export_pptx_file(output_text, template_data, error_message,
-                                   native_format, show_board_coordinates)) {
+                                   native_format, show_board_coordinates,
+                                   progress)) {
+    remove_temporary_output_(temporary_path);
+    wrapper_message_ = godot::String::utf8(error_message.c_str());
+    return false;
+  }
+  if (document_output && !copy_temporary_output_to_document_(
+                             temporary_path, path, wrapper_message_)) {
+    remove_temporary_output_(temporary_path);
+    return false;
+  }
+  remove_temporary_output_(temporary_path);
+  return true;
+}
+
+inline godot::Ref<GoNotes> GoNotes::create_pptx_export_snapshot() const {
+  godot::Ref<GoNotes> snapshot{};
+  snapshot.instantiate();
+  snapshot->go_notes_ = go_notes_->clone_for_reading();
+  snapshot->wrapper_message_ = godot::String{};
+  snapshot->pptx_export_current_.store(0, std::memory_order_relaxed);
+  snapshot->pptx_export_total_.store(0, std::memory_order_relaxed);
+  return snapshot;
+}
+
+inline bool GoNotes::export_pptx_local_file(
+    const godot::String &path, const godot::PackedByteArray &template_data,
+    const godot::String &image_format, bool show_board_coordinates) {
+  wrapper_message_ = godot::String{};
+  pptx_export_current_.store(0, std::memory_order_relaxed);
+  pptx_export_total_.store(0, std::memory_order_relaxed);
+
+  const godot::String normalized_format = image_format.strip_edges().to_lower();
+  nd::go::GoNotes::PptxImageFormat native_format{};
+  if (normalized_format == "svg") {
+    native_format = nd::go::GoNotes::PptxImageFormat::Svg;
+  } else if (normalized_format == "png") {
+    native_format = nd::go::GoNotes::PptxImageFormat::Png;
+  } else {
+    wrapper_message_ = "[GNE0033] unsupported PPTX image format";
+    return false;
+  }
+
+  if (template_data.is_empty()) {
+    wrapper_message_ = "[GNE0027] invalid PPTX template";
+    return false;
+  }
+  const std::vector<uint8_t> native_template{
+      template_data.ptr(), template_data.ptr() + template_data.size()};
+  const std::string output_path = utf8_text_(path);
+  std::string error_message{};
+  const auto progress = [this](size_t current, size_t total) {
+    pptx_export_current_.store(static_cast<int64_t>(current),
+                               std::memory_order_relaxed);
+    pptx_export_total_.store(static_cast<int64_t>(total),
+                             std::memory_order_relaxed);
+  };
+  if (!go_notes_->export_pptx_file(output_path, native_template, error_message,
+                                   native_format, show_board_coordinates,
+                                   progress)) {
     wrapper_message_ = godot::String::utf8(error_message.c_str());
     return false;
   }
   return true;
+}
+
+inline godot::PackedInt64Array GoNotes::get_pptx_export_progress() const {
+  godot::PackedInt64Array result{};
+  result.push_back(pptx_export_current_.load(std::memory_order_relaxed));
+  result.push_back(pptx_export_total_.load(std::memory_order_relaxed));
+  return result;
 }
 
 inline int64_t GoNotes::execute_command(const godot::String &command) {
@@ -752,11 +959,17 @@ void initialize_go_gdext(godot::ModuleInitializationLevel level) {
   if (level != godot::MODULE_INITIALIZATION_LEVEL_SCENE)
     return;
   GDREGISTER_CLASS(GoNotes)
+#ifdef GOTEPAD_KATAGO_MERGED
+  nd::go::katago::gdext::initialize_katago_gdext(level);
+#endif
 }
 
 void uninitialize_go_gdext(godot::ModuleInitializationLevel level) {
   if (level != godot::MODULE_INITIALIZATION_LEVEL_SCENE)
     return;
+#ifdef GOTEPAD_KATAGO_MERGED
+  nd::go::katago::gdext::uninitialize_katago_gdext(level);
+#endif
 }
 } // namespace nd::go::gdext
 

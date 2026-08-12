@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 [ext_resource type="Script" path="res://script/board_view.gd" id="2_board_script"]
 [ext_resource type="Script" path="res://script/playback_button.gd" id="3_playback_button"]
 [ext_resource type="Texture2D" path="res://assets/ui/find_hover.svg" id="4_find_hover"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://script/setup_branch_preview_overlay.gd" id="7_setup_preview"]
 [ext_resource type="Script" path="res://script/note_marks_overlay.gd" id="8_note_marks_overlay"]
 [ext_resource type="Script" path="res://script/analysis_candidates_overlay.gd" id="9_analysis_candidates"]
+[ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="10_fixed_width_button"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_playback_hover"]
 bg_color = Color(0.055, 0.045, 0.035, 0.72)
@@ -41,6 +42,10 @@ script = ExtResource("9_analysis_candidates")
 visible = false
 z_index = 10
 
+[node name="PendingStone" type="Sprite2D" parent="."]
+visible = false
+z_index = 10
+
 [node name="FindHover" type="Sprite2D" parent="."]
 visible = false
 z_index = 11
@@ -71,7 +76,10 @@ theme_override_colors/font_color = Color(0.96, 0.96, 0.92, 1)
 theme_override_colors/font_pressed_color = Color(1, 0.82, 0.32, 1)
 theme_override_colors/font_disabled_color = Color(1, 1, 1, 0.55)
 theme_override_font_sizes/font_size = 28
-text = "预置"
+script = ExtResource("10_fixed_width_button")
+source_text = "预置"
+fixed_font_size = 28
+horizontal_padding = 8.0
 
 [node name="UnavailableMark" type="TextureRect" parent="PresetButton"]
 layout_mode = 1
@@ -91,7 +99,7 @@ stretch_mode = 5
 z_index = 20
 offset_left = -416.0
 offset_top = 524.0
-offset_right = 360.0
+offset_right = 348.0
 offset_bottom = 564.0
 mouse_default_cursor_shape = 2
 min_value = 0.0
@@ -122,9 +130,9 @@ vertical_alignment = 1
 
 [node name="PlaybackPreviousButton" type="Button" parent="."]
 z_index = 20
-offset_left = 368.0
+offset_left = 360.0
 offset_top = 524.0
-offset_right = 400.0
+offset_right = 392.0
 offset_bottom = 564.0
 focus_mode = 0
 flat = true
@@ -172,7 +180,7 @@ cancel_button_text = "取消"
 [node name="CutBranchConfirmation" type="ConfirmationDialog" parent="."]
 title = "确认剪切分支"
 exclusive = true
-dialog_text = "确定要剪掉所选节点及其全部后续节点吗？\n此操作可以通过 Undo 恢复。"
+dialog_text = "DIALOG_CUT_BRANCH_MESSAGE"
 ok_button_text = "剪切"
 cancel_button_text = "取消"
 

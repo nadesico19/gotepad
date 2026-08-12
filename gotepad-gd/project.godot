@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Gotepad"
-config/version="0.1.4"
+config/version="0.1.5"
 run/main_scene="uid://bs3j88recurjb"
 config/features=PackedStringArray("4.7", "Mobile")
 run/max_fps=30
@@ -23,6 +23,7 @@ config/icon="res://assets/ui/notes.svg"
 
 SettingsStore="*res://script/settings_store.gd"
 CommandMessages="*res://script/command_message_localizer.gd"
+DialogLayoutManager="*res://script/dialog_layout_manager.gd"
 
 [display]
 
@@ -33,6 +34,15 @@ window/size/viewport_height=900
 
 project/assembly_name="Gotepad"
 
+[input_devices]
+
+pointing/android/enable_pan_and_scale_gestures=true
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://localization/ui.zh_CN.translation", "res://localization/ui.ja.translation", "res://localization/ui.ko.translation", "res://localization/ui.en.translation")
+locale/fallback="zh_CN"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
@@ -41,4 +51,5 @@ project/assembly_name="Gotepad"
 
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/msaa_2d=2

@@ -32,6 +32,15 @@ func _ready() -> void:
 	sgf_file_dialog_.visibility_changed.connect(
 		on_sgf_file_dialog_visibility_changed_
 	)
+	refresh_localized_texts()
+
+
+func refresh_localized_texts() -> void:
+	if not is_node_ready():
+		return
+	sgf_file_dialog_.filters = PackedStringArray([
+		"*.sgf ; %s" % tr("SGF 棋谱"),
+	])
 
 
 func _input(event: InputEvent) -> void:

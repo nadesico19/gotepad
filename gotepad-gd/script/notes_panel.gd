@@ -62,13 +62,11 @@ var pending_action_: Callable
 var last_focused_editor_: Control
 var text_was_dirty_: bool = false
 var resolving_edit_: bool = false
+var discard_and_continue_button_: Button
 
 
 func _ready() -> void:
-	numbering_option_.add_item("分支相对编号")
-	numbering_option_.add_item("分支绝对编号")
-	numbering_option_.add_item("全局绝对编号")
-	numbering_option_.add_item("无编号")
+	populate_numbering_options_()
 	numbering_option_.item_selected.connect(on_numbering_selected_)
 	title_edit_.text_changed.connect(on_text_changed_)
 	comment_edit_.text_changed.connect(on_text_changed_)
@@ -85,7 +83,9 @@ func _ready() -> void:
 	unsaved_confirmation_.confirmed.connect(on_unsaved_edit_confirmed_)
 	unsaved_confirmation_.canceled.connect(on_unsaved_edit_canceled_)
 	unsaved_confirmation_.custom_action.connect(on_unsaved_custom_action_)
-	unsaved_confirmation_.add_button("放弃并继续", false, &"discard")
+	discard_and_continue_button_ = unsaved_confirmation_.add_button(
+		tr("放弃并继续"), false, &"discard"
+	)
 	sequential_button_.pressed.connect(
 		request_mark_mode_.bind(kSequentialMode, "")
 	)
@@ -106,6 +106,25 @@ func _ready() -> void:
 	)
 	panel_.hide()
 	comment_actions_.hide()
+
+
+func populate_numbering_options_() -> void:
+	var selected_index: int = maxi(numbering_option_.selected, 0)
+	numbering_option_.clear()
+	numbering_option_.add_item(tr("分支相对编号"))
+	numbering_option_.add_item(tr("分支绝对编号"))
+	numbering_option_.add_item(tr("全局绝对编号"))
+	numbering_option_.add_item(tr("无编号"))
+	numbering_option_.select(clampi(selected_index, 0, 3))
+
+
+func refresh_localized_texts() -> void:
+	populate_numbering_options_()
+	if discard_and_continue_button_ != null:
+		discard_and_continue_button_.text = tr("放弃并继续")
+	if text_was_dirty_:
+		return
+	refresh_current_position()
 
 
 func toggle_panel(go_notes: GoNotes) -> void:
@@ -199,7 +218,7 @@ func rebuild_tabs_() -> void:
 		if index == notes_.size() - 1:
 			var close_button: Button = Button.new()
 			close_button.text = "✕"
-			close_button.tooltip_text = "关闭最后一层笔记"
+			close_button.tooltip_text = tr("关闭最后一层笔记")
 			close_button.focus_mode = Control.FOCUS_NONE
 			close_button.custom_minimum_size = Vector2(30.0, 34.0)
 			close_button.add_theme_color_override(
@@ -211,7 +230,7 @@ func rebuild_tabs_() -> void:
 
 	var append_button: Button = Button.new()
 	append_button.text = "+"
-	append_button.tooltip_text = "增加一层笔记"
+	append_button.tooltip_text = tr("增加一层笔记")
 	append_button.focus_mode = Control.FOCUS_NONE
 	append_button.custom_minimum_size = Vector2(42.0, 34.0)
 	append_button.add_theme_font_size_override(&"font_size", 22)
@@ -243,9 +262,9 @@ func load_selected_note_() -> void:
 		saved_title_ = str(note.get("title", ""))
 		saved_comment_ = str(note.get("comment", ""))
 		title_edit_.text = saved_title_
-		title_edit_.placeholder_text = "输入节点标题"
+		title_edit_.placeholder_text = tr("输入节点标题")
 		comment_edit_.text = saved_comment_
-		comment_edit_.placeholder_text = "输入当前局面的笔记……"
+		comment_edit_.placeholder_text = tr("输入当前局面的笔记……")
 		displayed_marks_changed.emit(
 			to_dictionary_array_(note.get("sequential_marks", [])),
 			to_dictionary_array_(note.get("symbol_marks", []))
@@ -254,10 +273,11 @@ func load_selected_note_() -> void:
 		numbering_option_.selected = 0
 		saved_title_ = ""
 		saved_comment_ = ""
-		title_edit_.text = "点击 + 新建笔记"
+		title_edit_.text = tr("点击 + 新建笔记")
 		title_edit_.placeholder_text = ""
-		comment_edit_.text = \
+		comment_edit_.text = tr(
 			"在SGF中，0号笔记进入落子节点，后续笔记依次进入独立节点。"
+		)
 		comment_edit_.placeholder_text = ""
 		var empty_sequential: Array[Dictionary] = []
 		var empty_symbols: Array[Dictionary] = []
@@ -417,7 +437,7 @@ func commit_comment_edit_() -> bool:
 		text_was_dirty_ = false
 		return true
 	if int(go_notes_.get_current_uid()) != editing_uid_:
-		push_warning("笔记对应的局面已经改变，无法保存本次编辑。")
+		push_warning(tr("笔记对应的局面已经改变，无法保存本次编辑。"))
 		return false
 	resolving_edit_ = true
 	if int(go_notes_.call(

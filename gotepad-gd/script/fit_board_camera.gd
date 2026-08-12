@@ -5,6 +5,7 @@ extends Camera2D
 @export_range(0.0, 256.0, 1.0) var bottom_extension: float = 52.0
 @export_range(0.0, 512.0, 1.0) var right_ui_reserve: float = 96.0
 @export_range(0.0, 256.0, 1.0) var top_ui_reserve: float = 42.0
+@export_range(0.0, 512.0, 1.0) var horizontal_safe_margin: float = 0.0
 
 var target_: Sprite2D
 var window_: Window
@@ -39,7 +40,7 @@ func update_zoom_() -> void:
 	# 逻辑视口计算，否则高分屏UI放大后棋盘还会被重复放大并超出窗口。
 	var viewport_size: Vector2 = window_.get_visible_rect().size
 	var available_size := viewport_size - Vector2(
-		margin * 2.0 + right_ui_reserve,
+		margin * 2.0 + horizontal_safe_margin * 2.0 + right_ui_reserve,
 		margin * 2.0 + top_ui_reserve
 	)
 	if content_size.x <= 0.0 or content_size.y <= 0.0:
@@ -59,7 +60,8 @@ func update_zoom_() -> void:
 	var content_center_y: float = target_top + content_size.y * 0.5
 	var visible_half_width: float = viewport_size.x * 0.5 / fit_zoom
 	global_position = Vector2(
-		target_left + visible_half_width - margin / fit_zoom,
+		target_left + visible_half_width \
+			- (margin + horizontal_safe_margin) / fit_zoom,
 		content_center_y - top_ui_reserve * 0.5 / fit_zoom
 	)
 	target_.queue_redraw()

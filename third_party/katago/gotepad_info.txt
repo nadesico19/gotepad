@@ -1,0 +1,89 @@
+名称：KataGo 本地分析引擎
+
+用途：
+为 Gotepad 提供围棋局面分析能力。Windows 客户端通过标准输入输出流连接用户部署的外部 KataGo 分析进程；Android 客户端内置轻量模型，并在隔离服务进程中优先使用 OpenCL 后端，不可用时回退到进程内的 Eigen CPU 后端。
+
+本机配置与后端选择：
+- CPU：AMD Ryzen 7 6800H（8 核 16 线程）
+- 内存：32 GB
+- GPU：AMD Radeon 680M（OpenCL 设备 gfx1035）
+- 后端：OpenCL，Windows x64
+- 实测 b18c384 模型使用 6 个搜索线程时约为 50 visits/s
+
+引擎版本：
+- KataGo v1.17.1
+- Git revision：5246793f77b480dee91a3b92902d1a9b92860bd0
+- 发行文件：katago-v1.17.1-opencl-windows-x64.zip
+
+引擎来源：
+https://github.com/lightvector/KataGo
+https://github.com/lightvector/KataGo/releases/tag/v1.17.1
+
+模型：
+- 文件名：default_model.bin.gz
+- 原始名称：kata1-b18c384nbt-s9996604416-d4316597426.bin.gz
+- 类型：b18c384，适合本机核显进行交互分析
+- 来源：https://katagotraining.org/networks/
+- 下载：https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz
+
+Gotepad 分析配置：
+- 文件：gotepad_analysis.cfg
+- 并行分析局面数：1
+- 每个局面的搜索线程数：6
+- 最大神经网络批次：8
+- 神经网络缓存指数：20
+- OpenCL 设备：0
+
+启动分析引擎：
+cd third_party/katago
+katago.exe analysis -model default_model.bin.gz -config gotepad_analysis.cfg
+
+验证版本：
+katago.exe version
+
+首次运行：
+OpenCL 首次运行会针对显卡生成调优缓存。本机调优结果位于：
+KataGoData/opencltuning/tune13_gpugfx1035_x19_y19_c384_mv14.txt
+本次调优约耗时 6 分 30 秒，之后启动会复用缓存。
+
+许可证：
+KataGo 主体采用 MIT License，并包含若干遵循各自许可证的第三方组件。
+完整说明见同目录 LICENSE，以及 KataGo 发行包中的 README.txt。
+
+SHA-256：
+- 官方 OpenCL ZIP：68D0A9B11EF7E3C1DDFC5BCD400306CA66C3770DD67A22CB377D3AAAF32E8C66
+- katago.exe：738B1FCDD5BDEFF709EBAA604FA7EA6BAC7FA7C564C4B97898531BD133043B10
+- default_model.bin.gz：9D7A6AFED8FF5B74894727E156F04F0CD36060A24824892008FBB6E0CBA51F1D
+- 本机 OpenCL 调优缓存：43288DB35BF48320ECDBE6D9CFB7051CF72E48B0BC67F2AC0D5190D453679428
+
+Android 内置引擎：
+- KataGo 源码版本：v1.17.1
+- 源码归档：https://github.com/lightvector/KataGo/archive/refs/tags/v1.17.1.zip
+- 源码归档 SHA-256：5D2FE983A81B10D0CC577666BB484B51A7CBB2FC436D45BB42FFFB418CD6F531
+- 神经网络后端：OpenCL GPU 与 Eigen CPU，arm64-v8a；运行时优先 OpenCL，失败时自动回退 Eigen
+- Eigen 版本：3.4.0
+- Eigen 归档：https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
+- Eigen 归档 SHA-256：EBA3F3D414D2F8CBA2919C78EC6DAAB08FC71BA2BA4AE502B7E5D4D99FC02CDA
+- 内置模型源文件：kata1-b10c128-s258941696-d77667876.txt.gz
+- APK 资源文件：gotepad-gd/assets/katago/kata1-b10c128-s258941696-d77667876.kgmodel
+- 模型下载：https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b10c128-s258941696-d77667876.txt.gz
+- 模型 SHA-256：B0CE4A7FA0D961CD14A5758569CC3170E9051BC1586BD62FF2BA334DE130D9AB
+
+源码准备：
+1. 将 KataGo 源码解压到 source/KataGo-1.17.1。
+2. 将 Eigen 解压到 source/eigen-3.4.0。
+3. 在 source/KataGo-1.17.1 目录执行 `git apply ../../embedded-analysis-api.patch`。该补丁只为 analysis 命令增加读行/写行回调入口，不改变原有命令行行为。
+
+架构说明：
+- Android 将嵌入式 KataGo 注册到现有的 go_gdext 扩展中，并使用后台工作线程；Godot 主线程只发送和轮询 JSONL 消息。桌面构建不会编译或注册嵌入式 KataGo。
+- 桌面版继续使用外部 KataGo 进程，避免内置后端影响现有功能。
+- 模型、配置和传输层相互独立，未来可以升级模型、替换神经网络后端或增加远程引擎，而不修改棋盘与分析面板协议。
+
+Android OpenCL 后端：
+- OpenCL Headers：KhronosGroup/OpenCL-Headers v2024.10.24
+- 下载：https://github.com/KhronosGroup/OpenCL-Headers/archive/refs/tags/v2024.10.24.zip
+- 归档 SHA-256：D6A6462588B913CBCD91E4DDC5CD85C53DCF59099E9A2962624FCF345896EA9B
+- 解压目录：source/OpenCL-Headers-2024.10.24
+- 许可证：Apache-2.0，完整文本见 OpenCL-Headers 源码目录。
+- OpenCL KataGo 只在 Android 构建中生成，并运行于 `:katago_opencl` 独立服务进程。
+- APK 不携带 OpenCL 驱动，只使用 Android 设备公开的 `libOpenCL.so`；不可用时程序自动回退到 Eigen 后端。

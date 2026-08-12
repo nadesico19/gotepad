@@ -5,6 +5,7 @@ signal board_texture_changed
 signal cut_branch_mode_changed(enabled: bool)
 signal find_mode_changed(direction: int)
 signal next_color_changed(color: int)
+signal pending_move_changed(active: bool)
 signal preset_mode_changed(enabled: bool)
 signal preset_edit_replay_failed(failed_uid: int)
 signal note_mark_cancel_requested
@@ -12,6 +13,7 @@ signal note_mark_draft_changed
 signal setup_branches_changed(branches: Array[Dictionary])
 signal variation_mode_changed(enabled: bool)
 signal position_changed(uid: int)
+signal playback_navigation_changed(can_previous: bool, can_next: bool)
 
 const kBlack: int = 1
 const kWhite: int = 2
@@ -74,6 +76,7 @@ const kStoneSound4: AudioStream = preload(
 @onready var analysis_candidates_overlay_: AnalysisCandidatesOverlay = \
 	$AnalysisCandidatesOverlay
 @onready var hover_stone_: Sprite2D = $HoverStone
+@onready var pending_stone_: Sprite2D = $PendingStone
 @onready var find_hover_: Sprite2D = $FindHover
 @onready var cut_branch_hover_: Sprite2D = $CutBranchHover
 @onready var setup_branch_preview_: SetupBranchPreviewOverlay = \
@@ -113,12 +116,17 @@ var updating_playback_bar_: bool = false
 var playback_playing_: bool = false
 var interactions_locked_: bool = false
 var preset_mode_: bool = false
+var preset_erase_mode_: bool = false
 var preset_editing_current_: bool = false
 var preset_original_states_: PackedInt32Array = PackedInt32Array()
 var preset_original_move_numbers_: PackedInt32Array = PackedInt32Array()
 var preset_draft_states_: PackedInt32Array = PackedInt32Array()
 var hover_screen_position_: Vector2 = Vector2.ZERO
 var has_hover_position_: bool = false
+var pending_move_row_: int = 0
+var pending_move_column_: int = 0
+var pending_move_color_: int = 0
+var pending_move_origin_uid_: int = -1
 var find_direction_: int = kFindDisabled
 var cut_branch_mode_: bool = false
 var pending_cut_branch_uid_: int = -1
@@ -186,6 +194,7 @@ func bind_go_notes(notes: GoNotes, view_uid: int = -1) -> bool:
 	if notes == null:
 		push_error("Cannot bind a null GoNotes document.")
 		return false
+	cancel_pending_move()
 	disconnect_go_notes_signal_()
 	go_notes_ = notes
 	follow_current_ = view_uid < 0
@@ -224,6 +233,7 @@ func get_setup_branches() -> Array[Dictionary]:
 
 
 func set_setup_branch_preview(uid: int) -> bool:
+	cancel_pending_move()
 	if go_notes_ == null or setup_branch_preview_ == null:
 		return false
 	var found: bool = false
@@ -296,6 +306,49 @@ func get_next_color_texture() -> Texture2D:
 	return black_texture_ if next_color_ == kBlack else white_texture_
 
 
+func has_pending_move() -> bool:
+	return pending_move_color_ == kBlack or pending_move_color_ == kWhite
+
+
+func accept_pending_move() -> bool:
+	if not has_pending_move() or go_notes_ == null:
+		return false
+	var color: int = pending_move_color_
+	var row: int = pending_move_row_
+	var column: int = pending_move_column_
+	if int(go_notes_.get_current_uid()) != pending_move_origin_uid_ \
+			or not bool(go_notes_.call(
+				&"can_place_stone", color, row, column
+			)):
+		cancel_pending_move()
+		return false
+	cancel_pending_move()
+	var outcome: Dictionary = {"completed": false, "success": true}
+	execute_place_stone_now_(color, row, column, outcome)
+	return bool(outcome.success)
+
+
+func cancel_pending_move() -> void:
+	if not has_pending_move():
+		return
+	pending_move_row_ = 0
+	pending_move_column_ = 0
+	pending_move_color_ = 0
+	pending_move_origin_uid_ = -1
+	if is_node_ready() and pending_stone_ != null:
+		pending_stone_.hide()
+	pending_move_changed.emit(false)
+	refresh_hover_stone_()
+
+
+func get_stone_texture(color: int) -> Texture2D:
+	if color == kBlack:
+		return black_texture_
+	if color == kWhite:
+		return white_texture_
+	return null
+
+
 func get_find_direction() -> int:
 	return find_direction_
 
@@ -306,6 +359,24 @@ func is_cut_branch_mode() -> bool:
 
 func get_playback_path() -> PackedInt64Array:
 	return playback_path_.duplicate()
+
+
+func can_navigate_playback(direction: int) -> bool:
+	if direction == 0 or not follow_current_ or go_notes_ == null \
+			or playback_path_.is_empty():
+		return false
+	var current_index: int = playback_path_.find(
+		int(go_notes_.get_current_uid())
+	)
+	if direction < 0:
+		return current_index > 0
+	return current_index >= 0 and current_index < playback_path_.size() - 1
+
+
+func navigate_playback(direction: int) -> bool:
+	if direction == 0:
+		return false
+	return navigate_playback_by_(-1 if direction < 0 else 1)
 
 
 func set_edit_sensitive_action_gate(gate: Callable) -> void:
@@ -382,6 +453,7 @@ func enter_variation_mode() -> bool:
 	if variation_mode_ or go_notes_ == null \
 			or position_states_.size() != board_size_ * board_size_:
 		return false
+	cancel_pending_move()
 	var temporary_notes: GoNotes = create_variation_notes_()
 	if temporary_notes == null:
 		return false
@@ -568,6 +640,32 @@ func toggle_next_color() -> void:
 	set_next_color_(color)
 
 
+func select_next_color(color: int) -> void:
+	if color == kBlack or color == kWhite:
+		set_next_color_(color)
+
+
+func set_preset_erase_mode(enabled: bool) -> void:
+	preset_erase_mode_ = enabled and preset_mode_
+	refresh_hover_stone_()
+
+
+func is_preset_erase_mode() -> bool:
+	return preset_erase_mode_
+
+
+func request_takeback() -> void:
+	request_takeback_()
+
+
+func can_request_takeback() -> bool:
+	if interactions_locked_ or go_notes_ == null:
+		return false
+	if variation_mode_:
+		return can_takeback_variation_move_()
+	return int(go_notes_.get_current_uid()) != 0
+
+
 func toggle_preset_mode() -> void:
 	if preset_mode_:
 		set_preset_mode_(false)
@@ -654,6 +752,7 @@ func is_note_mark_mode() -> bool:
 
 
 func begin_note_mark_mode_() -> void:
+	cancel_pending_move()
 	set_find_mode_(kFindDisabled)
 	set_cut_branch_mode_(false)
 	set_playback_playing_(false)
@@ -695,6 +794,8 @@ func cancel_preset_mode() -> bool:
 
 
 func set_interactions_locked(locked: bool) -> void:
+	if locked:
+		cancel_pending_move()
 	if locked and preset_mode_:
 		set_preset_mode_(false)
 		if preset_mode_:
@@ -739,6 +840,15 @@ func connect_settings_signal_() -> void:
 	var playback_callback: Callable = Callable(self, "on_playback_interval_changed_")
 	if not SettingsStore.is_connected(&"playback_interval_changed", playback_callback):
 		SettingsStore.connect(&"playback_interval_changed", playback_callback)
+	var confirmation_callback: Callable = Callable(
+		self, "on_move_confirmation_changed_"
+	)
+	if not SettingsStore.is_connected(
+			&"move_confirmation_changed", confirmation_callback
+	):
+		SettingsStore.connect(
+			&"move_confirmation_changed", confirmation_callback
+		)
 
 
 func apply_configured_textures_() -> void:
@@ -778,6 +888,11 @@ func on_move_number_settings_changed_() -> void:
 func on_playback_interval_changed_() -> void:
 	if playback_playing_:
 		schedule_playback_step_()
+
+
+func on_move_confirmation_changed_(enabled: bool) -> void:
+	if not enabled:
+		cancel_pending_move()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
@@ -879,6 +994,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				and navigate_playback_by_(playback_direction):
 			get_viewport().set_input_as_handled()
 		return
+	if has_pending_move() \
+			and mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+		cancel_pending_move()
+		get_viewport().set_input_as_handled()
+		return
 
 	if mouse_event.button_index == MOUSE_BUTTON_LEFT:
 		if find_direction_ != kFindDisabled:
@@ -897,7 +1017,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if variation_mode_ and not is_variation_terminal_position_():
 			return
-		place_stone_at_screen_position_(mouse_event.position)
+		var preset_color: int = 0 \
+				if preset_mode_ and preset_erase_mode_ else -1
+		place_stone_at_screen_position_(mouse_event.position, preset_color)
 	elif mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 		if variation_mode_:
 			request_takeback_()
@@ -963,6 +1085,9 @@ func refresh_hover_stone_() -> void:
 	hover_stone_.hide()
 	find_hover_.hide()
 	cut_branch_hover_.hide()
+	refresh_pending_stone_()
+	if has_pending_move():
+		return
 	if is_note_mark_mode():
 		return
 	if setup_preview_uid_ >= 0:
@@ -984,6 +1109,8 @@ func refresh_hover_stone_() -> void:
 	if interactions_locked_:
 		return
 	if variation_mode_ and not is_variation_terminal_position_():
+		return
+	if preset_mode_ and preset_erase_mode_:
 		return
 	var row: int = intersection.y
 	var column: int = intersection.x
@@ -1013,6 +1140,33 @@ func refresh_hover_stone_() -> void:
 	hover_stone_.texture_filter = \
 		CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	hover_stone_.show()
+
+
+func refresh_pending_stone_() -> void:
+	if pending_stone_ == null:
+		return
+	pending_stone_.hide()
+	if not has_pending_move():
+		return
+	var pending_texture: Texture2D = stone_texture_(
+		pending_move_color_, pending_move_row_, pending_move_column_
+	)
+	if pending_texture == null:
+		return
+	pending_stone_.texture = pending_texture
+	pending_stone_.position = Vector2(
+		grid_coordinate_(float(pending_move_column_ - 1)),
+		grid_coordinate_(float(pending_move_row_ - 1))
+	)
+	var texture_size: Vector2 = pending_texture.get_size()
+	var texture_extent: float = maxf(texture_size.x, texture_size.y)
+	var scale_factor: float = \
+		cell_size_() * kStoneDiameterCellRatio / texture_extent
+	pending_stone_.scale = Vector2.ONE * scale_factor
+	pending_stone_.modulate = Color(1.0, 1.0, 1.0, kHoverStoneOpacity)
+	pending_stone_.texture_filter = \
+		CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	pending_stone_.show()
 
 
 func show_find_hover_(intersection: Vector2i) -> void:
@@ -1052,6 +1206,8 @@ func show_cut_branch_hover_(intersection: Vector2i) -> void:
 
 
 func set_find_mode_(direction: int) -> void:
+	if direction != kFindDisabled:
+		cancel_pending_move()
 	if find_direction_ == direction:
 		return
 	if direction != kFindDisabled and preset_mode_:
@@ -1067,6 +1223,8 @@ func set_find_mode_(direction: int) -> void:
 
 
 func set_cut_branch_mode_(enabled: bool) -> void:
+	if enabled:
+		cancel_pending_move()
 	if cut_branch_mode_ == enabled:
 		return
 	if enabled and preset_mode_:
@@ -1084,6 +1242,7 @@ func set_cut_branch_mode_(enabled: bool) -> void:
 func set_next_color_(color: int) -> void:
 	if next_color_ == color:
 		return
+	cancel_pending_move()
 	next_color_ = color
 	next_color_changed.emit(next_color_)
 	refresh_hover_stone_()
@@ -1096,6 +1255,7 @@ func set_preset_mode_(enabled: bool) -> void:
 		refresh_hover_stone_()
 		return
 
+	cancel_pending_move()
 	preset_mode_ = enabled
 	if preset_mode_:
 		var current_node: Dictionary = Dictionary(
@@ -1110,6 +1270,7 @@ func set_preset_mode_(enabled: bool) -> void:
 		set_cut_branch_mode_(false)
 		set_playback_playing_(false)
 	else:
+		preset_erase_mode_ = false
 		preset_editing_current_ = false
 		clear_preset_draft_()
 		infer_next_color_()
@@ -1133,9 +1294,8 @@ func commit_preset_draft_() -> bool:
 		var failed_uid: int = int(go_notes_.call(&"get_error_uid"))
 		position_states_ = PackedInt32Array(preset_original_states_)
 		move_numbers_ = PackedInt32Array(preset_original_move_numbers_)
-		preset_edit_error_dialog_.dialog_text = (
-			"修改后的预置局面无法重放后续棋局（首个冲突节点 UID：%d）。\n"
-			+ "本次修改已放弃。如需修改，请先剪掉与新局面冲突的后续分支。"
+		preset_edit_error_dialog_.dialog_text = tr(
+			"DIALOG_PRESET_REPLAY_CONFLICT"
 		) % failed_uid
 		preset_edit_error_dialog_.popup_centered()
 		preset_edit_replay_failed.emit(failed_uid)
@@ -1202,7 +1362,7 @@ func execute_find_now_(direction: int, intersection: Vector2i) -> void:
 			go_notes_.get_message()
 		)
 		if message.is_empty():
-			message = "没有在指定方向找到这颗棋子。"
+			message = tr("没有在指定方向找到这颗棋子。")
 		find_result_dialog_.dialog_text = message
 		find_result_dialog_.popup_centered(Vector2i(420, 160))
 
@@ -1486,9 +1646,14 @@ func try_activate_branch_at_(screen_position: Vector2) -> bool:
 	if row < 1 or row > board_size_ \
 			or column < 1 or column > board_size_:
 		return false
-	var _placed_or_roamed: bool = execute_place_stone_(
-		next_color_, row, column
-	)
+	if SettingsStore.get_move_confirmation_enabled() \
+			and not has_move_branch_(next_color_, row, column):
+		request_stage_pending_move_(next_color_, row, column)
+	else:
+		cancel_pending_move()
+		var _placed_or_roamed: bool = execute_place_stone_(
+			next_color_, row, column
+		)
 	return true
 
 
@@ -1514,7 +1679,7 @@ func on_cut_branch_confirmed_() -> void:
 	var target_uid: int = pending_cut_branch_uid_
 	pending_cut_branch_uid_ = -1
 	if not has_branch_uid_(target_uid):
-		push_warning("所选分支已不存在。")
+		push_warning(tr("所选分支已不存在。"))
 		return
 	var command: String = "CUTBRANCH,%d;" % target_uid
 	var result: int = int(go_notes_.execute_command(command))
@@ -1625,9 +1790,36 @@ func place_stone_at_screen_position_(
 		refresh_hover_stone_()
 		get_viewport().set_input_as_handled()
 		return
+	if SettingsStore.get_move_confirmation_enabled():
+		request_stage_pending_move_(command_color, row, column)
+		get_viewport().set_input_as_handled()
+		return
 
 	if execute_place_stone_(command_color, row, column):
 		get_viewport().set_input_as_handled()
+
+
+func request_stage_pending_move_(color: int, row: int, column: int) -> void:
+	request_edit_sensitive_action_(
+		Callable(self, "stage_pending_move_").bind(color, row, column)
+	)
+
+
+func stage_pending_move_(color: int, row: int, column: int) -> void:
+	if color != kBlack and color != kWhite:
+		return
+	if go_notes_ == null or not bool(
+		go_notes_.call(&"can_place_stone", color, row, column)
+	):
+		return
+	var was_pending: bool = has_pending_move()
+	pending_move_color_ = color
+	pending_move_row_ = row
+	pending_move_column_ = column
+	pending_move_origin_uid_ = int(go_notes_.get_current_uid())
+	if not was_pending:
+		pending_move_changed.emit(true)
+	refresh_hover_stone_()
 
 
 func execute_place_stone_(color: int, row: int, column: int) -> bool:
@@ -1764,6 +1956,11 @@ func disconnect_go_notes_signal_() -> void:
 
 func on_go_notes_changed_() -> void:
 	var previous_view_uid: int = view_uid_
+	if has_pending_move() and (
+		go_notes_ == null \
+		or int(go_notes_.get_current_uid()) != pending_move_origin_uid_
+	):
+		cancel_pending_move()
 	if preset_mode_ and int(go_notes_.call(&"can_preset_stone")) != 0:
 		set_preset_mode_(false)
 	if not playback_navigation_:
@@ -1863,6 +2060,10 @@ func update_playback_editable_() -> void:
 		or current_index >= playback_path_.size() - 1
 	playback_previous_button_.queue_redraw()
 	playback_next_button_.queue_redraw()
+	playback_navigation_changed.emit(
+		not playback_previous_button_.disabled,
+		not playback_next_button_.disabled
+	)
 	playback_button_.disabled = not follow_current_ \
 		or playback_path_.size() <= 1 \
 		or (not playback_playing_ and not can_advance_playback_())
@@ -2022,6 +2223,8 @@ func on_playback_value_changed_(
 ) -> void:
 	if updating_playback_bar_ or not follow_current_:
 		return
+	if user_initiated:
+		cancel_pending_move()
 	request_edit_sensitive_action_(
 		Callable(self, "apply_playback_value_").bind(value, user_initiated)
 	)

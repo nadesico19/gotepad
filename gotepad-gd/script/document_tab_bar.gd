@@ -89,7 +89,7 @@ func add_tab_button_() -> void:
 	close_button.flat = true
 	close_button.focus_mode = Control.FOCUS_NONE
 	close_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	close_button.tooltip_text = "关闭标签"
+	close_button.tooltip_text = tr("关闭标签")
 	close_button.text = "✕"
 	close_button.add_theme_color_override(
 		&"font_color", Color(0.78, 0.78, 0.74)
