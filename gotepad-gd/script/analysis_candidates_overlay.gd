@@ -8,24 +8,32 @@ const kCandidateColors: Array[Color] = [
 ]
 const kLightText: Color = Color(1.0, 1.0, 0.96, 0.98)
 const kDarkText: Color = Color(0.10, 0.075, 0.02, 0.98)
+const kLossColor: Color = Color(0.95, 0.48, 0.48, 0.68)
+const kLossText: Color = Color(0.28, 0.025, 0.025, 0.98)
 
 var candidates_: Array[Dictionary] = []
+var played_move_loss_: Dictionary = {}
 var board_size_: int = 19
 var cell_size_: float = 1.0
 
 
 func configure(
-		candidates: Array[Dictionary], board_size: int, cell_size: float
+		candidates: Array[Dictionary],
+		played_move_loss: Dictionary,
+		board_size: int,
+		cell_size: float
 ) -> void:
 	candidates_ = candidates.duplicate(true)
+	played_move_loss_ = played_move_loss.duplicate(true)
 	board_size_ = board_size
 	cell_size_ = cell_size
-	visible = not candidates_.is_empty()
+	visible = not candidates_.is_empty() or not played_move_loss_.is_empty()
 	queue_redraw()
 
 
 func clear_candidates() -> void:
 	candidates_.clear()
+	played_move_loss_.clear()
 	visible = false
 	queue_redraw()
 
@@ -54,6 +62,21 @@ func _draw() -> void:
 			center,
 			font_size,
 			text_color
+		)
+	if not played_move_loss_.is_empty():
+		var center: Vector2 = candidate_position_(played_move_loss_)
+		draw_circle(center, radius, kLossColor, true, -1.0, true)
+		draw_arc(
+			center, radius, 0.0, TAU, 32,
+			kLossColor.lightened(0.16),
+			maxf(cell_size_ * 0.035, 1.0), true
+		)
+		draw_centered_text_(
+			font,
+			"-%.1f%%" % (float(played_move_loss_.get("loss", 0.0)) * 100.0),
+			center,
+			font_size,
+			kLossText
 		)
 
 

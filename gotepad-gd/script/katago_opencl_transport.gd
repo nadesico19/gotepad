@@ -2,11 +2,11 @@ class_name KataGoOpenCLTransport
 extends KataGoTransport
 
 const kAndroidHostClass: StringName = &"com.godot.game.GodotApp"
-const kModelResourcePath: String = "res://assets/katago/kata1-b10c128-s258941696-d77667876.kgmodel"
+const kModelResourcePath: String = "res://assets/katago/g170e-b10c128-s1141046784-d204142634.kgmodel"
 const kInstallDirectory: String = "user://katago/embedded/v1"
-const kInstalledModelPath: String = "user://katago/embedded/v1/kata1-b10c128-s258941696-d77667876.txt.gz"
+const kInstalledModelPath: String = "user://katago/embedded/v1/g170e-b10c128-s1141046784-d204142634.bin.gz"
 const kOpenCLDataDirectory: String = "user://katago/opencl"
-const kModelSize: int = 14472513
+const kModelSize: int = 11138361
 const kCopyChunkSize: int = 1024 * 1024
 const kStateStopped: int = 0
 const kStateStarting: int = 1
@@ -42,7 +42,7 @@ func start_transport_with_override(override_config: String) -> bool:
 	if not override_config.strip_edges().is_empty():
 		effective_override += "," + override_config.strip_edges()
 	var started: bool = bool(host_class_.startKataGoOpenCL(
-		ProjectSettings.globalize_path(kInstalledModelPath),
+		ProjectSettings.globalize_path(selected_model_path_()),
 		SettingsStore.get_managed_katago_analysis_config_path(),
 		effective_override
 	))
@@ -104,6 +104,8 @@ func install_runtime_files_() -> String:
 		)
 		if error != OK and error != ERR_ALREADY_EXISTS:
 			return tr("无法创建内置 KataGo 数据目录：%s") % error_string(error)
+	if not SettingsStore.get_android_external_katago_model_path().is_empty():
+		return ensure_config_()
 	var must_copy_model: bool = true
 	if FileAccess.file_exists(kInstalledModelPath):
 		var installed_model: FileAccess = FileAccess.open(kInstalledModelPath, FileAccess.READ)
@@ -114,12 +116,22 @@ func install_runtime_files_() -> String:
 		var copy_error: Error = copy_resource_file_(kModelResourcePath, kInstalledModelPath)
 		if copy_error != OK:
 			return tr("无法安装内置 KataGo 模型：%s") % error_string(copy_error)
+	return ensure_config_()
+
+
+func ensure_config_() -> String:
 	var config_path: String = SettingsStore.get_managed_katago_analysis_config_path()
 	if not FileAccess.file_exists(config_path):
 		var config_error: Error = SettingsStore.write_managed_katago_analysis_config(1, 1)
 		if config_error != OK:
 			return tr("无法创建内置 KataGo 配置：%s") % error_string(config_error)
 	return ""
+
+
+func selected_model_path_() -> String:
+	var external_path: String = \
+		SettingsStore.get_android_external_katago_model_path()
+	return kInstalledModelPath if external_path.is_empty() else external_path
 
 
 func copy_resource_file_(source_path: String, target_path: String) -> Error:

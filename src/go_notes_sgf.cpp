@@ -22,6 +22,7 @@
 #include <ISgfcNode.h>
 #include <ISgfcPointPropertyValue.h>
 #include <ISgfcProperty.h>
+#include <ISgfcMessage.h>
 #include <ISgfcSinglePropertyValue.h>
 #include <ISgfcStonePropertyValue.h>
 #include <SgfcArgumentType.h>
@@ -29,17 +30,22 @@
 #include <SgfcCoordinateSystem.h>
 #include <SgfcGameResult.h>
 #include <SgfcGameType.h>
+#include <SgfcMessageID.h>
 #include <SgfcPlusPlusFactory.h>
 #include <SgfcPropertyType.h>
 
 #include <algorithm>
+#include <cerrno>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -60,6 +66,7 @@ using LibSgfcPlusPlus::SgfcColor;
 using LibSgfcPlusPlus::SgfcCoordinateSystem;
 using LibSgfcPlusPlus::SgfcGameResult;
 using LibSgfcPlusPlus::SgfcGameType;
+using LibSgfcPlusPlus::SgfcMessageID;
 using LibSgfcPlusPlus::SgfcPlusPlusFactory;
 using LibSgfcPlusPlus::SgfcPropertyType;
 
@@ -289,6 +296,151 @@ void read_metadata_property_(const std::shared_ptr<ISgfcNode> &node,
     destination = read_text_(node, type);
 }
 
+void append_import_recovery_code_(
+    std::vector<GoNotesSgfImportRecoveryCode> &codes,
+    GoNotesSgfImportRecoveryCode code) {
+  if (std::find(codes.begin(), codes.end(), code) == codes.end())
+    codes.push_back(code);
+}
+
+std::string sanitize_property_identifier_(std::string_view name) {
+  std::string sanitized{};
+  sanitized.reserve(name.size());
+  for (const auto character : name) {
+    if (character >= 'A' && character <= 'Z')
+      sanitized.push_back(character);
+  }
+  return sanitized;
+}
+
+bool is_reserved_property_identifier_(std::string_view name) {
+  static constexpr std::string_view kReservedNames[] = {
+      "FF", "GM", "SZ", "CA", "AP", "GN", "EV", "RO", "DT",
+      "PC", "RE", "RU", "KM", "HA", "TM", "OT", "PB", "BR",
+      "BT", "PW", "WR", "WT", "AN", "CP", "SO", "US", "GC",
+      "ON", "ST", "PL", "B",  "W",  "AB", "AW", "AE", "N",
+      "C",  "LB", "TR", "SQ", "CR", "MA", "GP", "XU", "XN",
+  };
+  return std::find(std::begin(kReservedNames), std::end(kReservedNames),
+                   name) != std::end(kReservedNames);
+}
+
+std::string trim_ascii_whitespace_(std::string_view value) {
+  constexpr std::string_view kWhitespace = " \t\r\n\f\v";
+  const auto begin = value.find_first_not_of(kWhitespace);
+  if (begin == std::string_view::npos)
+    return {};
+  const auto end = value.find_last_not_of(kWhitespace);
+  return std::string{value.substr(begin, end - begin + 1)};
+}
+
+std::optional<std::string> canonical_katago_rules_(std::string_view value) {
+  auto normalized = trim_ascii_whitespace_(value);
+  for (auto &character : normalized) {
+    if (character >= 'A' && character <= 'Z')
+      character = static_cast<char>(character - 'A' + 'a');
+    else if (character == '_' || character == ' ')
+      character = '-';
+  }
+  normalized.erase(std::unique(normalized.begin(), normalized.end(),
+                               [](char left, char right) {
+                                 return left == '-' && right == '-';
+                               }),
+                   normalized.end());
+
+  const std::pair<std::string_view, std::string_view> aliases[] = {
+      {"chinese", "Chinese"},
+      {"chinese-rules", "Chinese"},
+      {"中国规则", "Chinese"},
+      {"中國規則", "Chinese"},
+      {"japanese", "Japanese"},
+      {"japanese-rules", "Japanese"},
+      {"japan", "Japanese"},
+      {"日本规则", "Japanese"},
+      {"日本規則", "Japanese"},
+      {"korean", "Korean"},
+      {"korean-rules", "Korean"},
+      {"korea", "Korean"},
+      {"韩国规则", "Korean"},
+      {"韓國規則", "Korean"},
+      {"aga", "AGA"},
+      {"aga-rules", "AGA"},
+      {"new-zealand", "New Zealand"},
+      {"newzealand", "New Zealand"},
+      {"tromp-taylor", "Tromp-Taylor"},
+      {"chinese-ogs", "Chinese-OGS"},
+      {"chinese-kgs", "Chinese-KGS"},
+      {"stone-scoring", "Stone Scoring"},
+      {"ancient-territory", "Ancient Territory"},
+      {"bga", "BGA"},
+      {"aga-button", "AGA Button"},
+  };
+  for (const auto &[alias, canonical] : aliases) {
+    if (normalized == alias)
+      return std::string{canonical};
+  }
+  return std::nullopt;
+}
+
+enum class KomiValidationResult { Valid, Invalid, Subunit };
+
+KomiValidationResult validate_katago_komi_(std::string_view value) {
+  const auto normalized = trim_ascii_whitespace_(value);
+  if (normalized.empty())
+    return KomiValidationResult::Invalid;
+
+  errno = 0;
+  char *parse_end{};
+  const auto parsed = std::strtod(normalized.c_str(), &parse_end);
+  if (errno == ERANGE || parse_end != normalized.data() + normalized.size() ||
+      !std::isfinite(parsed) || parsed < 0.0 || parsed > 100.0) {
+    return KomiValidationResult::Invalid;
+  }
+
+  const auto fraction = parsed - std::floor(parsed);
+  constexpr double kTolerance = 1e-9;
+  if (std::abs(fraction - 0.25) < kTolerance ||
+      std::abs(fraction - 0.75) < kTolerance) {
+    return KomiValidationResult::Subunit;
+  }
+  if (std::abs(parsed * 2.0 - std::round(parsed * 2.0)) >= kTolerance)
+    return KomiValidationResult::Invalid;
+  return KomiValidationResult::Valid;
+}
+
+void normalize_analysis_metadata_(
+    GoNotesSgfMetadata &metadata,
+    std::vector<GoNotesSgfImportRecoveryCode> &recovery_codes) {
+  const auto raw_rules = trim_ascii_whitespace_(metadata.rules);
+  if (raw_rules.empty()) {
+    metadata.rules = "Chinese";
+  } else if (const auto canonical_rules = canonical_katago_rules_(raw_rules)) {
+    metadata.rules = *canonical_rules;
+  } else {
+    metadata.rules = "Chinese";
+    append_import_recovery_code_(
+        recovery_codes,
+        GoNotesSgfImportRecoveryCode::InvalidRulesDefaulted);
+  }
+
+  const auto raw_komi = trim_ascii_whitespace_(metadata.komi);
+  if (raw_komi.empty()) {
+    metadata.komi = "7.5";
+    return;
+  }
+  const auto validation = validate_katago_komi_(raw_komi);
+  if (validation == KomiValidationResult::Valid) {
+    metadata.komi = raw_komi;
+    return;
+  }
+  metadata.komi = "7.5";
+  append_import_recovery_code_(
+      recovery_codes,
+      validation == KomiValidationResult::Subunit
+          ? GoNotesSgfImportRecoveryCode::SubunitKomiDefaulted
+          : GoNotesSgfImportRecoveryCode::InvalidKomiDefaulted);
+}
+
 bool starts_with_(std::string_view value, std::string_view prefix) {
   return value.size() >= prefix.size() &&
          value.compare(0, prefix.size(), prefix) == 0;
@@ -335,8 +487,9 @@ std::string normalize_game_result_(const std::string &raw_result) {
   return raw_result;
 }
 
-void read_metadata_(const std::shared_ptr<ISgfcGame> &game,
-                    GoNotesSgfMetadata &metadata) {
+void read_metadata_(
+    const std::shared_ptr<ISgfcGame> &game, GoNotesSgfMetadata &metadata,
+    std::vector<GoNotesSgfImportRecoveryCode> &recovery_codes) {
   const auto root = game->GetRootNode();
   auto game_info_node = root;
   const auto game_info_nodes = game->GetGameInfoNodes();
@@ -379,9 +532,31 @@ void read_metadata_(const std::shared_ptr<ISgfcGame> &game,
   for (const auto &property : root->GetProperties()) {
     if (!property || property->GetPropertyType() != SgfcPropertyType::Unknown)
       continue;
-    const auto name = property->GetPropertyName();
-    if (name != "GP" && name != "XU" && name != "XN")
-      metadata.extra_root_properties[name] = raw_property_values_(property);
+    const auto original_name = property->GetPropertyName();
+    const auto sanitized_name = sanitize_property_identifier_(original_name);
+    if (sanitized_name.empty()) {
+      append_import_recovery_code_(
+          recovery_codes,
+          GoNotesSgfImportRecoveryCode::EmptyPropertyIdentifierDiscarded);
+      continue;
+    }
+    if (sanitized_name != original_name) {
+      append_import_recovery_code_(
+          recovery_codes,
+          GoNotesSgfImportRecoveryCode::InvalidPropertyIdentifierSanitized);
+    }
+    if (is_reserved_property_identifier_(sanitized_name) ||
+        metadata.extra_root_properties.find(sanitized_name) !=
+            metadata.extra_root_properties.end()) {
+      if (sanitized_name != original_name) {
+        append_import_recovery_code_(
+            recovery_codes,
+            GoNotesSgfImportRecoveryCode::PropertyIdentifierCollisionDiscarded);
+      }
+      continue;
+    }
+    metadata.extra_root_properties.emplace(sanitized_name,
+                                           raw_property_values_(property));
   }
 }
 
@@ -822,12 +997,23 @@ std::unique_ptr<GoNotes> GoNotes::from_sgf_content(const std::string &content,
     const auto board_size = static_cast<int>(size.Rows);
     auto go_notes = std::make_unique<GoNotes>(board_size);
     go_notes->sgf_metadata_ = {};
+    for (const auto &message : result->GetParseResult()) {
+      if (message && message->GetMessageID() ==
+                         SgfcMessageID::PropertyIdentifierWithLowercaseCharacter) {
+        append_import_recovery_code_(
+            go_notes->sgf_import_recovery_codes_,
+            GoNotesSgfImportRecoveryCode::InvalidPropertyIdentifierSanitized);
+      }
+    }
 
     const auto root = game->GetRootNode();
     bool trust_gotepad_uids{};
     if (!detect_gotepad_sgf_(root, trust_gotepad_uids, error_message))
       return nullptr;
-    read_metadata_(game, go_notes->sgf_metadata_);
+    read_metadata_(game, go_notes->sgf_metadata_,
+                   go_notes->sgf_import_recovery_codes_);
+    normalize_analysis_metadata_(go_notes->sgf_metadata_,
+                                 go_notes->sgf_import_recovery_codes_);
     GoCoreRecordTreeNode tree{};
     uint64_t next_uid = 1;
     std::unordered_set<uint64_t> state_uids{};

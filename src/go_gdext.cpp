@@ -180,6 +180,8 @@ public:
   [[nodiscard]] godot::Array get_notes_at(int64_t uid) const;
   [[nodiscard]] godot::String get_first_note_title_at(int64_t uid) const;
   [[nodiscard]] godot::Dictionary get_sgf_metadata() const;
+  [[nodiscard]] godot::PackedInt32Array
+  get_sgf_import_recovery_codes() const;
   [[nodiscard]] godot::PackedInt64Array get_pptx_export_progress() const;
   [[nodiscard]] bool can_undo() const;
   [[nodiscard]] bool can_redo() const;
@@ -291,6 +293,9 @@ inline void GoNotes::_bind_methods() {
                               &GoNotes::get_first_note_title_at);
   godot::ClassDB::bind_method(godot::D_METHOD("get_sgf_metadata"),
                               &GoNotes::get_sgf_metadata);
+  godot::ClassDB::bind_method(
+      godot::D_METHOD("get_sgf_import_recovery_codes"),
+      &GoNotes::get_sgf_import_recovery_codes);
   godot::ClassDB::bind_method(godot::D_METHOD("get_pptx_export_progress"),
                               &GoNotes::get_pptx_export_progress);
   godot::ClassDB::bind_method(godot::D_METHOD("can_undo"), &GoNotes::can_undo);
@@ -720,6 +725,17 @@ inline godot::String GoNotes::get_message() const {
   if (!wrapper_message_.is_empty())
     return wrapper_message_;
   return godot::String::utf8(go_notes_->message().c_str());
+}
+
+inline godot::PackedInt32Array GoNotes::get_sgf_import_recovery_codes() const {
+  godot::PackedInt32Array result{};
+  const auto &codes = go_notes_->sgf_import_recovery_codes();
+  result.resize(static_cast<int64_t>(codes.size()));
+  for (size_t index = 0; index < codes.size(); ++index) {
+    result.set(static_cast<int64_t>(index),
+               static_cast<int32_t>(codes[index]));
+  }
+  return result;
 }
 
 inline int64_t GoNotes::get_error_uid() const {

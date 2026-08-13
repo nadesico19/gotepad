@@ -360,6 +360,7 @@ func handle_batch_result_(result: Dictionary) -> void:
 				result.get("rootInfo", {})
 			)
 		batch_pending_turns_.erase(result_key)
+	refresh_board_candidates_()
 	refresh_curve_()
 	var total: int = 0
 	for member_id: String in batch_member_ids_:
@@ -412,7 +413,58 @@ func refresh_candidates_(move_infos: Array) -> void:
 			candidate_pvs_[index] = pv
 			item.set_metadata(variation_column, index)
 	if board_ != null and panel_.visible:
-		board_.set_analysis_candidates(sorted_infos)
+		board_.set_analysis_candidates(
+			sorted_infos, next_played_move_analysis_()
+		)
+
+
+func refresh_board_candidates_() -> void:
+	if board_ == null or not panel_.visible or latest_move_infos_.is_empty():
+		return
+	var sorted_infos: Array = latest_move_infos_.duplicate(true)
+	sorted_infos.sort_custom(Callable(self, "candidate_winrate_precedes_"))
+	board_.set_analysis_candidates(
+		sorted_infos, next_played_move_analysis_()
+	)
+
+
+func next_played_move_analysis_() -> Dictionary:
+	if board_ == null or go_notes_ == null:
+		return {}
+	var path: PackedInt64Array = board_.get_playback_path()
+	var current_index: int = path.find(current_uid_)
+	if current_index < 0 or current_index >= path.size() - 1:
+		return {}
+	var next_uid: int = int(path[current_index + 1])
+	if not results_by_uid_.has(next_uid):
+		return {}
+	var node: Dictionary = Dictionary(go_notes_.call(
+		&"get_node_at", current_uid_
+	))
+	var next_move: Dictionary = {}
+	for child_value: Variant in Array(node.get("children", [])):
+		var child: Dictionary = Dictionary(child_value)
+		if int(child.get("uid", -1)) == next_uid:
+			next_move = child
+			break
+	if next_move.is_empty():
+		return {}
+	var color: int = int(next_move.get("color", 0))
+	if color != board_.get_next_color() or (color != 1 and color != 2):
+		return {}
+	var root_info: Dictionary = Dictionary(results_by_uid_[next_uid])
+	if not root_info.has("winrate"):
+		return {}
+	var played_winrate: float = clampf(
+		float(root_info.get("winrate", 0.0)), 0.0, 1.0
+	)
+	if color == 2:
+		played_winrate = 1.0 - played_winrate
+	return {
+		"row": int(next_move.get("row", 0)),
+		"column": int(next_move.get("column", 0)),
+		"winrate": played_winrate,
+	}
 
 
 func candidate_winrate_precedes_(left: Variant, right: Variant) -> bool:

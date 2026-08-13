@@ -1,0 +1,28 @@
+KataGo g170 neural network data license
+
+Source license notice:
+https://katagoarchive.org/g170/LICENSE.txt
+
+Many thanks to Jane Street for providing much of the computation for this run of KataGo!
+
+The data, including the models, in this directory "g170" was originally owned in part by Jane Street (data prior and up to g170-b40c256x2-s3708042240-d967973220) and in part by David J. Wu ("lightvector") (data subsequent to that point in that run).
+
+Each author has dedicated their parts of this data to the public domain under CC0:
+https://creativecommons.org/publicdomain/zero/1.0/
+waiving all copyright and related rights in this data to the extent permitted by law.
+
+Accordingly, this data is being redistributed freely for download here.
+
+--
+THIS DATA IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS OF THIS DATA BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE DATA OR THE USE OR OTHER DEALINGS IN THE DATA.
+
+Bundled model information
+-------------------------
+
+Model: g170e-b10c128-s1141046784-d204142634.bin.gz
+Resource: g170e-b10c128-s1141046784-d204142634.kgmodel
+Download mirror: https://github.com/pasky/pachi/releases/download/katago_models/g170e-b10c128-s1141046784-d204142634.bin.gz
+SHA-256: 1A8E05A4EA3FCA20DAB79410CBB566C760767FCDD2FA0B701CFE259A84CC8B04
+
+The official KataGo neural-network license page also identifies networks from the g170 run as CC0 and effectively public domain:
+https://katagotraining.org/network_license/

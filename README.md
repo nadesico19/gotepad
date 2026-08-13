@@ -32,7 +32,7 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 - 支持读取、编辑和保存 SGF 棋谱，包括棋谱信息、局面评论及常用棋盘标记。
 - 支持为同一局面记录多层笔记，并设置棋子编号方式。
 - 支持将带有棋盘图和笔记的内容排版导出为可继续编辑的 PPTX 文件。
-- 支持 KataGo 局面分析，查看候选点、胜率、目差和候选变化图；Windows 使用用户部署的外部引擎，Android 内置 OpenCL/Eigen 后端和轻量模型。
+- 支持 KataGo 局面分析，查看候选点、胜率、目差和候选变化图；整局分析后可在棋盘上标出与一选相差至少 10 个百分点的实际下一手。Windows 使用用户部署的外部引擎，Android 内置 OpenCL/Eigen 后端和模型，并允许导入标准外置权重。
 - Godot 客户端提供多标签、棋局播放、查找棋子、变化图及纹理设置等界面功能。
 - 提供中文、日本语、한국어和 English 四种界面语言。
 - 提供 Android 触控布局、屏幕安全边距和落子防误触等移动端适配。
@@ -57,6 +57,10 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 棋盘、编号、标记和笔记可以排版导出为可继续编辑的 PPTX 围棋课件。
 
 ![PPTX 围棋课件导出效果](examples/screenshots/courseware.png)
+
+### 安卓手机 UI
+
+![安卓手机UI效果](examples/screenshots/android_phone_ui.jpg)
 
 ## 项目结构
 
@@ -109,7 +113,7 @@ Android 版本目前只构建 `arm64-v8a`，最低支持 Android 9（API 28）�
 - Android NDK r28；
 - 分别指向上述环境的 `JAVA_HOME`、`ANDROID_HOME` 和 `ANDROID_NDK_HOME` 环境变量。
 
-准备好 `third_party/katago` 中说明的 KataGo、Eigen 和 OpenCL Headers 源码，以及 `gotepad-gd/assets/katago` 中由 Git LFS 管理的模型后，需要使用 Android NDK 交叉编译 Android GDExtension、内置 Eigen 后端和隔离运行的 OpenCL 后端，再通过 Godot 的 Android 自定义构建模板导出 APK。Android 会优先尝试设备公开的 OpenCL GPU 实现，OpenCL 不可用、初始化失败或分析服务异常退出时自动回退到 Eigen CPU 后端；APK 本身不包含设备厂商的 OpenCL 驱动。
+准备好 `third_party/katago` 中说明的 KataGo、Eigen 和 OpenCL Headers 源码，以及 `gotepad-gd/assets/katago` 中由 Git LFS 管理的模型后，需要使用 Android NDK 交叉编译 Android GDExtension、内置 Eigen 后端和隔离运行的 OpenCL 后端，再通过 Godot 的 Android 自定义构建模板导出 APK。当前内置模型为 `g170e-b10c128-s1141046784-d204142634`，即 KataGo g170 扩展训练的 10 block / 128 channel 网络。感谢 Jane Street 与 KataGo 作者 David J. Wu（lightvector）为 g170 训练批次贡献算力和数据，并将相关模型数据按 CC0 贡献至公有领域；也感谢 pachi 项目提供该模型的下载镜像。Android 会优先尝试设备公开的 OpenCL GPU 实现，OpenCL 不可用、初始化失败或分析服务异常退出时自动回退到 Eigen CPU 后端；APK 本身不包含设备厂商的 OpenCL 驱动。
 
 正式发布 APK 必须使用自行创建并长期妥善保存的 release keystore。签名密钥一旦遗失，就无法再以相同应用身份为用户提供覆盖升级；不要将密钥或密码提交到仓库。可使用 JDK 17 的 `keytool` 创建密钥，命令会交互询问密码和证书信息：
 
@@ -121,7 +125,7 @@ keytool -genkeypair -v -keystore gotepad-release.jks -alias gotepad -keyalg RSA 
 
 ### 平台使用差异
 
-- Windows 版的 KataGo 通过设置面板选择本地可执行文件、模型和配置；Android 版使用内置后端和内部配置，不需要选择这些路径。
+- Windows 版的 KataGo 通过设置面板选择本地可执行文件、模型和配置；Android 版使用内置后端和内部配置，不需要选择可执行文件或配置，也可以通过系统文件选择器导入标准 `.bin.gz` 或 `.txt.gz` 外置模型，并随时切回内置模型。
 - Android 版目前不支持从其他应用直接分享 SGF 到 Gotepad，请使用程序内的系统文件选择器加载棋谱。
 - Android 版导出 PPTX 时仅支持 SVG 棋盘图片；PNG 模式目前不可用。SVG 版可使用 Microsoft PowerPoint App 浏览和编辑，WPS 等兼容软件可能无法显示其中的 SVG 图片。
 - OpenCL 后端首次运行需要针对当前 GPU 调优，启动时间可能明显长于后续运行；持续分析会增加耗电和发热。

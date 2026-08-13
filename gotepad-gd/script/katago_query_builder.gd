@@ -169,17 +169,42 @@ static func color_name_(color: int) -> String:
 
 static func parse_komi_(value: String) -> float:
 	var normalized: String = value.strip_edges()
-	return float(normalized) if normalized.is_valid_float() else 7.5
+	if not normalized.is_valid_float():
+		return 7.5
+	var parsed: float = float(normalized)
+	if not is_finite(parsed) or parsed < 0.0 or parsed > 100.0:
+		return 7.5
+	if not is_equal_approx(parsed * 2.0, roundf(parsed * 2.0)):
+		return 7.5
+	return parsed
 
 
 static func normalize_rules_(value: String) -> String:
-	var normalized: String = value.strip_edges().to_lower()
-	if "japan" in normalized or "日本" in normalized:
-		return "japanese"
-	if "aga" in normalized:
-		return "aga"
-	if "new zealand" in normalized or "新西兰" in normalized:
-		return "new-zealand"
-	if "tromp" in normalized:
-		return "tromp-taylor"
+	var normalized: String = value.strip_edges().to_lower() \
+		.replace("_", "-").replace(" ", "-")
+	while "--" in normalized:
+		normalized = normalized.replace("--", "-")
+	match normalized:
+		"japanese", "japanese-rules", "japan", "日本规则", "日本規則":
+			return "japanese"
+		"korean", "korean-rules", "korea", "韩国规则", "韓國規則":
+			return "korean"
+		"aga", "aga-rules":
+			return "aga"
+		"new-zealand", "newzealand":
+			return "new-zealand"
+		"tromp-taylor":
+			return "tromp-taylor"
+		"chinese-ogs":
+			return "chinese-ogs"
+		"chinese-kgs":
+			return "chinese-kgs"
+		"stone-scoring":
+			return "stone-scoring"
+		"ancient-territory":
+			return "ancient-territory"
+		"bga":
+			return "bga"
+		"aga-button":
+			return "aga-button"
 	return "chinese"

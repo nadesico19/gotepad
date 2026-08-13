@@ -131,6 +131,32 @@ max_value = 512.0
 step = 1.0
 suffix = " px"
 
+[node name="LargeUiRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+
+[node name="Enabled" type="CheckBox" parent="SettingsPanel/Margin/Options/LargeUiRow"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+text = "大尺寸界面（移动端用）"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/LargeUiRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Multiplier" type="SpinBox" parent="SettingsPanel/Margin/Options/LargeUiRow"]
+custom_minimum_size = Vector2(136, 36)
+layout_mode = 2
+min_value = 0.7
+max_value = 2.0
+step = 0.1
+value = 1.5
+allow_greater = true
+allow_lesser = true
+suffix = " x"
+
 [node name="BoardLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
@@ -387,6 +413,12 @@ layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "浏览"
 
+[node name="UseBuiltin" type="Button" parent="SettingsPanel/Margin/Options/KatagoModelRow"]
+custom_minimum_size = Vector2(64, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "内置"
+
 [node name="KatagoConfigLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
@@ -619,7 +651,7 @@ exclusive = true
 size = Vector2i(900, 600)
 file_mode = 0
 access = 2
-filters = PackedStringArray("*.bin.gz ; KataGo 神经网络模型")
+filters = PackedStringArray("*.bin.gz,*.txt.gz ; KataGo 神经网络模型 ; application/gzip,application/octet-stream")
 use_native_dialog = true
 
 [node name="KatagoConfigDialog" type="FileDialog" parent="."]

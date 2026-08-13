@@ -8,10 +8,11 @@ signal katago_paths_changed
 signal katago_analysis_settings_changed
 signal language_changed(locale: String)
 signal horizontal_safe_margin_changed(margin: int)
+signal large_ui_changed(enabled: bool, multiplier: float)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 20
+const kSchemaVersion: int = 23
 const kLanguageSimplifiedChinese: String = "zh_CN"
 const kLanguageJapanese: String = "ja"
 const kLanguageKorean: String = "ko"
@@ -36,6 +37,10 @@ const kStoneSoundVolumeMaximum: int = 100
 const kDefaultStoneSoundVolume: int = 50
 const kDefaultHorizontalSafeMargin: int = 0
 const kHorizontalSafeMarginMaximum: int = 512
+const kDefaultLargeUiEnabled: bool = false
+const kLargeUiMultiplierMinimum: float = 0.7
+const kLargeUiMultiplierMaximum: float = 2.0
+const kDefaultLargeUiMultiplier: float = 1.5
 const kDefaultDesktopMoveConfirmation: bool = false
 const kDefaultMobileMoveConfirmation: bool = true
 const kPptxImageFormatSvg: int = 0
@@ -81,6 +86,8 @@ var absolute_move_numbers_: bool = kDefaultAbsoluteMoveNumbers
 var playback_interval_seconds_: float = kDefaultPlaybackIntervalSeconds
 var stone_sound_volume_: int = kDefaultStoneSoundVolume
 var horizontal_safe_margin_: int = kDefaultHorizontalSafeMargin
+var large_ui_enabled_: bool = kDefaultLargeUiEnabled
+var large_ui_multiplier_: float = kDefaultLargeUiMultiplier
 var move_confirmation_enabled_: bool = kDefaultMobileMoveConfirmation \
 	if OS.has_feature("mobile") else kDefaultDesktopMoveConfirmation
 var pptx_image_format_: int = kDefaultPptxImageFormat
@@ -174,6 +181,14 @@ func get_horizontal_safe_margin() -> int:
 	return horizontal_safe_margin_
 
 
+func get_large_ui_enabled() -> bool:
+	return large_ui_enabled_
+
+
+func get_large_ui_multiplier() -> float:
+	return large_ui_multiplier_
+
+
 func get_move_confirmation_enabled() -> bool:
 	return move_confirmation_enabled_
 
@@ -195,6 +210,13 @@ func get_katago_executable_path() -> String:
 
 
 func get_katago_model_path() -> String:
+	return katago_model_path_
+
+
+func get_android_external_katago_model_path() -> String:
+	if OS.get_name() != "Android" \
+			or not is_katago_model_path_valid(katago_model_path_):
+		return ""
 	return katago_model_path_
 
 
@@ -275,7 +297,10 @@ func is_katago_executable_path_valid(path: String) -> bool:
 func is_katago_model_path_valid(path: String) -> bool:
 	var candidate: String = path.strip_edges()
 	return not candidate.is_empty() \
-		and candidate.to_lower().ends_with(".bin.gz") \
+		and (
+			candidate.to_lower().ends_with(".bin.gz")
+			or candidate.to_lower().ends_with(".txt.gz")
+		) \
 		and FileAccess.file_exists(candidate)
 
 
@@ -316,6 +341,8 @@ func set_settings(
 		playback_interval_seconds: float,
 		stone_sound_volume: int,
 		horizontal_safe_margin: int,
+		large_ui_enabled: bool,
+		large_ui_multiplier: float,
 		move_confirmation_enabled: bool,
 		pptx_image_format: int,
 		pptx_board_coordinates: bool,
@@ -328,6 +355,10 @@ func set_settings(
 		katago_game_analysis_visits: int,
 		katago_analysis_config_path: String
 ) -> Error:
+	if not is_finite(large_ui_multiplier) \
+			or large_ui_multiplier < kLargeUiMultiplierMinimum \
+			or large_ui_multiplier > kLargeUiMultiplierMaximum:
+		return ERR_INVALID_PARAMETER
 	var previous_language: String = language_
 	var previous_board_path: String = board_texture_path_
 	var previous_black_path: String = black_texture_path_
@@ -338,6 +369,8 @@ func set_settings(
 	var previous_playback_interval: float = playback_interval_seconds_
 	var previous_stone_sound_volume: int = stone_sound_volume_
 	var previous_horizontal_safe_margin: int = horizontal_safe_margin_
+	var previous_large_ui_enabled: bool = large_ui_enabled_
+	var previous_large_ui_multiplier: float = large_ui_multiplier_
 	var previous_move_confirmation_enabled: bool = move_confirmation_enabled_
 	var previous_pptx_image_format: int = pptx_image_format_
 	var previous_pptx_board_coordinates: bool = pptx_board_coordinates_
@@ -371,6 +404,8 @@ func set_settings(
 	horizontal_safe_margin_ = clampi(
 		horizontal_safe_margin, 0, kHorizontalSafeMarginMaximum
 	)
+	large_ui_enabled_ = large_ui_enabled
+	large_ui_multiplier_ = large_ui_multiplier
 	move_confirmation_enabled_ = move_confirmation_enabled
 	pptx_image_format_ = clampi(
 		pptx_image_format, kPptxImageFormatSvg, kPptxImageFormatPng
@@ -402,6 +437,8 @@ func set_settings(
 		playback_interval_seconds_ = previous_playback_interval
 		stone_sound_volume_ = previous_stone_sound_volume
 		horizontal_safe_margin_ = previous_horizontal_safe_margin
+		large_ui_enabled_ = previous_large_ui_enabled
+		large_ui_multiplier_ = previous_large_ui_multiplier
 		move_confirmation_enabled_ = previous_move_confirmation_enabled
 		pptx_image_format_ = previous_pptx_image_format
 		pptx_board_coordinates_ = previous_pptx_board_coordinates
@@ -432,6 +469,11 @@ func set_settings(
 		move_confirmation_changed.emit(move_confirmation_enabled_)
 	if horizontal_safe_margin_ != previous_horizontal_safe_margin:
 		horizontal_safe_margin_changed.emit(horizontal_safe_margin_)
+	if large_ui_enabled_ != previous_large_ui_enabled \
+			or not is_equal_approx(
+				large_ui_multiplier_, previous_large_ui_multiplier
+			):
+		large_ui_changed.emit(large_ui_enabled_, large_ui_multiplier_)
 	if katago_executable_path_ != previous_katago_executable_path \
 			or katago_model_path_ != previous_katago_model_path \
 			or katago_analysis_config_path_ \
@@ -458,6 +500,7 @@ func reload() -> void:
 	playback_interval_changed.emit()
 	move_confirmation_changed.emit(move_confirmation_enabled_)
 	horizontal_safe_margin_changed.emit(horizontal_safe_margin_)
+	large_ui_changed.emit(large_ui_enabled_, large_ui_multiplier_)
 	katago_paths_changed.emit()
 	katago_analysis_settings_changed.emit()
 
@@ -592,6 +635,20 @@ func load_config_() -> void:
 		"horizontal_safe_margin",
 		kDefaultHorizontalSafeMargin
 	)), 0, kHorizontalSafeMarginMaximum)
+	large_ui_enabled_ = bool(config.get_value(
+		"display",
+		"large_ui_enabled",
+		kDefaultLargeUiEnabled
+	))
+	var stored_large_ui_multiplier: float = float(config.get_value(
+		"display",
+		"large_ui_multiplier",
+		kDefaultLargeUiMultiplier
+	))
+	large_ui_multiplier_ = stored_large_ui_multiplier \
+		if stored_large_ui_multiplier >= kLargeUiMultiplierMinimum \
+			and stored_large_ui_multiplier <= kLargeUiMultiplierMaximum \
+		else kDefaultLargeUiMultiplier
 	katago_executable_path_ = str(config.get_value(
 		"katago",
 		"executable_path",
@@ -700,6 +757,8 @@ func save_config_() -> Error:
 	config.set_value(
 		"display", "horizontal_safe_margin", horizontal_safe_margin_
 	)
+	config.set_value("display", "large_ui_enabled", large_ui_enabled_)
+	config.set_value("display", "large_ui_multiplier", large_ui_multiplier_)
 	config.set_value(
 		"gameplay", "move_confirmation_enabled", move_confirmation_enabled_
 	)
@@ -737,6 +796,8 @@ func reset_settings_() -> void:
 	playback_interval_seconds_ = kDefaultPlaybackIntervalSeconds
 	stone_sound_volume_ = kDefaultStoneSoundVolume
 	horizontal_safe_margin_ = kDefaultHorizontalSafeMargin
+	large_ui_enabled_ = kDefaultLargeUiEnabled
+	large_ui_multiplier_ = kDefaultLargeUiMultiplier
 	move_confirmation_enabled_ = default_move_confirmation_enabled_()
 	pptx_image_format_ = kDefaultPptxImageFormat
 	pptx_board_coordinates_ = kDefaultPptxBoardCoordinates

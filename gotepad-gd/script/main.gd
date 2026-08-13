@@ -12,6 +12,12 @@ const kPendingPanelSgfMetadata: int = 2
 const kPendingPanelKatago: int = 3
 const kToolKeepMainLine: int = 0
 const kToolClearNotes: int = 1
+const kSgfRecoveryIdentifierSanitized: int = 1
+const kSgfRecoveryEmptyIdentifierDiscarded: int = 2
+const kSgfRecoveryIdentifierCollisionDiscarded: int = 3
+const kSgfRecoveryInvalidRulesDefaulted: int = 4
+const kSgfRecoveryInvalidKomiDefaulted: int = 5
+const kSgfRecoverySubunitKomiDefaulted: int = 6
 const kToolMenuGap: float = 6.0
 const kUiScaleMinimumHeight: float = 900.0
 const kUiScaleMaximumHeight: float = 2000.0
@@ -157,6 +163,8 @@ class DocumentState extends RefCounted:
 @onready var clear_notes_confirmation_: ConfirmationDialog = \
 	$Interface/SafeArea/ClearNotesConfirmation
 @onready var tool_error_dialog_: AcceptDialog = $Interface/SafeArea/ToolErrorDialog
+@onready var sgf_load_warning_dialog_: AcceptDialog = \
+	$Interface/SafeArea/SgfLoadWarningDialog
 @onready var save_file_dialog_: FileDialog = $Interface/SafeArea/SaveFileDialog
 @onready var save_error_dialog_: AcceptDialog = $Interface/SafeArea/SaveErrorDialog
 @onready var save_confirmation_: ConfirmationDialog = \
@@ -397,6 +405,7 @@ func _ready() -> void:
 	SettingsStore.horizontal_safe_margin_changed.connect(
 		apply_horizontal_safe_margin_
 	)
+	SettingsStore.large_ui_changed.connect(on_large_ui_changed_)
 	apply_horizontal_safe_margin_(SettingsStore.get_horizontal_safe_margin())
 	board_.board_texture_changed.connect(on_board_assets_changed_)
 	board_.set_interactions_locked(
@@ -563,8 +572,16 @@ func update_ui_scale_() -> void:
 		kUiScaleMaximum,
 		height_ratio
 	)
+	if SettingsStore.get_large_ui_enabled():
+		target_scale *= SettingsStore.get_large_ui_multiplier()
 	if not is_equal_approx(current_scale, target_scale):
 		window.content_scale_factor = target_scale
+
+
+func on_large_ui_changed_(_enabled: bool, _multiplier: float) -> void:
+	update_ui_scale_()
+	apply_horizontal_safe_margin_(SettingsStore.get_horizontal_safe_margin())
+	on_board_layout_changed_()
 
 
 func on_window_size_changed_() -> void:
@@ -839,11 +856,9 @@ func on_branch_enter_requested_(parent_uid: int, branch_uid: int) -> void:
 		return
 
 	branch_popup_command_in_progress_ = true
-	var result: int = int(
-		go_notes_.execute_command("ROAMING,%d;" % branch_uid)
-	)
+	var succeeded: bool = board_.roam_to_next_branch(branch_uid)
 	branch_popup_command_in_progress_ = false
-	if result != 0:
+	if not succeeded:
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
 		return
 	branch_order_popup_.rebuild(
@@ -2344,8 +2359,49 @@ func on_sgf_load_requested_(path: String) -> void:
 		update_history_buttons_()
 		update_mobile_playback_visibility_()
 		board_size_dialog_.hide()
+		show_sgf_import_recovery_warnings_()
 	else:
 		board_size_dialog_.show_load_error(go_notes_.get_message())
+
+
+func show_sgf_import_recovery_warnings_() -> void:
+	var recovery_codes: PackedInt32Array = PackedInt32Array(
+		go_notes_.call(&"get_sgf_import_recovery_codes")
+	)
+	if recovery_codes.is_empty():
+		return
+	var messages: PackedStringArray = PackedStringArray()
+	for code: int in recovery_codes:
+		match code:
+			kSgfRecoveryIdentifierSanitized:
+				messages.append(tr(
+					"棋谱中存在不符合 SGF 规范的属性名，程序已删除其中的非法字符。"
+				))
+			kSgfRecoveryEmptyIdentifierDiscarded:
+				messages.append(tr(
+					"部分属性名在删除非法字符后为空，对应属性已被丢弃。"
+				))
+			kSgfRecoveryIdentifierCollisionDiscarded:
+				messages.append(tr(
+					"部分修复后的属性名与已有属性冲突，对应异常属性已被丢弃。"
+				))
+			kSgfRecoveryInvalidRulesDefaulted:
+				messages.append(tr(
+					"棋谱中的规则名称无法被 KataGo 识别，可能影响分析结果；程序已改用 Chinese 规则。"
+				))
+			kSgfRecoveryInvalidKomiDefaulted:
+				messages.append(tr(
+					"棋谱中的贴目必须是 0 到 100 之间、以 0.5 递增的数值，否则可能影响 KataGo 分析；程序已改用 7.5。"
+				))
+			kSgfRecoverySubunitKomiDefaulted:
+				messages.append(tr(
+					"棋谱中的贴目使用了 0.25 或 0.75 小数，可能混用了“子”和“目”单位；KataGo 使用目数，3.75 子应填写为 7.5，程序现已改用 7.5。"
+				))
+	if messages.is_empty():
+		return
+	messages.append(tr("再次保存后，相关内容将按 Gotepad 的兼容格式写出。"))
+	sgf_load_warning_dialog_.dialog_text = "\n".join(messages)
+	sgf_load_warning_dialog_.popup_centered()
 
 
 func activate_existing_sgf_document_(path: String) -> bool:

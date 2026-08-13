@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.5"
+const kGotepadVersion: String = "0.1.6"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -31,8 +31,6 @@ const kLanguageNativeNames: Array[String] = [
 const kMobileHiddenKatagoOptionNodeNames: Array[String] = [
 	"KatagoExecutableLabel",
 	"KatagoExecutableRow",
-	"KatagoModelLabel",
-	"KatagoModelRow",
 	"KatagoConfigLabel",
 	"KatagoConfigRow",
 ]
@@ -82,6 +80,10 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/LanguageOption
 @onready var horizontal_safe_margin_: SpinBox = \
 	$SettingsPanel/Margin/Options/HorizontalSafeMarginRow/Pixels
+@onready var large_ui_: CheckBox = \
+	$SettingsPanel/Margin/Options/LargeUiRow/Enabled
+@onready var large_ui_multiplier_: SpinBox = \
+	$SettingsPanel/Margin/Options/LargeUiRow/Multiplier
 @onready var board_option_: OptionButton = \
 	$SettingsPanel/Margin/Options/BoardOption
 @onready var stone_option_: OptionButton = \
@@ -118,6 +120,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoModelRow/Path
 @onready var katago_model_browse_: Button = \
 	$SettingsPanel/Margin/Options/KatagoModelRow/Browse
+@onready var katago_model_use_builtin_: Button = \
+	$SettingsPanel/Margin/Options/KatagoModelRow/UseBuiltin
 @onready var katago_analysis_config_path_: LineEdit = \
 	$SettingsPanel/Margin/Options/KatagoConfigRow/Path
 @onready var katago_analysis_config_browse_: Button = \
@@ -166,6 +170,8 @@ const kStoneWhitePaths: Array[String] = [
 var opening_board_path_: String
 var opening_language_: String
 var opening_horizontal_safe_margin_: int
+var opening_large_ui_: bool
+var opening_large_ui_multiplier_: float
 var opening_black_path_: String
 var opening_white_path_: String
 var opening_move_number_mode_: int
@@ -195,6 +201,8 @@ var katago_benchmark_state_: int = kBenchmarkStateIdle
 var pending_katago_benchmark_threads_: int = 0
 var pending_katago_benchmark_batch_size_: int = 0
 var active_katago_file_dialog_: FileDialog
+var katago_model_importer_: KataGoAndroidModelImporter
+var pending_imported_model_path_: String = ""
 
 
 func _ready() -> void:
@@ -205,6 +213,10 @@ func _ready() -> void:
 	settings_button_.pressed.connect(on_settings_pressed_)
 	language_option_.item_selected.connect(on_language_selected_)
 	horizontal_safe_margin_.value_changed.connect(
+		on_katago_analysis_option_changed_
+	)
+	large_ui_.toggled.connect(on_katago_boolean_option_changed_)
+	large_ui_multiplier_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
 	board_option_.item_selected.connect(on_option_selected_)
@@ -240,6 +252,9 @@ func _ready() -> void:
 		on_katago_executable_browse_pressed_
 	)
 	katago_model_browse_.pressed.connect(on_katago_model_browse_pressed_)
+	katago_model_use_builtin_.pressed.connect(
+		on_katago_model_use_builtin_pressed_
+	)
 	katago_analysis_config_browse_.pressed.connect(
 		on_katago_config_browse_pressed_
 	)
@@ -271,6 +286,7 @@ func _ready() -> void:
 	restore_button_.pressed.connect(on_restore_pressed_)
 	cancel_button_.pressed.connect(on_cancel_pressed_)
 	settings_panel_.hide()
+	katago_model_use_builtin_.visible = OS.get_name() == "Android"
 	close_button_.hide()
 	action_bar_.hide()
 	error_label_.hide()
@@ -291,6 +307,7 @@ func configure_platform_option_visibility_() -> void:
 		if option_node != null:
 			option_node.hide()
 	if OS.get_name() == "Android":
+		katago_model_path_.editable = false
 		katago_test_button_.hide()
 
 
@@ -313,8 +330,12 @@ func refresh_localized_options_() -> void:
 		"* ; %s" % tr("所有文件"),
 	])
 	katago_model_dialog_.filters = PackedStringArray([
-		"*.bin.gz ; %s" % tr("KataGo 神经网络模型"),
+		"*.bin.gz,*.txt.gz ; %s ; application/gzip,application/octet-stream" \
+			% tr("KataGo 神经网络模型"),
 	])
+	katago_model_use_builtin_.text = tr("内置")
+	katago_model_path_.placeholder_text = tr("使用内置模型") \
+		if OS.get_name() == "Android" else tr("请选择 .bin.gz 模型")
 	katago_config_dialog_.filters = PackedStringArray([
 		"*.cfg ; %s" % tr("KataGo 配置文件"),
 	])
@@ -368,10 +389,13 @@ func toggle_panel() -> void:
 
 
 func open_panel_() -> void:
+	cleanup_pending_imported_model_()
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
 	opening_language_ = SettingsStore.get_language()
 	opening_horizontal_safe_margin_ = SettingsStore.get_horizontal_safe_margin()
+	opening_large_ui_ = SettingsStore.get_large_ui_enabled()
+	opening_large_ui_multiplier_ = SettingsStore.get_large_ui_multiplier()
 	opening_board_path_ = SettingsStore.get_board_texture_path()
 	opening_black_path_ = SettingsStore.get_black_stone_texture_path()
 	opening_white_path_ = SettingsStore.get_white_stone_texture_path()
@@ -407,8 +431,8 @@ func open_panel_() -> void:
 		and not SettingsStore.is_katago_executable_path_valid(
 			opening_katago_executable_path_
 		)
-	var model_path_invalid: bool = local_katago_available \
-		and not opening_katago_model_path_.is_empty() \
+	var model_path_invalid: bool = \
+		not opening_katago_model_path_.is_empty() \
 		and not SettingsStore.is_katago_model_path_valid(
 			opening_katago_model_path_
 		)
@@ -421,6 +445,8 @@ func open_panel_() -> void:
 	horizontal_safe_margin_.set_value_no_signal(
 		opening_horizontal_safe_margin_
 	)
+	large_ui_.set_pressed_no_signal(opening_large_ui_)
+	large_ui_multiplier_.set_value_no_signal(opening_large_ui_multiplier_)
 	select_path_(board_option_, kBoardPaths, opening_board_path_)
 	select_stone_paths_(opening_black_path_, opening_white_path_)
 	select_move_number_settings_(
@@ -486,6 +512,8 @@ func close_panel_() -> void:
 		SettingsStore.preview_language(opening_language_)
 	cancel_katago_test_()
 	cancel_katago_benchmark_()
+	cancel_katago_model_import_()
+	cleanup_pending_imported_model_()
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
 	katago_benchmark_confirmation_.hide()
@@ -617,6 +645,10 @@ func has_staged_changes_() -> bool:
 		or selected_language_() != opening_language_ \
 		or selected_horizontal_safe_margin_() \
 			!= opening_horizontal_safe_margin_ \
+		or selected_large_ui_() != opening_large_ui_ \
+		or not is_equal_approx(
+			selected_large_ui_multiplier_(), opening_large_ui_multiplier_
+		) \
 		or selected_board_path_() != opening_board_path_ \
 		or selected_black_path_() != opening_black_path_ \
 		or selected_white_path_() != opening_white_path_ \
@@ -659,6 +691,14 @@ func selected_horizontal_safe_margin_() -> int:
 		0,
 		SettingsStore.kHorizontalSafeMarginMaximum
 	)
+
+
+func selected_large_ui_() -> bool:
+	return large_ui_.button_pressed
+
+
+func selected_large_ui_multiplier_() -> float:
+	return large_ui_multiplier_.value
 
 
 func selected_black_path_() -> String:
@@ -759,6 +799,14 @@ func selected_katago_game_analysis_visits_() -> int:
 
 
 func on_confirm_pressed_() -> void:
+	if not is_finite(selected_large_ui_multiplier_()) \
+			or selected_large_ui_multiplier_() \
+			< SettingsStore.kLargeUiMultiplierMinimum \
+			or selected_large_ui_multiplier_() \
+			> SettingsStore.kLargeUiMultiplierMaximum:
+		error_label_.text = tr("大尺寸界面倍率必须在 0.7 到 2.0 之间。")
+		error_label_.show()
+		return
 	var katago_validation_error: String = validate_selected_katago_paths_()
 	if not katago_validation_error.is_empty():
 		error_label_.text = katago_validation_error
@@ -776,6 +824,7 @@ func on_confirm_pressed_() -> void:
 			error_label_.show()
 			return
 
+	var previous_model_path: String = opening_katago_model_path_
 	var error: Error = SettingsStore.set_settings(
 		selected_language_(),
 		selected_board_path_(),
@@ -787,6 +836,8 @@ func on_confirm_pressed_() -> void:
 		selected_playback_interval_seconds_(),
 		selected_stone_sound_volume_(),
 		selected_horizontal_safe_margin_(),
+		selected_large_ui_(),
+		selected_large_ui_multiplier_(),
 		selected_move_confirmation_(),
 		selected_pptx_image_format_(),
 		selected_pptx_board_coordinates_(),
@@ -814,11 +865,16 @@ func on_confirm_pressed_() -> void:
 	opening_playback_interval_seconds_ = selected_playback_interval_seconds_()
 	opening_stone_sound_volume_ = selected_stone_sound_volume_()
 	opening_horizontal_safe_margin_ = selected_horizontal_safe_margin_()
+	opening_large_ui_ = selected_large_ui_()
+	opening_large_ui_multiplier_ = selected_large_ui_multiplier_()
 	opening_move_confirmation_ = selected_move_confirmation_()
 	opening_pptx_image_format_ = selected_pptx_image_format_()
 	opening_pptx_board_coordinates_ = selected_pptx_board_coordinates_()
 	opening_katago_executable_path_ = selected_katago_executable_path_()
 	opening_katago_model_path_ = selected_katago_model_path_()
+	if previous_model_path != opening_katago_model_path_:
+		remove_managed_model_file_(previous_model_path)
+	pending_imported_model_path_ = ""
 	opening_katago_analysis_config_path_ = \
 		selected_katago_analysis_config_path_()
 	opening_katago_max_visits_ = selected_katago_max_visits_()
@@ -835,6 +891,7 @@ func on_confirm_pressed_() -> void:
 	refresh_katago_path_status_()
 
 func on_restore_pressed_() -> void:
+	cleanup_pending_imported_model_()
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
 	updating_options_ = true
@@ -842,6 +899,8 @@ func on_restore_pressed_() -> void:
 	horizontal_safe_margin_.set_value_no_signal(
 		opening_horizontal_safe_margin_
 	)
+	large_ui_.set_pressed_no_signal(opening_large_ui_)
+	large_ui_multiplier_.set_value_no_signal(opening_large_ui_multiplier_)
 	select_path_(board_option_, kBoardPaths, opening_board_path_)
 	select_stone_paths_(opening_black_path_, opening_white_path_)
 	select_move_number_settings_(
@@ -902,6 +961,10 @@ func on_cancel_pressed_() -> void:
 
 
 func validate_selected_katago_paths_() -> String:
+	var model_path: String = selected_katago_model_path_()
+	if not model_path.is_empty() \
+			and not SettingsStore.is_katago_model_path_valid(model_path):
+		return tr("KataGo 神经网络模型路径无效。")
 	if OS.has_feature("mobile"):
 		return ""
 	var executable_path: String = selected_katago_executable_path_()
@@ -910,10 +973,6 @@ func validate_selected_katago_paths_() -> String:
 				executable_path
 			):
 		return tr("KataGo 可执行文件路径无效。")
-	var model_path: String = selected_katago_model_path_()
-	if not model_path.is_empty() \
-			and not SettingsStore.is_katago_model_path_valid(model_path):
-		return tr("KataGo 神经网络模型路径无效。")
 	var config_path: String = selected_katago_analysis_config_path_()
 	if not SettingsStore.is_katago_analysis_config_path_valid(config_path):
 		return tr("KataGo 分析配置文件路径无效。")
@@ -937,9 +996,20 @@ func refresh_katago_path_status_() -> void:
 		katago_test_button_.disabled = true
 		katago_benchmark_button_.disabled = \
 			is_katago_benchmark_running_()
-		update_katago_path_status_(
-			tr("使用 Android 内置 KataGo 引擎"), kStatusValidColor
-		)
+		var model_path: String = selected_katago_model_path_()
+		if model_path.is_empty():
+			update_katago_path_status_(
+				tr("使用 Android 内置 KataGo 模型"), kStatusValidColor
+			)
+		elif SettingsStore.is_katago_model_path_valid(model_path):
+			update_katago_path_status_(
+				tr("使用外置模型：%s") % model_path.get_file(),
+				kStatusValidColor
+			)
+		else:
+			update_katago_path_status_(
+				tr("外置模型已失效，将使用内置模型"), kStatusErrorColor
+			)
 		return
 	var executable_path: String = selected_katago_executable_path_()
 	var model_path: String = selected_katago_model_path_()
@@ -997,9 +1067,10 @@ func on_katago_executable_browse_pressed_() -> void:
 func on_katago_model_browse_pressed_() -> void:
 	if focus_active_katago_file_dialog_():
 		return
-	set_dialog_current_path_(
-		katago_model_dialog_, selected_katago_model_path_()
-	)
+	if OS.get_name() != "Android":
+		set_dialog_current_path_(
+			katago_model_dialog_, selected_katago_model_path_()
+		)
 	active_katago_file_dialog_ = katago_model_dialog_
 	katago_model_dialog_.popup_centered_ratio(0.8)
 
@@ -1051,9 +1122,91 @@ func on_katago_executable_selected_(path: String) -> void:
 
 func on_katago_model_selected_(path: String) -> void:
 	active_katago_file_dialog_ = null
+	if OS.get_name() == "Android":
+		start_katago_model_import_(path)
+		return
 	katago_model_path_.text = path
 	refresh_katago_path_status_()
 	on_option_selected_(0)
+
+
+func on_katago_model_use_builtin_pressed_() -> void:
+	if OS.get_name() != "Android" or katago_model_importer_ != null:
+		return
+	cleanup_pending_imported_model_()
+	katago_model_path_.text = ""
+	refresh_katago_path_status_()
+	on_option_selected_(0)
+
+
+func start_katago_model_import_(source_path: String) -> void:
+	if katago_model_importer_ != null:
+		return
+	katago_model_importer_ = KataGoAndroidModelImporter.new()
+	add_child(katago_model_importer_)
+	katago_model_importer_.progress_changed.connect(
+		on_katago_model_import_progress_
+	)
+	katago_model_importer_.completed.connect(on_katago_model_import_completed_)
+	set_katago_controls_enabled_(false)
+	update_katago_path_status_(tr("正在导入外置模型…"), kStatusCanceledColor)
+	if not katago_model_importer_.start_import(source_path):
+		katago_model_importer_ = null
+		set_katago_controls_enabled_(true)
+
+
+func on_katago_model_import_progress_(copied_bytes: int, total_bytes: int) -> void:
+	var percent: int = 0
+	if total_bytes > 0:
+		percent = clampi(roundi(float(copied_bytes) * 100.0 / total_bytes), 0, 100)
+	update_katago_path_status_(
+		tr("正在导入外置模型…%d%%") % percent,
+		kStatusCanceledColor
+	)
+
+
+func on_katago_model_import_completed_(
+	succeeded: bool,
+	model_path: String,
+	model_name: String,
+	message: String
+) -> void:
+	katago_model_importer_ = null
+	set_katago_controls_enabled_(true)
+	if not succeeded:
+		update_katago_path_status_(message, kStatusErrorColor)
+		return
+	cleanup_pending_imported_model_()
+	pending_imported_model_path_ = model_path
+	katago_model_path_.text = model_path
+	update_katago_path_status_(
+		tr("已导入模型 %s，请点击绿✓保存设置") % model_name,
+		kStatusValidColor
+	)
+	action_bar_.visible = has_staged_changes_()
+
+
+func cancel_katago_model_import_() -> void:
+	if katago_model_importer_ == null:
+		return
+	var importer: KataGoAndroidModelImporter = katago_model_importer_
+	katago_model_importer_ = null
+	importer.cancel_import()
+	set_katago_controls_enabled_(true)
+
+
+func cleanup_pending_imported_model_() -> void:
+	if pending_imported_model_path_.is_empty():
+		return
+	remove_managed_model_file_(pending_imported_model_path_)
+	pending_imported_model_path_ = ""
+
+
+func remove_managed_model_file_(path: String) -> void:
+	if not path.begins_with("user://katago/models/") \
+			or not FileAccess.file_exists(path):
+		return
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 func on_katago_config_selected_(path: String) -> void:
@@ -1461,6 +1614,8 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	settings_button_.disabled = not enabled
 	language_option_.disabled = not enabled
 	horizontal_safe_margin_.editable = enabled
+	large_ui_.disabled = not enabled
+	large_ui_multiplier_.editable = enabled
 	board_option_.disabled = not enabled
 	stone_option_.disabled = not enabled
 	one_move_.disabled = not enabled
@@ -1475,11 +1630,14 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	pptx_image_format_.disabled = not enabled
 	pptx_board_coordinates_.disabled = not enabled
 	var desktop_paths_enabled: bool = enabled and not OS.has_feature("mobile")
+	var android_model_enabled: bool = enabled and OS.get_name() == "Android"
 	katago_executable_path_.editable = desktop_paths_enabled
 	katago_model_path_.editable = desktop_paths_enabled
 	katago_analysis_config_path_.editable = desktop_paths_enabled
 	katago_executable_browse_.disabled = not desktop_paths_enabled
-	katago_model_browse_.disabled = not desktop_paths_enabled
+	katago_model_browse_.disabled = \
+		not desktop_paths_enabled and not android_model_enabled
+	katago_model_use_builtin_.disabled = not android_model_enabled
 	katago_analysis_config_browse_.disabled = not desktop_paths_enabled
 	katago_max_visits_.editable = enabled
 	katago_report_interval_seconds_.editable = enabled

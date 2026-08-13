@@ -3,7 +3,8 @@
 用途：
 为 Gotepad 提供围棋局面分析能力。Windows 客户端通过标准输入输出流连接用户部署的外部 KataGo 分析进程；Android 客户端内置轻量模型，并在隔离服务进程中优先使用 OpenCL 后端，不可用时回退到进程内的 Eigen CPU 后端。
 
-本机配置与后端选择：
+1号开发机配置与后端选择：
+
 - CPU：AMD Ryzen 7 6800H（8 核 16 线程）
 - 内存：32 GB
 - GPU：AMD Radeon 680M（OpenCL 设备 gfx1035）
@@ -64,10 +65,11 @@ Android 内置引擎：
 - Eigen 版本：3.4.0
 - Eigen 归档：https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
 - Eigen 归档 SHA-256：EBA3F3D414D2F8CBA2919C78EC6DAAB08FC71BA2BA4AE502B7E5D4D99FC02CDA
-- 内置模型源文件：kata1-b10c128-s258941696-d77667876.txt.gz
-- APK 资源文件：gotepad-gd/assets/katago/kata1-b10c128-s258941696-d77667876.kgmodel
-- 模型下载：https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b10c128-s258941696-d77667876.txt.gz
-- 模型 SHA-256：B0CE4A7FA0D961CD14A5758569CC3170E9051BC1586BD62FF2BA334DE130D9AB
+- 内置模型：g170e-b10c128-s1141046784-d204142634.bin.gz（KataGo g170 扩展训练的 10 block / 128 channel 网络）
+- APK 资源文件：gotepad-gd/assets/katago/g170e-b10c128-s1141046784-d204142634.kgmodel
+- 下载镜像：https://github.com/pasky/pachi/releases/download/katago_models/g170e-b10c128-s1141046784-d204142634.bin.gz
+- 模型 SHA-256：1A8E05A4EA3FCA20DAB79410CBB566C760767FCDD2FA0B701CFE259A84CC8B04
+- 模型授权：g170 训练批次由 Jane Street 与 David J. Wu 按 CC0 贡献至公有领域，说明见 gotepad-gd/assets/katago/LICENSE_NETWORK_G170_CC0.txt
 
 源码准备：
 1. 将 KataGo 源码解压到 source/KataGo-1.17.1。

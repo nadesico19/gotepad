@@ -123,6 +123,8 @@ mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
 theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
 theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
+theme_override_colors/font_outline_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 32
 text = "✓"
 flat = true
@@ -137,6 +139,8 @@ mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
 theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
 theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 32
 text = "✕"
 flat = true
@@ -490,7 +494,7 @@ theme_override_constants/separation = 8
 
 [node name="PendingMoveAcceptButton" type="Button" parent="Interface/SafeArea/VariationToolBar"]
 visible = false
-custom_minimum_size = Vector2(72, 64)
+custom_minimum_size = Vector2(86, 77)
 layout_mode = 2
 tooltip_text = "确认落子"
 focus_mode = 0
@@ -498,13 +502,15 @@ mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
 theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
 theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_colors/font_outline_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 38
 text = "✓"
 flat = true
 
 [node name="PendingMoveCancelButton" type="Button" parent="Interface/SafeArea/VariationToolBar"]
 visible = false
-custom_minimum_size = Vector2(72, 64)
+custom_minimum_size = Vector2(86, 77)
 layout_mode = 2
 tooltip_text = "取消待确认落子"
 focus_mode = 0
@@ -512,7 +518,9 @@ mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
 theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
 theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_colors/font_outline_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 38
 text = "✕"
 flat = true
 
@@ -696,6 +704,12 @@ cancel_button_text = "取消"
 
 [node name="ToolErrorDialog" type="AcceptDialog" parent="Interface/SafeArea"]
 title = "工具操作失败"
+transient = true
+exclusive = true
+ok_button_text = "确定"
+
+[node name="SgfLoadWarningDialog" type="AcceptDialog" parent="Interface/SafeArea"]
+title = "棋谱已自动修复"
 transient = true
 exclusive = true
 ok_button_text = "确定"

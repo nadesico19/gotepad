@@ -160,6 +160,16 @@ struct GoNotesSgfMetadata {
       extra_root_properties{};
 };
 
+// SGF导入成功时发生的非致命容错。核心层只记录稳定代号，具体提示文本由GUI按当前语言生成。
+enum class GoNotesSgfImportRecoveryCode : uint8_t {
+  InvalidPropertyIdentifierSanitized = 1,
+  EmptyPropertyIdentifierDiscarded = 2,
+  PropertyIdentifierCollisionDiscarded = 3,
+  InvalidRulesDefaulted = 4,
+  InvalidKomiDefaulted = 5,
+  SubunitKomiDefaulted = 6,
+};
+
 // 只读棋盘快照。states和move_numbers均按照行优先顺序存储；move_numbers中的0表示
 // 对应位置不显示手数。
 struct GoNotesPositionSnapshot {
@@ -562,6 +572,7 @@ public:
   };
 
   explicit GoNotes(int ngrids) : go_core_(ngrids) {
+    sgf_metadata_.rules = "Chinese";
     sgf_metadata_.komi = "7.5";
   }
 
@@ -660,6 +671,12 @@ public:
     return sgf_metadata_;
   }
 
+  // 返回最近一次SGF导入期间发生的非致命容错；同一种容错代号最多出现一次。
+  [[nodiscard]] const std::vector<GoNotesSgfImportRecoveryCode> &
+  sgf_import_recovery_codes() const noexcept {
+    return sgf_import_recovery_codes_;
+  }
+
   // 在GoCore副本上尝试落子，判断指定坐标是否合法，不修改GoNotes状态。
   [[nodiscard]] bool can_place_stone(int color, size_t row,
                                      size_t column) const;
@@ -702,6 +719,9 @@ private:
   // 从SGF读取或供后续保存使用的棋谱信息。
   GoNotesSgfMetadata sgf_metadata_{};
 
+  // 最近一次SGF导入期间发生的非致命容错，不参与undo/redo。
+  std::vector<GoNotesSgfImportRecoveryCode> sgf_import_recovery_codes_{};
+
   // 棋盘核心引擎。
   GoCore go_core_;
 
@@ -721,6 +741,7 @@ inline std::unique_ptr<GoNotes> GoNotes::clone_for_reading() const {
   snapshot->notes_ = notes_;
   snapshot->error_uid_ = error_uid_;
   snapshot->sgf_metadata_ = sgf_metadata_;
+  snapshot->sgf_import_recovery_codes_ = sgf_import_recovery_codes_;
   snapshot->go_core_ = go_core_;
   snapshot->message_ = message_;
   snapshot->current_cursor_ = current_cursor_;

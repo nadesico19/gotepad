@@ -290,6 +290,12 @@ func roam_to_setup_branch(uid: int) -> bool:
 	return execute_roaming_to_(uid)
 
 
+func roam_to_next_branch(uid: int) -> bool:
+	var outcome: Dictionary = {"completed": false, "success": true}
+	execute_roaming_to_now_(uid, outcome)
+	return bool(outcome.success)
+
+
 func get_go_notes() -> GoNotes:
 	return go_notes_
 
@@ -414,7 +420,9 @@ func roam_to_playback_uid(uid: int) -> bool:
 	return uid == int(go_notes_.get_current_uid())
 
 
-func set_analysis_candidates(move_infos: Array) -> void:
+func set_analysis_candidates(
+		move_infos: Array, played_move: Dictionary = {}
+) -> void:
 	if analysis_candidates_overlay_ == null:
 		return
 	var candidates: Array[Dictionary] = []
@@ -435,9 +443,37 @@ func set_analysis_candidates(move_infos: Array) -> void:
 			"column": intersection.x,
 			"winrate": candidate_winrate,
 		})
-	analysis_candidates_overlay_.configure(
-		candidates, board_size_, cell_size_()
+	var played_move_loss: Dictionary = build_played_move_loss_(
+		candidates, played_move
 	)
+	analysis_candidates_overlay_.configure(
+		candidates, played_move_loss, board_size_, cell_size_()
+	)
+
+
+func build_played_move_loss_(
+		candidates: Array[Dictionary], played_move: Dictionary
+) -> Dictionary:
+	if candidates.is_empty() or played_move.is_empty():
+		return {}
+	var row: int = int(played_move.get("row", 0))
+	var column: int = int(played_move.get("column", 0))
+	if row < 1 or row > board_size_ or column < 1 or column > board_size_:
+		return {}
+	for candidate: Dictionary in candidates:
+		if int(candidate.get("row", 0)) == row \
+				and int(candidate.get("column", 0)) == column:
+			return {}
+	var best_winrate: float = float(candidates[0].get("winrate", 0.0))
+	var played_winrate: float = float(played_move.get("winrate", 0.0))
+	var loss: float = best_winrate - played_winrate
+	if loss < 0.10:
+		return {}
+	return {
+		"row": row,
+		"column": column,
+		"loss": clampf(loss, 0.0, 1.0),
+	}
 
 
 func clear_analysis_candidates() -> void:
@@ -1723,6 +1759,9 @@ func execute_roaming_to_(target_uid: int) -> bool:
 
 
 func execute_roaming_to_now_(target_uid: int, outcome: Dictionary) -> void:
+	var play_move_sound: bool = is_direct_move_child_(
+		int(go_notes_.get_current_uid()), target_uid
+	)
 	var command: String = "ROAMING,%d;" % target_uid
 	var result: int = int(go_notes_.execute_command(command))
 	outcome.completed = true
@@ -1731,6 +1770,25 @@ func execute_roaming_to_now_(target_uid: int, outcome: Dictionary) -> void:
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
 		return
 	outcome.success = true
+	if play_move_sound:
+		play_stone_sound_()
+
+
+func is_direct_move_child_(parent_uid: int, target_uid: int) -> bool:
+	if go_notes_ == null or parent_uid == target_uid:
+		return false
+	var parent: Dictionary = Dictionary(
+		go_notes_.call(&"get_node_at", parent_uid)
+	)
+	for child_value: Variant in Array(parent.get("children", [])):
+		if child_value is not Dictionary:
+			continue
+		var child: Dictionary = Dictionary(child_value)
+		if int(child.get("uid", -1)) != target_uid:
+			continue
+		var color: int = int(child.get("color", 0))
+		return color == kBlack or color == kWhite
+	return false
 
 
 func branch_local_position_(branch: Dictionary) -> Vector2:
@@ -1838,7 +1896,6 @@ func execute_place_stone_now_(
 		column: int,
 		outcome: Dictionary
 ) -> void:
-	var enters_existing_branch: bool = has_move_branch_(color, row, column)
 	var command: String = "PLACESTONE,%d,%d,%d;" % [color, row, column]
 	var result: int = int(go_notes_.execute_command(command))
 	outcome.completed = true
@@ -1847,8 +1904,7 @@ func execute_place_stone_now_(
 		push_warning(CommandMessages.localize(go_notes_.get_message()))
 		return
 	outcome.success = true
-	if not enters_existing_branch:
-		play_stone_sound_()
+	play_stone_sound_()
 
 
 func has_move_branch_(color: int, row: int, column: int) -> bool:
@@ -1894,6 +1950,10 @@ func request_takeback_() -> void:
 
 
 func show_takeback_confirmation_() -> void:
+	takeback_confirmation_.dialog_text = tr(
+		"确定要撤销当前变化及其全部后续变化吗？"
+	) if variation_mode_ and not is_variation_terminal_position_() \
+		else tr("确定要撤销上一手棋吗？")
 	takeback_confirmation_.popup_centered(Vector2i(360, 160))
 	get_viewport().set_input_as_handled()
 
@@ -1933,8 +1993,6 @@ func is_variation_terminal_position_() -> bool:
 
 
 func can_takeback_variation_move_() -> bool:
-	if not is_variation_terminal_position_():
-		return false
 	return int(go_notes_.get_current_uid()) != variation_base_uid_
 
 

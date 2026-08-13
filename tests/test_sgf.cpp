@@ -25,6 +25,7 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -35,6 +36,22 @@ using namespace LibSgfcPlusPlus;
 
 constexpr int Black = 1;
 constexpr int White = 2;
+size_t skipped_fixture_tests{};
+
+std::optional<std::filesystem::path>
+resolve_sgf_fixture(const std::filesystem::path &relative_path,
+                    const char *test_name) {
+  namespace filesystem = std::filesystem;
+  for (const auto &candidate :
+       {relative_path, filesystem::u8path("..") / relative_path}) {
+    if (filesystem::exists(candidate))
+      return candidate;
+  }
+  ++skipped_fixture_tests;
+  std::cout << "[ SKIPPED ] " << test_name << ": SGF fixture not found: "
+            << relative_path.u8string() << '\n';
+  return std::nullopt;
+}
 
 void dump_board(std::ofstream &out, const std::string &title,
                 const Notes &go_notes) {
@@ -90,14 +107,6 @@ std::shared_ptr<ISgfcDocument> read_sgf_document(const std::string &path) {
               "SGF reader reported a fatal error");
   expect_true(result->GetDocument() != nullptr, "SGF document is null");
   return result->GetDocument();
-}
-
-std::shared_ptr<ISgfcDocument> read_test_document() {
-  try {
-    return read_sgf_document("tests/test_sgf_1.sgf");
-  } catch (const std::exception &) {
-    return read_sgf_document("../tests/test_sgf_1.sgf");
-  }
 }
 
 const ISgfcGoMovePropertyValue *
@@ -254,12 +263,14 @@ void test_find_command(
 }
 
 void test_sgf_preset_stones() {
-  std::string path = "tests/test_sgf_preset.sgf";
-  if (!std::ifstream{path})
-    path = "../tests/test_sgf_preset.sgf";
+  const auto path = resolve_sgf_fixture(
+      std::filesystem::u8path("tests/test_sgf_preset.sgf"),
+      "preset stones");
+  if (!path)
+    return;
 
   std::string error_message{};
-  auto go_notes = Notes::from_sgf_file(path, error_message);
+  auto go_notes = Notes::from_sgf_file(path->u8string(), error_message);
   expect_true(go_notes != nullptr, error_message.c_str());
   expect_eq(go_notes->board_size(), 9,
             "preset SGF should retain its board size");
@@ -313,12 +324,13 @@ void test_sgf_preset_stones() {
 
 void diagnose_multigo_setup_nodes(std::ofstream &out) {
   namespace filesystem = std::filesystem;
-  auto path = filesystem::u8path("tests/01 星 挂 飞守 飞角.sgf");
-  if (!filesystem::exists(path))
-    path = filesystem::u8path("../tests/01 星 挂 飞守 飞角.sgf");
-  expect_true(filesystem::exists(path), "MultiGo SGF fixture does not exist");
+  const auto path = resolve_sgf_fixture(
+      filesystem::u8path("tests/01 星 挂 飞守 飞角.sgf"),
+      "MultiGo setup-node diagnostics");
+  if (!path)
+    return;
 
-  std::ifstream input{path, std::ios::binary};
+  std::ifstream input{*path, std::ios::binary};
   expect_true(static_cast<bool>(input), "MultiGo SGF fixture cannot be opened");
   const std::string content{std::istreambuf_iterator<char>{input},
                             std::istreambuf_iterator<char>{}};
@@ -461,7 +473,7 @@ void diagnose_multigo_setup_nodes(std::ofstream &out) {
   const auto pruned_setup_replay = replay(true);
 
   std::string error_message{};
-  const auto go_notes = Notes::from_sgf_file(path.u8string(), error_message);
+  const auto go_notes = Notes::from_sgf_file(path->u8string(), error_message);
   size_t loaded_setup_nodes = 0;
   if (go_notes) {
     std::vector<uint64_t> loaded_pending{0};
@@ -478,7 +490,7 @@ void diagnose_multigo_setup_nodes(std::ofstream &out) {
     }
   }
   out << "\n===== MultiGo setup-node diagnostics =====\n"
-      << "path=" << path.u8string() << '\n'
+      << "path=" << path->u8string() << '\n'
       << "node_count=" << node_count << '\n'
       << "non_root_setup_nodes=" << non_root_setup_count << '\n'
       << "nodes_with_AB=" << add_black_count << '\n'
@@ -521,38 +533,33 @@ void diagnose_multigo_setup_nodes(std::ofstream &out) {
 }
 void test_unicode_sgf_path(std::ofstream &out) {
   namespace filesystem = std::filesystem;
-  auto source_path = filesystem::u8path("tests/秀策vs服部正彻.sgf");
-  if (!filesystem::exists(source_path))
-    source_path = filesystem::u8path("../tests/秀策vs服部正彻.sgf");
-  expect_true(filesystem::exists(source_path),
-              "Unicode-path SGF fixture does not exist");
+  const auto source_path = resolve_sgf_fixture(
+      filesystem::u8path("tests/秀策vs服部正彻.sgf"), "Unicode SGF path");
+  if (!source_path)
+    return;
 
   std::string error_message{};
   const auto go_notes =
-      Notes::from_sgf_file(source_path.u8string(), error_message);
+      Notes::from_sgf_file(source_path->u8string(), error_message);
   expect_true(go_notes != nullptr, error_message.c_str());
   expect_eq(go_notes->board_size(), 19,
             "Unicode-path SGF should retain its board size");
-  out << "\nUnicode-path SGF loaded successfully: " << source_path.u8string()
+  out << "\nUnicode-path SGF loaded successfully: " << source_path->u8string()
       << '\n';
 }
 
 void test_localized_game_result_normalization(std::ofstream &out) {
   namespace filesystem = std::filesystem;
-  auto source_path =
+  const auto source_path = resolve_sgf_fixture(
       filesystem::u8path("gotepad-gd/1985-11-20 聂卫平 (黑)Vs(白) 藤泽秀行_"
-                         "第一届中日擂台赛第十五局主将决战.sgf");
-  if (!filesystem::exists(source_path)) {
-    source_path = filesystem::u8path(
-        "../gotepad-gd/1985-11-20 聂卫平 (黑)Vs(白) 藤泽秀行_"
-        "第一届中日擂台赛第十五局主将决战.sgf");
-  }
-  expect_true(filesystem::exists(source_path),
-              "Localized-result SGF fixture does not exist");
+                         "第一届中日擂台赛第十五局主将决战.sgf"),
+      "localized game result normalization");
+  if (!source_path)
+    return;
 
   std::string error_message{};
   const auto notes =
-      Notes::from_sgf_file(source_path.u8string(), error_message);
+      Notes::from_sgf_file(source_path->u8string(), error_message);
   expect_true(notes != nullptr, error_message.c_str());
   expect_true(notes->sgf_metadata().result == "B+3.5",
               "Localized RE should be normalized to SGF format");
@@ -608,15 +615,15 @@ void collect_uids(const Notes &notes, uint64_t uid,
 
 void test_gotepad_sgf_roundtrip(std::ofstream &out) {
   namespace filesystem = std::filesystem;
-  auto source_path = filesystem::u8path("gotepad-gd/920-shadow-yfh2-mamor.sgf");
-  if (!filesystem::exists(source_path))
-    source_path = filesystem::u8path("../gotepad-gd/920-shadow-yfh2-mamor.sgf");
-  expect_true(filesystem::exists(source_path),
-              "Commented SGF fixture does not exist");
+  const auto source_path = resolve_sgf_fixture(
+      filesystem::u8path("gotepad-gd/920-shadow-yfh2-mamor.sgf"),
+      "Gotepad SGF roundtrip");
+  if (!source_path)
+    return;
 
   std::string error_message{};
   const auto original =
-      Notes::from_sgf_file(source_path.u8string(), error_message);
+      Notes::from_sgf_file(source_path->u8string(), error_message);
   expect_true(original != nullptr, error_message.c_str());
   expect_true(!original->notes_at(0).empty(),
               "SGF root comment should load as a note");
@@ -642,7 +649,7 @@ void test_gotepad_sgf_roundtrip(std::ofstream &out) {
               "Saved SGF should contain GP[1]");
   expect_true(saved_content.find("XU[0]") != std::string::npos,
               "Saved SGF root should contain XU[0]");
-  expect_true(saved_content.find("AP[Gotepad:0.1.5]") != std::string::npos,
+  expect_true(saved_content.find("AP[Gotepad:0.1.6]") != std::string::npos,
               "Saved SGF should identify Gotepad as its application");
 
   const auto restored =
@@ -732,21 +739,118 @@ void test_safe_sgf_save_recovery(std::ofstream &out) {
 
 void test_wrongtest_sgf_loads(std::ofstream &out) {
   namespace filesystem = std::filesystem;
-  auto path = filesystem::u8path("tests/wrongtest.sgf");
-  if (!filesystem::exists(path))
-    path = filesystem::u8path("../tests/wrongtest.sgf");
-  expect_true(filesystem::exists(path), "wrongtest.sgf fixture is missing");
+  const auto path = resolve_sgf_fixture(
+      filesystem::u8path("tests/wrongtest.sgf"), "wrongtest SGF loading");
+  if (!path)
+    return;
 
   std::string error_message{};
-  const auto go_notes = Notes::from_sgf_file(path.u8string(), error_message);
+  const auto go_notes = Notes::from_sgf_file(path->u8string(), error_message);
   if (!go_notes)
     std::cerr << "wrongtest.sgf load error: " << error_message << '\n';
   expect_true(go_notes != nullptr, "wrongtest.sgf should load successfully");
   out << "\nwrongtest.sgf loaded successfully.\n";
 }
 
+void test_invalid_property_identifier_recovery(std::ofstream &out) {
+  namespace filesystem = std::filesystem;
+  const auto source_path = resolve_sgf_fixture(
+      filesystem::u8path(
+          "tests/[柯洁]vs[福冈航太朗]1779632643010001326.sgf"),
+      "invalid property identifier recovery");
+  if (!source_path)
+    return;
+
+  std::string error_message{};
+  const auto notes =
+      Notes::from_sgf_file(source_path->u8string(), error_message);
+  expect_true(notes != nullptr, error_message.c_str());
+  bool reported_identifier_recovery{};
+  for (const auto code : notes->sgf_import_recovery_codes()) {
+    if (code == nd::go::GoNotesSgfImportRecoveryCode::
+                    InvalidPropertyIdentifierSanitized) {
+      reported_identifier_recovery = true;
+      break;
+    }
+  }
+  expect_true(reported_identifier_recovery,
+              "SGF import should report repaired property identifiers");
+
+  auto temporary_directory = filesystem::u8path(".tmp");
+  if (!filesystem::exists(temporary_directory))
+    temporary_directory = filesystem::u8path("../.tmp");
+  filesystem::create_directories(temporary_directory);
+  const auto saved_path =
+      temporary_directory / "property_identifier_recovery.sgf";
+  expect_true(notes->save_sgf_file(saved_path.u8string(), error_message),
+              error_message.c_str());
+  const auto restored =
+      Notes::from_sgf_file(saved_path.u8string(), error_message);
+  expect_true(restored != nullptr, error_message.c_str());
+  expect_true(restored->sgf_import_recovery_codes().empty(),
+              "Saved SGF should contain only valid property identifiers");
+  out << "\nInvalid SGF property identifiers recovered successfully.\n";
+}
+
+bool has_recovery_code(const Notes &notes,
+                       nd::go::GoNotesSgfImportRecoveryCode expected) {
+  for (const auto code : notes.sgf_import_recovery_codes()) {
+    if (code == expected)
+      return true;
+  }
+  return false;
+}
+
+void test_analysis_metadata_recovery(std::ofstream &out) {
+  using RecoveryCode = nd::go::GoNotesSgfImportRecoveryCode;
+  std::string error_message{};
+
+  const auto missing = Notes::from_sgf_content(
+      "(;FF[4]GM[1]CA[UTF-8]SZ[9])", error_message);
+  expect_true(missing != nullptr, error_message.c_str());
+  expect_true(missing->sgf_metadata().rules == "Chinese",
+              "Missing SGF rules should default to Chinese");
+  expect_true(missing->sgf_metadata().komi == "7.5",
+              "Missing SGF komi should default to 7.5");
+
+  const auto valid = Notes::from_sgf_content(
+      "(;FF[4]GM[1]CA[UTF-8]SZ[9]RU[Korean]KM[99.5])", error_message);
+  expect_true(valid != nullptr, error_message.c_str());
+  expect_true(valid->sgf_metadata().rules == "Korean",
+              "Recognized KataGo rules should be preserved");
+  expect_true(valid->sgf_metadata().komi == "99.5",
+              "Large half-point komi should remain valid");
+
+  const auto invalid = Notes::from_sgf_content(
+      "(;FF[4]GM[1]CA[UTF-8]SZ[9]RU[Unknown Rules]KM[375])",
+      error_message);
+  expect_true(invalid != nullptr, error_message.c_str());
+  expect_true(invalid->sgf_metadata().rules == "Chinese",
+              "Unrecognized rules should default to Chinese");
+  expect_true(invalid->sgf_metadata().komi == "7.5",
+              "Out-of-range komi should default to 7.5");
+  expect_true(has_recovery_code(*invalid, RecoveryCode::InvalidRulesDefaulted),
+              "Invalid rules should produce a recovery code");
+  expect_true(has_recovery_code(*invalid, RecoveryCode::InvalidKomiDefaulted),
+              "Invalid komi should produce a recovery code");
+
+  const auto subunit = Notes::from_sgf_content(
+      "(;FF[4]GM[1]CA[UTF-8]SZ[9]RU[Chinese]KM[3.75])", error_message);
+  expect_true(subunit != nullptr, error_message.c_str());
+  expect_true(subunit->sgf_metadata().komi == "7.5",
+              "Quarter-point komi should default to 7.5");
+  expect_true(has_recovery_code(*subunit, RecoveryCode::SubunitKomiDefaulted),
+              "Quarter-point komi should report a unit warning");
+  out << "\nSGF analysis metadata defaults and validation succeeded.\n";
+}
+
 void replay_sgf_main_variation(std::ofstream &out) {
-  const auto document = read_test_document();
+  const auto path = resolve_sgf_fixture(
+      std::filesystem::u8path("tests/test_sgf_1.sgf"),
+      "SGF main variation replay");
+  if (!path)
+    return;
+  const auto document = read_sgf_document(path->u8string());
   const auto games = document->GetGames();
   expect_true(!games.empty(), "SGF document contains no games");
 
@@ -792,9 +896,12 @@ int main() {
   test_gotepad_sgf_roundtrip(out);
   test_safe_sgf_save_recovery(out);
   test_wrongtest_sgf_loads(out);
+  test_invalid_property_identifier_recovery(out);
+  test_analysis_metadata_recovery(out);
   test_sgf_preset_stones();
   replay_sgf_main_variation(out);
 
-  out << "\nAll SGF replay tests passed.\n";
+  out << "\nAll available SGF replay tests passed. Skipped missing fixtures: "
+      << skipped_fixture_tests << ".\n";
   return 0;
 }
