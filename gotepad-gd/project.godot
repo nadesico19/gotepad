@@ -29,6 +29,7 @@ DialogLayoutManager="*res://script/dialog_layout_manager.gd"
 
 window/size/viewport_width=1600
 window/size/viewport_height=900
+window/handheld/orientation=4
 
 [dotnet]
 
@@ -42,6 +43,10 @@ pointing/android/enable_pan_and_scale_gestures=true
 
 locale/translations=PackedStringArray("res://localization/ui.zh_CN.translation", "res://localization/ui.ja.translation", "res://localization/ui.ko.translation", "res://localization/ui.en.translation")
 locale/fallback="zh_CN"
+
+[gui]
+
+theme/custom_font="res://assets/fonts/ui_font_with_cjk_fallback.tres"
 
 [physics]
 
