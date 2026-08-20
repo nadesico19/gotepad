@@ -8,11 +8,12 @@ signal katago_paths_changed
 signal katago_analysis_settings_changed
 signal language_changed(locale: String)
 signal horizontal_safe_margin_changed(margin: int)
+signal board_width_percentage_changed(percentage: int)
 signal large_ui_changed(enabled: bool, multiplier: float)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 23
+const kSchemaVersion: int = 24
 const kLanguageSimplifiedChinese: String = "zh_CN"
 const kLanguageJapanese: String = "ja"
 const kLanguageKorean: String = "ko"
@@ -37,6 +38,9 @@ const kStoneSoundVolumeMaximum: int = 100
 const kDefaultStoneSoundVolume: int = 50
 const kDefaultHorizontalSafeMargin: int = 0
 const kHorizontalSafeMarginMaximum: int = 512
+const kBoardWidthPercentageMinimum: int = 50
+const kBoardWidthPercentageMaximum: int = 100
+const kDefaultBoardWidthPercentage: int = 100
 const kDefaultLargeUiEnabled: bool = false
 const kLargeUiMultiplierMinimum: float = 0.7
 const kLargeUiMultiplierMaximum: float = 2.0
@@ -86,6 +90,7 @@ var absolute_move_numbers_: bool = kDefaultAbsoluteMoveNumbers
 var playback_interval_seconds_: float = kDefaultPlaybackIntervalSeconds
 var stone_sound_volume_: int = kDefaultStoneSoundVolume
 var horizontal_safe_margin_: int = kDefaultHorizontalSafeMargin
+var board_width_percentage_: int = kDefaultBoardWidthPercentage
 var large_ui_enabled_: bool = kDefaultLargeUiEnabled
 var large_ui_multiplier_: float = kDefaultLargeUiMultiplier
 var move_confirmation_enabled_: bool = kDefaultMobileMoveConfirmation \
@@ -179,6 +184,10 @@ func get_stone_sound_volume() -> int:
 
 func get_horizontal_safe_margin() -> int:
 	return horizontal_safe_margin_
+
+
+func get_board_width_percentage() -> int:
+	return board_width_percentage_
 
 
 func get_large_ui_enabled() -> bool:
@@ -341,6 +350,7 @@ func set_settings(
 		playback_interval_seconds: float,
 		stone_sound_volume: int,
 		horizontal_safe_margin: int,
+		board_width_percentage: int,
 		large_ui_enabled: bool,
 		large_ui_multiplier: float,
 		move_confirmation_enabled: bool,
@@ -369,6 +379,7 @@ func set_settings(
 	var previous_playback_interval: float = playback_interval_seconds_
 	var previous_stone_sound_volume: int = stone_sound_volume_
 	var previous_horizontal_safe_margin: int = horizontal_safe_margin_
+	var previous_board_width_percentage: int = board_width_percentage_
 	var previous_large_ui_enabled: bool = large_ui_enabled_
 	var previous_large_ui_multiplier: float = large_ui_multiplier_
 	var previous_move_confirmation_enabled: bool = move_confirmation_enabled_
@@ -404,6 +415,11 @@ func set_settings(
 	horizontal_safe_margin_ = clampi(
 		horizontal_safe_margin, 0, kHorizontalSafeMarginMaximum
 	)
+	board_width_percentage_ = clampi(
+		board_width_percentage,
+		kBoardWidthPercentageMinimum,
+		kBoardWidthPercentageMaximum
+	)
 	large_ui_enabled_ = large_ui_enabled
 	large_ui_multiplier_ = large_ui_multiplier
 	move_confirmation_enabled_ = move_confirmation_enabled
@@ -437,6 +453,7 @@ func set_settings(
 		playback_interval_seconds_ = previous_playback_interval
 		stone_sound_volume_ = previous_stone_sound_volume
 		horizontal_safe_margin_ = previous_horizontal_safe_margin
+		board_width_percentage_ = previous_board_width_percentage
 		large_ui_enabled_ = previous_large_ui_enabled
 		large_ui_multiplier_ = previous_large_ui_multiplier
 		move_confirmation_enabled_ = previous_move_confirmation_enabled
@@ -469,6 +486,8 @@ func set_settings(
 		move_confirmation_changed.emit(move_confirmation_enabled_)
 	if horizontal_safe_margin_ != previous_horizontal_safe_margin:
 		horizontal_safe_margin_changed.emit(horizontal_safe_margin_)
+	if board_width_percentage_ != previous_board_width_percentage:
+		board_width_percentage_changed.emit(board_width_percentage_)
 	if large_ui_enabled_ != previous_large_ui_enabled \
 			or not is_equal_approx(
 				large_ui_multiplier_, previous_large_ui_multiplier
@@ -500,6 +519,7 @@ func reload() -> void:
 	playback_interval_changed.emit()
 	move_confirmation_changed.emit(move_confirmation_enabled_)
 	horizontal_safe_margin_changed.emit(horizontal_safe_margin_)
+	board_width_percentage_changed.emit(board_width_percentage_)
 	large_ui_changed.emit(large_ui_enabled_, large_ui_multiplier_)
 	katago_paths_changed.emit()
 	katago_analysis_settings_changed.emit()
@@ -635,6 +655,11 @@ func load_config_() -> void:
 		"horizontal_safe_margin",
 		kDefaultHorizontalSafeMargin
 	)), 0, kHorizontalSafeMarginMaximum)
+	board_width_percentage_ = clampi(int(config.get_value(
+		"display",
+		"board_width_percentage",
+		kDefaultBoardWidthPercentage
+	)), kBoardWidthPercentageMinimum, kBoardWidthPercentageMaximum)
 	large_ui_enabled_ = bool(config.get_value(
 		"display",
 		"large_ui_enabled",
@@ -757,6 +782,9 @@ func save_config_() -> Error:
 	config.set_value(
 		"display", "horizontal_safe_margin", horizontal_safe_margin_
 	)
+	config.set_value(
+		"display", "board_width_percentage", board_width_percentage_
+	)
 	config.set_value("display", "large_ui_enabled", large_ui_enabled_)
 	config.set_value("display", "large_ui_multiplier", large_ui_multiplier_)
 	config.set_value(
@@ -796,6 +824,7 @@ func reset_settings_() -> void:
 	playback_interval_seconds_ = kDefaultPlaybackIntervalSeconds
 	stone_sound_volume_ = kDefaultStoneSoundVolume
 	horizontal_safe_margin_ = kDefaultHorizontalSafeMargin
+	board_width_percentage_ = kDefaultBoardWidthPercentage
 	large_ui_enabled_ = kDefaultLargeUiEnabled
 	large_ui_multiplier_ = kDefaultLargeUiMultiplier
 	move_confirmation_enabled_ = default_move_confirmation_enabled_()

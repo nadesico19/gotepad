@@ -5,6 +5,7 @@
 // 这是供godot端调用的各种功能封装。
 
 #include "go_notes.hpp"
+#include "go_board_image_recognizer.hpp"
 
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/file_access.hpp>
@@ -975,6 +976,7 @@ void initialize_go_gdext(godot::ModuleInitializationLevel level) {
   if (level != godot::MODULE_INITIALIZATION_LEVEL_SCENE)
     return;
   GDREGISTER_CLASS(GoNotes)
+  GDREGISTER_CLASS(GoBoardImageRecognizer)
 #ifdef GOTEPAD_KATAGO_MERGED
   nd::go::katago::gdext::initialize_katago_gdext(level);
 #endif

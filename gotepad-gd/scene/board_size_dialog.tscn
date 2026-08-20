@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://script/board_size_dialog.gd" id="1_dialog_script"]
 [ext_resource type="Texture2D" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
 [ext_resource type="Texture2D" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
+[ext_resource type="PackedScene" path="res://scene/board_image_import_dialog.tscn" id="4_image_import"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_sizes"]
 resource_name = "BoardSizeGroup"
@@ -49,15 +50,14 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Panel" type="PanelContainer" parent="Center"]
-custom_minimum_size = Vector2(440, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_dialog")
 
 [node name="Margin" type="MarginContainer" parent="Center/Panel"]
 layout_mode = 2
-theme_override_constants/margin_left = 28
+theme_override_constants/margin_left = 22
 theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 28
+theme_override_constants/margin_right = 22
 theme_override_constants/margin_bottom = 24
 
 [node name="Content" type="VBoxContainer" parent="Center/Panel/Margin"]
@@ -81,11 +81,10 @@ horizontal_alignment = 1
 [node name="Separator" type="HSeparator" parent="Center/Panel/Margin/Content"]
 layout_mode = 2
 
-[node name="Options" type="GridContainer" parent="Center/Panel/Margin/Content"]
+[node name="Options" type="HBoxContainer" parent="Center/Panel/Margin/Content"]
 layout_mode = 2
-theme_override_constants/h_separation = 22
-theme_override_constants/v_separation = 10
-columns = 3
+theme_override_constants/h_separation = 30
+alignment = 1
 
 [node name="Size9" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
 unique_name_in_owner = true
@@ -194,17 +193,29 @@ text = "创建"
 [node name="LoadSeparator" type="HSeparator" parent="Center/Panel/Margin/Content"]
 layout_mode = 2
 
-[node name="LoadDescription" type="Label" parent="Center/Panel/Margin/Content"]
+[node name="AlternativeArea" type="HBoxContainer" parent="Center/Panel/Margin/Content"]
 layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SgfArea" type="VBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea"]
+custom_minimum_size = Vector2(0, 94)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="LoadDescription" type="Label" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea"]
+layout_mode = 2
+size_flags_horizontal = 4
 theme_override_colors/font_color = Color(0.82, 0.8, 0.75, 1)
 theme_override_font_sizes/font_size = 15
-text = "或者从本地 SGF 棋谱创建"
+text = "从本地 SGF 棋谱创建"
 horizontal_alignment = 1
 
-[node name="LoadSgfButton" type="Button" parent="Center/Panel/Margin/Content"]
+[node name="LoadSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
+size_flags_horizontal = 4
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
 theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
@@ -213,6 +224,55 @@ theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 16
 text = "加载 SGF 棋谱"
+
+[node name="AreaSeparator" type="VSeparator" parent="Center/Panel/Margin/Content/AlternativeArea"]
+layout_mode = 2
+
+[node name="ImageArea" type="VBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea"]
+custom_minimum_size = Vector2(0, 94)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="ImageDescription" type="Label" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.82, 0.8, 0.75, 1)
+theme_override_font_sizes/font_size = 15
+text = "从图片创建"
+horizontal_alignment = 1
+
+[node name="SelectImageButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
+theme_override_font_sizes/font_size = 16
+text = "选择本地图片"
+
+[node name="AndroidImageButtons" type="HBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 12
+
+[node name="CameraButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea/AndroidImageButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "拍照"
+
+[node name="GalleryButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea/AndroidImageButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "相册"
 
 [node name="SgfFileDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true
@@ -232,3 +292,19 @@ unique_name_in_owner = true
 title = "加载失败"
 dialog_text = "无法加载 SGF 棋谱。"
 ok_button_text = "确定"
+
+[node name="ImageFileDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true
+title = "选择棋盘图片"
+transient = true
+exclusive = true
+initial_position = 2
+size = Vector2i(760, 520)
+ok_button_text = "选择"
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.png,*.jpg,*.jpeg,*.webp,*.bmp ; 图片文件")
+use_native_dialog = true
+
+[node name="BoardImageImportDialog" parent="." instance=ExtResource("4_image_import")]
+unique_name_in_owner = true

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 [ext_resource type="Script" path="res://script/board_view.gd" id="2_board_script"]
 [ext_resource type="Script" path="res://script/playback_button.gd" id="3_playback_button"]
 [ext_resource type="Texture2D" path="res://assets/ui/find_hover.svg" id="4_find_hover"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://script/note_marks_overlay.gd" id="8_note_marks_overlay"]
 [ext_resource type="Script" path="res://script/analysis_candidates_overlay.gd" id="9_analysis_candidates"]
 [ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="10_fixed_width_button"]
+[ext_resource type="Script" path="res://script/territory_ownership_overlay.gd" id="11_territory_overlay"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_playback_hover"]
 bg_color = Color(0.055, 0.045, 0.035, 0.72)
@@ -37,6 +38,11 @@ script = ExtResource("8_note_marks_overlay")
 visible = false
 z_index = 3
 script = ExtResource("9_analysis_candidates")
+
+[node name="TerritoryOwnershipOverlay" type="Node2D" parent="."]
+visible = false
+z_index = 4
+script = ExtResource("11_territory_overlay")
 
 [node name="HoverStone" type="Sprite2D" parent="."]
 visible = false

@@ -31,6 +31,8 @@ const kSequentialMarkLetters: String = \
 const kPptxTemplatePath: String = \
 	"res://assets/publication/go_book_b5_landscape_template.pptx"
 const kPptxCopyBytesPerFrame: int = 1024 * 1024
+const kAndroidHostClass: StringName = &"com.godot.game.GodotApp"
+const kAndroidOpenIntentPollSeconds: float = 0.25
 
 
 class DocumentState extends RefCounted:
@@ -39,6 +41,7 @@ class DocumentState extends RefCounted:
 	var file_path: String = ""
 	var initialized: bool = false
 	var interactions_locked: bool = false
+	var source_writable: bool = true
 
 
 @onready var board_: GoBoardView = $Board
@@ -114,6 +117,18 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/BoardToolBar/KatagoAnalysisButton
 @onready var katago_analysis_panel_: KataGoAnalysisPanel = \
 	$Interface/SafeArea/KatagoAnalysisPanel
+@onready var territory_scoring_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/TerritoryScoringButton
+@onready var territory_toolbar_: VBoxContainer = \
+	$Interface/SafeArea/TerritoryToolBar
+@onready var territory_accept_button_: Button = \
+	$Interface/SafeArea/TerritoryToolBar/AcceptButton
+@onready var territory_cancel_button_: Button = \
+	$Interface/SafeArea/TerritoryToolBar/CancelButton
+@onready var territory_log_panel_: PanelContainer = \
+	$Interface/SafeArea/TerritoryLogPanel
+@onready var territory_log_output_: TextEdit = \
+	$Interface/SafeArea/TerritoryLogPanel/Margin/Output
 @onready var settings_ui_: Control = $Interface/SafeArea/SettingsUI
 @onready var undo_unavailable_mark_: TextureRect = \
 	$Interface/SafeArea/BoardToolBar/UndoButton/UnavailableMark
@@ -165,6 +180,12 @@ class DocumentState extends RefCounted:
 @onready var tool_error_dialog_: AcceptDialog = $Interface/SafeArea/ToolErrorDialog
 @onready var sgf_load_warning_dialog_: AcceptDialog = \
 	$Interface/SafeArea/SgfLoadWarningDialog
+@onready var territory_mode_confirmation_: ConfirmationDialog = \
+	$Interface/SafeArea/TerritoryModeConfirmation
+@onready var territory_result_dialog_: AcceptDialog = \
+	$Interface/SafeArea/TerritoryResultDialog
+@onready var territory_error_dialog_: AcceptDialog = \
+	$Interface/SafeArea/TerritoryErrorDialog
 @onready var save_file_dialog_: FileDialog = $Interface/SafeArea/SaveFileDialog
 @onready var save_error_dialog_: AcceptDialog = $Interface/SafeArea/SaveErrorDialog
 @onready var save_confirmation_: ConfirmationDialog = \
@@ -196,6 +217,7 @@ var note_mark_original_symbols_: Array[Dictionary] = []
 var pending_save_path_: String = ""
 var pending_side_panel_: int = kPendingPanelNone
 var side_panel_after_variation_: int = kPendingPanelNone
+var restore_katago_panel_after_branch_visualization_: bool = false
 var branch_popup_command_in_progress_: bool = false
 var active_file_dialog_: FileDialog
 var export_thread_: Thread
@@ -211,6 +233,13 @@ var window_state_save_timer_: Timer
 var last_windowed_position_: Vector2i = Vector2i.ZERO
 var last_windowed_size_: Vector2i = Vector2i(1600, 900)
 var last_window_maximized_: bool = false
+var android_host_class_: Variant
+var android_open_intent_timer_: Timer
+var android_open_requests_: Array[String] = []
+var android_open_action_pending_: bool = false
+var territory_mode_active_: bool = false
+var territory_query_id_: String = ""
+var territory_side_panel_to_restore_: int = kPendingPanelNone
 
 
 func _enter_tree() -> void:
@@ -248,8 +277,12 @@ func _ready() -> void:
 	window_state_save_timer_.wait_time = kWindowStateDebounceSeconds
 	window_state_save_timer_.timeout.connect(save_window_state_now_)
 	add_child(window_state_save_timer_)
+	configure_android_open_intents_()
 	board_size_dialog_.create_requested.connect(on_create_requested_)
 	board_size_dialog_.sgf_load_requested.connect(on_sgf_load_requested_)
+	board_size_dialog_.image_create_requested.connect(
+		on_image_create_requested_
+	)
 	board_size_dialog_.cancel_requested.connect(
 		on_board_creation_cancel_requested_
 	)
@@ -277,6 +310,36 @@ func _ready() -> void:
 	)
 	katago_analysis_panel_.variation_requested.connect(
 		on_katago_variation_requested_
+	)
+	territory_scoring_button_.pressed.connect(
+		on_territory_scoring_requested_
+	)
+	territory_mode_confirmation_.confirmed.connect(
+		enter_territory_scoring_mode_
+	)
+	territory_accept_button_.pressed.connect(
+		on_territory_scoring_accept_requested_
+	)
+	territory_cancel_button_.pressed.connect(
+		exit_territory_scoring_mode_
+	)
+	board_.territory_cancel_requested.connect(
+		exit_territory_scoring_mode_
+	)
+	katago_analysis_service_.result_received.connect(
+		on_territory_analysis_result_
+	)
+	katago_analysis_service_.query_error.connect(
+		on_territory_query_error_
+	)
+	katago_analysis_service_.log_received.connect(
+		on_territory_log_received_
+	)
+	katago_analysis_service_.service_warning.connect(
+		on_territory_service_warning_
+	)
+	katago_analysis_service_.service_error.connect(
+		on_territory_service_error_
 	)
 	notes_panel_.displayed_marks_changed.connect(
 		on_displayed_note_marks_changed_
@@ -405,8 +468,12 @@ func _ready() -> void:
 	SettingsStore.horizontal_safe_margin_changed.connect(
 		apply_horizontal_safe_margin_
 	)
+	SettingsStore.board_width_percentage_changed.connect(
+		apply_board_width_percentage_
+	)
 	SettingsStore.large_ui_changed.connect(on_large_ui_changed_)
 	apply_horizontal_safe_margin_(SettingsStore.get_horizontal_safe_margin())
+	apply_board_width_percentage_(SettingsStore.get_board_width_percentage())
 	board_.board_texture_changed.connect(on_board_assets_changed_)
 	board_.set_interactions_locked(
 		board_lock_checkbox_.button_pressed
@@ -425,6 +492,95 @@ func _ready() -> void:
 	update_mobile_playback_visibility_()
 	refresh_document_tabs_()
 	on_board_layout_changed_()
+	call_deferred(&"open_startup_sgf_files_")
+	call_deferred(&"poll_android_open_intents_")
+
+
+func configure_android_open_intents_() -> void:
+	if OS.get_name() != "Android":
+		return
+	android_host_class_ = JavaClassWrapper.wrap(kAndroidHostClass)
+	if android_host_class_ == null:
+		push_warning("Unable to connect the Android document intent bridge.")
+		return
+	android_open_intent_timer_ = Timer.new()
+	android_open_intent_timer_.wait_time = kAndroidOpenIntentPollSeconds
+	android_open_intent_timer_.timeout.connect(poll_android_open_intents_)
+	add_child(android_open_intent_timer_)
+	android_open_intent_timer_.start()
+
+
+func poll_android_open_intents_() -> void:
+	if android_host_class_ == null:
+		return
+	var values: Variant = android_host_class_.pollOpenSgfUris()
+	if values != null:
+		for value: Variant in values:
+			var uri: String = str(value)
+			if not uri.is_empty() and not android_open_requests_.has(uri):
+				android_open_requests_.append(uri)
+	dispatch_next_android_open_request_()
+
+
+func dispatch_next_android_open_request_() -> void:
+	if android_open_action_pending_ or android_open_requests_.is_empty():
+		return
+	android_open_action_pending_ = true
+	var uri: String = android_open_requests_.pop_front()
+	request_after_note_edit_resolution_(
+		Callable(self, "open_android_sgf_uri_now_").bind(uri)
+	)
+
+
+func open_android_sgf_uri_now_(uri: String) -> void:
+	android_open_action_pending_ = false
+	if active_document_index_ >= 0 \
+			and active_document_index_ < documents_.size() \
+			and documents_[active_document_index_].initialized:
+		create_new_tab_()
+	var source_writable: bool = false
+	if android_host_class_ != null:
+		source_writable = bool(android_host_class_.canWriteDocument(uri))
+	on_sgf_load_requested_(uri, source_writable)
+	call_deferred(&"dispatch_next_android_open_request_")
+
+
+func open_startup_sgf_files_() -> void:
+	if OS.get_name() != "Windows":
+		return
+	var paths: PackedStringArray = get_startup_sgf_paths_()
+	for index: int in range(paths.size()):
+		if index > 0:
+			create_new_tab_()
+		on_sgf_load_requested_(paths[index])
+
+
+func get_startup_sgf_paths_() -> PackedStringArray:
+	var paths: PackedStringArray = PackedStringArray()
+	var seen_paths: Dictionary = {}
+	for argument: String in OS.get_cmdline_user_args():
+		append_startup_sgf_path_(argument, paths, seen_paths)
+	for argument: String in OS.get_cmdline_args():
+		append_startup_sgf_path_(argument, paths, seen_paths)
+	return paths
+
+
+func append_startup_sgf_path_(
+	argument: String,
+	paths: PackedStringArray,
+	seen_paths: Dictionary
+) -> void:
+	var candidate: String = argument.strip_edges()
+	if candidate.get_extension().to_lower() != "sgf":
+		return
+	var load_path: String = ProjectSettings.globalize_path(
+		candidate
+	).simplify_path()
+	var normalized_path: String = normalized_file_path_(load_path)
+	if normalized_path.is_empty() or seen_paths.has(normalized_path):
+		return
+	seen_paths[normalized_path] = true
+	paths.append(load_path)
 
 
 func uses_desktop_window_state_() -> bool:
@@ -607,6 +763,19 @@ func apply_horizontal_safe_margin_(requested_margin: int) -> void:
 	call_deferred(&"on_board_layout_changed_")
 
 
+func apply_board_width_percentage_(percentage: int) -> void:
+	camera_.set(
+		&"board_width_percentage",
+		clampi(
+			percentage,
+			SettingsStore.kBoardWidthPercentageMinimum,
+			SettingsStore.kBoardWidthPercentageMaximum
+		)
+	)
+	camera_.call(&"update_zoom_")
+	call_deferred(&"on_board_layout_changed_")
+
+
 func _input(event: InputEvent) -> void:
 	if export_in_progress_:
 		return
@@ -657,6 +826,8 @@ func _input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 		return
 	if note_mark_mode_ != kNoteMarkDisabled:
+		return
+	if territory_mode_active_:
 		return
 	if event is not InputEventKey or board_.is_variation_mode():
 		return
@@ -979,7 +1150,7 @@ func request_save_() -> void:
 			or active_document_index_ >= documents_.size():
 		return
 	var document: DocumentState = documents_[active_document_index_]
-	if document.file_path.is_empty():
+	if document.file_path.is_empty() or not document.source_writable:
 		show_save_dialog_()
 		return
 	request_save_confirmation_(document.file_path)
@@ -1000,8 +1171,11 @@ func show_save_dialog_() -> void:
 	if focus_active_file_dialog_():
 		return
 	var document: DocumentState = documents_[active_document_index_]
-	if document.file_path.is_empty():
-		save_file_dialog_.current_file = "%s.sgf" % document.title
+	if document.file_path.is_empty() or not document.source_writable:
+		var suggested_name: String = document.title
+		if suggested_name.get_extension().to_lower() != "sgf":
+			suggested_name += ".sgf"
+		save_file_dialog_.current_file = suggested_name
 	else:
 		save_file_dialog_.current_path = document.file_path
 	active_file_dialog_ = save_file_dialog_
@@ -1052,6 +1226,7 @@ func save_document_to_(path: String) -> bool:
 
 	var document: DocumentState = documents_[active_document_index_]
 	document.file_path = path
+	document.source_writable = true
 	var file_name: String = DocumentDisplayName.from_path(path)
 	if file_name.is_empty():
 		file_name = tr("新建笔记.sgf")
@@ -1473,8 +1648,10 @@ func open_branch_visualization_() -> void:
 	board_.cancel_pending_move()
 	if setup_branch_popup_.visible:
 		setup_branch_popup_.hide()
+	restore_katago_panel_after_branch_visualization_ = \
+		katago_analysis_panel_.is_panel_open()
 	if katago_analysis_panel_.is_panel_open():
-		katago_analysis_panel_.close_panel()
+		katago_analysis_panel_.suspend_panel()
 	background_layer_.visible = false
 	board_.hide()
 	interface_layer_.visible = false
@@ -1488,7 +1665,11 @@ func on_branch_visualization_exit_requested_() -> void:
 	background_layer_.visible = true
 	board_.show()
 	interface_layer_.visible = true
+	if restore_katago_panel_after_branch_visualization_:
+		restore_katago_panel_after_branch_visualization_ = false
+		katago_analysis_panel_.open_panel(go_notes_, board_)
 	call_deferred(&"position_board_toolbar_")
+	call_deferred(&"position_side_panels_")
 
 
 func on_notes_requested_() -> void:
@@ -1595,11 +1776,233 @@ func on_katago_variation_requested_(pv: Array) -> void:
 
 func enter_katago_variation_(pv: Array) -> void:
 	side_panel_after_variation_ = kPendingPanelKatago
-	katago_analysis_panel_.close_panel()
+	katago_analysis_panel_.suspend_panel()
 	if not board_.enter_analysis_variation(pv):
 		side_panel_after_variation_ = kPendingPanelNone
 		katago_analysis_panel_.open_panel(go_notes_, board_)
 		push_warning(tr("无法根据KataGo候选进入变化图。"))
+
+
+func on_territory_scoring_requested_() -> void:
+	if territory_mode_active_:
+		return
+	request_after_note_edit_resolution_(
+		Callable(self, "show_territory_scoring_confirmation_")
+	)
+
+
+func show_territory_scoring_confirmation_() -> void:
+	territory_mode_confirmation_.dialog_text = tr(
+		"终局数目目前只支持中国规则。请先收完所有单官，再开始所属判定。"
+	)
+	territory_mode_confirmation_.popup_centered(Vector2i(620, 220))
+
+
+func enter_territory_scoring_mode_() -> void:
+	if territory_mode_active_:
+		return
+	territory_side_panel_to_restore_ = kPendingPanelNone
+	if notes_panel_.is_panel_open():
+		territory_side_panel_to_restore_ = kPendingPanelNotes
+		notes_panel_.close_panel()
+		if notes_panel_.is_panel_open():
+			return
+	elif sgf_metadata_panel_.is_panel_open():
+		territory_side_panel_to_restore_ = kPendingPanelSgfMetadata
+		sgf_metadata_panel_.close_panel()
+		if sgf_metadata_panel_.is_panel_open():
+			return
+	elif katago_analysis_panel_.is_panel_open():
+		territory_side_panel_to_restore_ = kPendingPanelKatago
+		katago_analysis_panel_.suspend_panel()
+	if not board_.enter_territory_mode():
+		show_territory_error_(tr("无法开始终局数目模式。"))
+		restore_side_panel_after_territory_()
+		return
+	territory_mode_active_ = true
+	board_toolbar_.hide()
+	territory_toolbar_.show()
+	territory_log_output_.text = ""
+	territory_log_panel_.show()
+	preset_button_.hide()
+	mobile_playback_buttons_.hide()
+	territory_accept_button_.disabled = true
+	append_territory_log_(tr("正在请求 KataGo 所属判定…"))
+	call_deferred(&"position_board_toolbar_")
+
+	var path: PackedInt64Array = board_.get_playback_path()
+	var current_index: int = path.find(board_.get_view_uid())
+	var context: Dictionary = {}
+	if current_index >= 0:
+		context = KataGoQueryBuilder.build_context(
+			go_notes_, path, current_index
+		)
+	if context.is_empty():
+		show_territory_error_(tr("无法构造当前局面的KataGo请求。"))
+		exit_territory_scoring_mode_()
+		return
+	territory_query_id_ = katago_analysis_service_.next_query_id(
+		"territory"
+	)
+	var turns: Array = Array(context.get("analyze_turns", []))
+	var target_turn: int = int(turns[-1]) if not turns.is_empty() else 0
+	var query: Dictionary = KataGoQueryBuilder.build_query(
+		context,
+		territory_query_id_,
+		[target_turn],
+		SettingsStore.get_katago_max_visits(),
+		SettingsStore.get_katago_report_interval_seconds(),
+		2
+	)
+	query["rules"] = "chinese"
+	query["initialPlayer"] = "W" \
+		if board_.get_next_color() == kWhite else "B"
+	query["includeOwnership"] = true
+	if not katago_analysis_service_.submit_query(query):
+		if not territory_mode_active_:
+			return
+		territory_query_id_ = ""
+		show_territory_error_(tr("无法向KataGo发送终局数目请求。"))
+		exit_territory_scoring_mode_()
+
+
+func on_territory_analysis_result_(result: Dictionary) -> void:
+	if not territory_mode_active_ \
+			or str(result.get("id", "")) != territory_query_id_:
+		return
+	var during_search: bool = bool(result.get("isDuringSearch", false))
+	if during_search:
+		var root_info: Dictionary = Dictionary(result.get("rootInfo", {}))
+		append_territory_log_(tr("所属判定中 · %d visits") % int(
+			root_info.get("visits", 0)
+		))
+		return
+	var ownership: Array = Array(result.get("ownership", []))
+	if ownership.size() == board_.get_board_size() * board_.get_board_size():
+		var _applied: bool = board_.apply_territory_ownership(ownership)
+	territory_query_id_ = ""
+	if board_.get_territory_marks().size() \
+			!= board_.get_board_size() * board_.get_board_size():
+		show_territory_error_(tr("KataGo没有返回有效的所属判定。"))
+		exit_territory_scoring_mode_()
+		return
+	append_territory_log_(tr(
+		"所属判定完成，可点击棋盘修正错误地域。"
+	))
+	territory_accept_button_.disabled = false
+
+
+func on_territory_query_error_(query_id: String, message: String) -> void:
+	if not territory_mode_active_ or query_id != territory_query_id_:
+		return
+	territory_query_id_ = ""
+	append_territory_log_("[ERROR] %s" % message)
+	show_territory_error_(message)
+	exit_territory_scoring_mode_()
+
+
+func on_territory_log_received_(line: String) -> void:
+	if territory_mode_active_:
+		append_territory_log_(line)
+
+
+func on_territory_service_warning_(message: String) -> void:
+	if territory_mode_active_:
+		append_territory_log_("[WARNING] %s" % message)
+
+
+func on_territory_service_error_(message: String) -> void:
+	if not territory_mode_active_:
+		return
+	territory_query_id_ = ""
+	append_territory_log_("[ERROR] %s" % message)
+	show_territory_error_(message)
+	exit_territory_scoring_mode_()
+
+
+func append_territory_log_(message: String) -> void:
+	var normalized: String = message.strip_edges()
+	if normalized.is_empty():
+		return
+	if not territory_log_output_.text.is_empty():
+		territory_log_output_.text += "\n"
+	territory_log_output_.text += normalized
+	territory_log_output_.scroll_vertical = \
+		territory_log_output_.get_line_count()
+
+
+func on_territory_scoring_accept_requested_() -> void:
+	if not territory_mode_active_ or territory_accept_button_.disabled:
+		return
+	var metadata: Dictionary = Dictionary(go_notes_.call(&"get_sgf_metadata"))
+	var komi_text: String = str(metadata.get("komi", "7.5")).strip_edges()
+	var komi: float = float(komi_text) if komi_text.is_valid_float() else 7.5
+	var score: Dictionary = TerritoryScoring.score_chinese(
+		board_.get_position_states(),
+		board_.get_territory_marks(),
+		board_.get_board_size(),
+		komi
+	)
+	if score.is_empty():
+		show_territory_error_(tr("无法根据当前所属标记完成数目。"))
+		return
+	var lines: PackedStringArray = PackedStringArray([
+		tr("黑方：%d 子 + %d 空 = %.1f") % [
+			int(score.black_stones), int(score.black_territory),
+			float(score.black_total)
+		],
+		tr("白方：%d 子 + %d 空 + 贴目 %.1f = %.1f") % [
+			int(score.white_stones), int(score.white_territory),
+			float(score.komi), float(score.white_total)
+		],
+		tr("中立点：%d") % int(score.neutral_points),
+	])
+	var winner: int = int(score.winner)
+	if winner == kBlack:
+		lines.append(tr("结果：黑方胜 %.1f 目") % float(score.margin))
+	elif winner == kWhite:
+		lines.append(tr("结果：白方胜 %.1f 目") % float(score.margin))
+	else:
+		lines.append(tr("结果：和棋"))
+	exit_territory_scoring_mode_()
+	territory_result_dialog_.dialog_text = "\n".join(lines)
+	territory_result_dialog_.popup_centered(Vector2i(560, 280))
+
+
+func exit_territory_scoring_mode_() -> void:
+	if not territory_mode_active_:
+		return
+	if not territory_query_id_.is_empty():
+		var _terminated: bool = katago_analysis_service_.terminate_query(
+			territory_query_id_
+		)
+	territory_query_id_ = ""
+	territory_mode_active_ = false
+	board_.exit_territory_mode()
+	territory_toolbar_.hide()
+	territory_log_panel_.hide()
+	board_toolbar_.show()
+	update_preset_button_()
+	update_mobile_playback_visibility_()
+	call_deferred(&"position_board_toolbar_")
+	restore_side_panel_after_territory_()
+
+
+func restore_side_panel_after_territory_() -> void:
+	var panel: int = territory_side_panel_to_restore_
+	territory_side_panel_to_restore_ = kPendingPanelNone
+	if panel == kPendingPanelNotes:
+		notes_panel_.open_panel(go_notes_)
+	elif panel == kPendingPanelSgfMetadata:
+		sgf_metadata_panel_.open_panel(go_notes_)
+	elif panel == kPendingPanelKatago:
+		katago_analysis_panel_.open_panel(go_notes_, board_)
+	call_deferred(&"position_side_panels_")
+
+
+func show_territory_error_(message: String) -> void:
+	territory_error_dialog_.dialog_text = message
+	territory_error_dialog_.popup_centered(Vector2i(560, 220))
 
 
 func on_board_position_changed_(uid: int) -> void:
@@ -1626,7 +2029,8 @@ func update_mobile_playback_visibility_() -> void:
 		and active_document_index_ < documents_.size() \
 		and documents_[active_document_index_].initialized
 	mobile_playback_buttons_.visible = OS.has_feature("android") \
-		and document_initialized and not board_.is_preset_mode()
+		and document_initialized and not board_.is_preset_mode() \
+		and not territory_mode_active_
 
 
 func on_displayed_note_marks_changed_(
@@ -1812,7 +2216,7 @@ func update_variation_takeback_button_() -> void:
 func on_variation_mode_changed_(enabled: bool) -> void:
 	if enabled and katago_analysis_panel_.is_panel_open():
 		side_panel_after_variation_ = kPendingPanelKatago
-		katago_analysis_panel_.close_panel()
+		katago_analysis_panel_.suspend_panel()
 	board_toolbar_.visible = not enabled
 	variation_toolbar_.visible = enabled
 	update_mobile_playback_visibility_()
@@ -1996,8 +2400,10 @@ func update_preset_button_() -> void:
 		or int(go_notes_.call(&"can_preset_stone")) != 0
 	preset_button_.disabled = unavailable
 	preset_unavailable_mark_.visible = unavailable
-	if unavailable and board_.is_preset_mode():
-		board_.toggle_preset_mode()
+	if unavailable:
+		if board_.is_preset_mode():
+			board_.toggle_preset_mode()
+		preset_button_.set_pressed_no_signal(false)
 
 
 func on_document_tab_selected_(index: int) -> void:
@@ -2011,6 +2417,9 @@ func request_after_note_edit_resolution_(action: Callable) -> void:
 
 
 func on_note_edit_resolution_canceled_() -> void:
+	if android_open_action_pending_:
+		android_open_action_pending_ = false
+		call_deferred(&"dispatch_next_android_open_request_")
 	pending_side_panel_ = kPendingPanelNone
 	board_.restore_playback_position()
 	refresh_document_tabs_()
@@ -2097,6 +2506,8 @@ func switch_document_(index: int) -> void:
 
 
 func leave_transient_modes_() -> void:
+	if territory_mode_active_:
+		exit_territory_scoring_mode_()
 	if note_mark_mode_ != kNoteMarkDisabled:
 		on_note_mark_cancel_requested_()
 	if branch_visualization_layer_.visible:
@@ -2178,6 +2589,59 @@ func on_create_requested_(board_size: int) -> void:
 		board_size_dialog_.show_dialog()
 
 
+func on_image_create_requested_(
+	board_size: int, cells: PackedInt32Array, source_path: String
+) -> void:
+	if cells.size() != board_size * board_size \
+			or not board_.initialize_board(board_size):
+		board_size_dialog_.show_load_error(
+			tr("无法根据图片创建棋盘。")
+		)
+		board_size_dialog_.show_dialog()
+		return
+
+	var command_fields: PackedStringArray = PackedStringArray(["PRESET"])
+	for index: int in range(cells.size()):
+		var color: int = cells[index]
+		if color != kBlack and color != kWhite:
+			continue
+		var row: int = floori(float(index) / float(board_size)) + 1
+		var column: int = index % board_size + 1
+		command_fields.append(str(color))
+		command_fields.append(str(row))
+		command_fields.append(str(column))
+
+	if command_fields.size() > 1:
+		var command: String = ",".join(command_fields) + ";"
+		if int(go_notes_.execute_command(command)) != 0:
+			board_size_dialog_.show_load_error(
+				tr("识别盘面无法作为预置棋子创建：%s") %
+				CommandMessages.localize(go_notes_.get_message())
+			)
+			board_size_dialog_.show_dialog()
+			return
+
+	if active_document_index_ >= 0:
+		var document: DocumentState = documents_[active_document_index_]
+		var image_name: String = DocumentDisplayName.from_path(source_path)
+		if image_name.is_empty():
+			image_name = tr("图片棋盘")
+		document.title = unique_document_title_(
+			image_name, active_document_index_
+		)
+		document.file_path = ""
+		document.source_writable = true
+		document.initialized = true
+		document.interactions_locked = true
+		refresh_document_tabs_()
+	board_lock_checkbox_.set_pressed_no_signal(true)
+	board_.set_interactions_locked(true)
+	update_history_buttons_()
+	update_preset_button_()
+	update_mobile_playback_visibility_()
+	board_size_dialog_.hide()
+
+
 func on_board_creation_cancel_requested_() -> void:
 	if documents_.size() <= 1 or active_document_index_ < 0:
 		return
@@ -2233,6 +2697,7 @@ func reorder_board_toolbar_buttons_() -> void:
 		katago_analysis_button_,
 		find_previous_button_,
 		find_next_button_,
+		territory_scoring_button_,
 	]
 	for button: Control in ordered_buttons:
 		board_toolbar_.move_child(button, insertion_index)
@@ -2245,7 +2710,6 @@ func position_board_toolbar_() -> void:
 	var board_rect: Rect2 = board_.get_rect()
 	var canvas_transform: Transform2D = \
 		board_.get_global_transform_with_canvas()
-	var board_top_left: Vector2 = canvas_transform * board_rect.position
 	var board_top_right: Vector2 = canvas_transform * Vector2(
 		board_rect.end.x,
 		board_rect.position.y
@@ -2255,16 +2719,23 @@ func position_board_toolbar_() -> void:
 			board_top_right.x + kBoardToolbarGap
 			- interface_safe_area_.global_position.x
 		),
-		roundf(board_top_left.y)
+		get_board_side_controls_top_()
 	)
 	var viewport_size: Vector2 = interface_safe_area_.size
 	board_toolbar_.set_available_height(
 		maxf(viewport_size.y - toolbar_position.y - kBoardToolbarGap, 56.0)
 	)
 	var required_toolbar_size: Vector2 = board_toolbar_.get_required_size()
+	var active_toolbar_width: float = required_toolbar_size.x
+	if territory_mode_active_:
+		active_toolbar_width = maxf(
+			territory_toolbar_.get_combined_minimum_size().x, 72.0
+		) + kBoardToolbarGap + maxf(
+			territory_log_panel_.get_combined_minimum_size().x, 300.0
+		)
 	var required_right_reserve: float = maxf(
 		96.0,
-		required_toolbar_size.x + kBoardToolbarGap * 2.0
+		active_toolbar_width + kBoardToolbarGap * 2.0
 	)
 	var current_right_reserve: float = float(
 		camera_.get("right_ui_reserve")
@@ -2278,8 +2749,34 @@ func position_board_toolbar_() -> void:
 	board_toolbar_.queue_sort()
 	board_toolbar_.position = toolbar_position
 	variation_toolbar_.position = toolbar_position
+	territory_toolbar_.position = toolbar_position
+	position_territory_log_panel_()
 	position_side_panels_()
 	position_note_mark_toolbar_()
+
+
+func position_territory_log_panel_() -> void:
+	if not territory_log_panel_.visible:
+		return
+	var viewport_size: Vector2 = interface_safe_area_.size
+	var left: float = territory_toolbar_.position.x \
+		+ maxf(territory_toolbar_.size.x, 72.0) + kBoardToolbarGap
+	var right: float = viewport_size.x - 96.0
+	if right - left < 240.0:
+		left = maxf(12.0, right - 240.0)
+	var top: float = get_board_side_controls_top_()
+	territory_log_panel_.position = Vector2(left, top)
+	territory_log_panel_.size = Vector2(
+		maxf(right - left, 240.0),
+		maxf(viewport_size.y - top - 12.0, 240.0)
+	)
+
+
+func get_board_side_controls_top_() -> float:
+	return roundf(
+		document_tab_bar_.position.y + document_tab_bar_.size.y
+		+ kBoardToolbarGap
+	)
 
 
 func position_side_panels_() -> void:
@@ -2315,7 +2812,6 @@ func position_note_mark_toolbar_() -> void:
 	var board_rect: Rect2 = board_.get_rect()
 	var canvas_transform: Transform2D = \
 		board_.get_global_transform_with_canvas()
-	var board_top_left: Vector2 = canvas_transform * board_rect.position
 	var board_top_right: Vector2 = canvas_transform * Vector2(
 		board_rect.end.x, board_rect.position.y
 	)
@@ -2324,11 +2820,11 @@ func position_note_mark_toolbar_() -> void:
 			board_top_right.x + kBoardToolbarGap
 			- note_mark_safe_area_.global_position.x
 		),
-		roundf(board_top_left.y)
+		get_board_side_controls_top_()
 	)
 
 
-func on_sgf_load_requested_(path: String) -> void:
+func on_sgf_load_requested_(path: String, source_writable: bool = true) -> void:
 	if activate_existing_sgf_document_(path):
 		return
 	var load_succeeded: bool = bool(
@@ -2351,12 +2847,14 @@ func on_sgf_load_requested_(path: String) -> void:
 				file_name, active_document_index_
 			)
 			document.file_path = path
+			document.source_writable = source_writable
 			document.initialized = true
 			document.interactions_locked = true
 			refresh_document_tabs_()
 		board_lock_checkbox_.set_pressed_no_signal(true)
 		board_.set_interactions_locked(true)
 		update_history_buttons_()
+		update_preset_button_()
 		update_mobile_playback_visibility_()
 		board_size_dialog_.hide()
 		show_sgf_import_recovery_warnings_()

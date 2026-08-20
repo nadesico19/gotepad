@@ -1,0 +1,128 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://script/board_image_import_dialog.gd" id="1_dialog"]
+[ext_resource type="Script" path="res://script/board_image_review.gd" id="2_review"]
+
+[sub_resource type="StyleBoxFlat" id="StylePanel"]
+bg_color = Color(0.075, 0.068, 0.055, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.72, 0.57, 0.31, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="BoardImageImportDialog" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_dialog")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.68)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 34
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 34
+theme_override_constants/margin_bottom = 28
+
+[node name="Panel" type="PanelContainer" parent="Margin"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="InnerMargin" type="MarginContainer" parent="Margin/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="Margin/Panel/InnerMargin"]
+layout_mode = 2
+theme_override_constants/separation = 9
+
+[node name="Title" type="Label" parent="Margin/Panel/InnerMargin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.86, 0.64, 1)
+theme_override_font_sizes/font_size = 22
+text = "从图片创建棋盘"
+
+[node name="Instruction" type="Label" parent="Margin/Panel/InnerMargin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "拖动四个黄色控制点，使其分别对准棋盘最外侧的四个交叉点；点击交叉点可在空、黑、白之间修正。"
+autowrap_mode = 2
+
+[node name="Review" type="Control" parent="Margin/Panel/InnerMargin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(640, 360)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 0
+script = ExtResource("2_review")
+
+[node name="Status" type="Label" parent="Margin/Panel/InnerMargin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.88, 0.9, 1)
+text = "正在识别棋盘图片…"
+autowrap_mode = 2
+
+[node name="Actions" type="HBoxContainer" parent="Margin/Panel/InnerMargin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="RecognizeButton" type="Button" parent="Margin/Panel/InnerMargin/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 42)
+layout_mode = 2
+text = "按当前四角重新识别"
+
+[node name="RotateButton" type="Button" parent="Margin/Panel/InnerMargin/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 42)
+layout_mode = 2
+text = "顺时针旋转盘面"
+
+[node name="Spacer" type="Control" parent="Margin/Panel/InnerMargin/Content/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CancelButton" type="Button" parent="Margin/Panel/InnerMargin/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 42)
+layout_mode = 2
+text = "✕ 取消"
+
+[node name="AcceptButton" type="Button" parent="Margin/Panel/InnerMargin/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 42)
+layout_mode = 2
+text = "✓ 创建"
+
+[node name="ErrorDialog" type="AcceptDialog" parent="."]
+unique_name_in_owner = true
+title = "图片识别失败"
+ok_button_text = "确定"
+

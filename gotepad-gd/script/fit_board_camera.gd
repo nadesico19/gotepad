@@ -6,6 +6,7 @@ extends Camera2D
 @export_range(0.0, 512.0, 1.0) var right_ui_reserve: float = 96.0
 @export_range(0.0, 256.0, 1.0) var top_ui_reserve: float = 42.0
 @export_range(0.0, 512.0, 1.0) var horizontal_safe_margin: float = 0.0
+@export_range(50.0, 100.0, 1.0) var board_width_percentage: float = 100.0
 
 var target_: Sprite2D
 var window_: Window
@@ -49,7 +50,9 @@ func update_zoom_() -> void:
 		return
 
 	var fit_zoom: float = minf(
-		available_size.x / content_size.x,
+		available_size.x * clampf(
+			board_width_percentage / 100.0, 0.5, 1.0
+		) / content_size.x,
 		available_size.y / content_size.y
 	)
 	zoom = Vector2.ONE * fit_zoom

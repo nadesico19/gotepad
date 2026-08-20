@@ -131,6 +131,28 @@ max_value = 512.0
 step = 1.0
 suffix = " px"
 
+[node name="BoardWidthPercentageRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/BoardWidthPercentageRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "棋盘横向宽度占比"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/BoardWidthPercentageRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Percentage" type="SpinBox" parent="SettingsPanel/Margin/Options/BoardWidthPercentageRow"]
+custom_minimum_size = Vector2(136, 36)
+layout_mode = 2
+min_value = 50.0
+max_value = 100.0
+step = 1.0
+value = 100.0
+suffix = " %"
+
 [node name="LargeUiRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 

@@ -16,3 +16,4 @@
 /third_party/katago/**
 !/third_party/katago/gotepad_info.txt
 !/third_party/katago/embedded-analysis-api.patch
+/third_party/opencv/

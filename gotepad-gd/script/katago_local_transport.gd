@@ -135,6 +135,7 @@ func handle_stderr_line_(line: String) -> void:
 	if line.is_empty():
 		return
 	print("KataGo: %s" % line)
+	log_received.emit(line)
 	if "ERROR" in line.to_upper():
 		stderr_error_summary_ = line
 		stderr_error_detail_lines_ = 3

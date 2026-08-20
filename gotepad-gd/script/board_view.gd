@@ -14,6 +14,7 @@ signal setup_branches_changed(branches: Array[Dictionary])
 signal variation_mode_changed(enabled: bool)
 signal position_changed(uid: int)
 signal playback_navigation_changed(can_previous: bool, can_next: bool)
+signal territory_cancel_requested
 
 const kBlack: int = 1
 const kWhite: int = 2
@@ -44,6 +45,10 @@ const kFindDisabled: int = 0
 const kFindTowardFirstChild: int = 1
 const kMoveNumberFontCellRatio: float = 0.42
 const kMoveNumberMaxTextWidthRatio: float = 1.15
+const kLastMoveNumberColor: Color = Color(1.0, 0.78, 0.18, 1.0)
+const kLastMoveNumberOnWhiteColor: Color = Color(
+	0.8980392, 0.2235294, 0.2078431, 1.0
+)
 const kBranchMarkerSizeCellRatio: float = 0.40
 const kBranchMarkerHitHalfCellRatio: float = 0.46
 const kBranchMarkerFillColor: Color = Color(1.0, 1.0, 1.0, 0.16)
@@ -75,6 +80,8 @@ const kStoneSound4: AudioStream = preload(
 @onready var note_marks_overlay_: Node2D = $NoteMarksOverlay
 @onready var analysis_candidates_overlay_: AnalysisCandidatesOverlay = \
 	$AnalysisCandidatesOverlay
+@onready var territory_ownership_overlay_: TerritoryOwnershipOverlay = \
+	$TerritoryOwnershipOverlay
 @onready var hover_stone_: Sprite2D = $HoverStone
 @onready var pending_stone_: Sprite2D = $PendingStone
 @onready var find_hover_: Sprite2D = $FindHover
@@ -104,6 +111,7 @@ var position_states_: PackedInt32Array = PackedInt32Array()
 var move_numbers_: PackedInt32Array = PackedInt32Array()
 var stone_nodes_: Array[Sprite2D] = []
 var move_number_labels_: Array[Label] = []
+var last_move_position_index_: int = -1
 var playback_path_: PackedInt64Array = PackedInt64Array()
 var playback_move_numbers_: PackedInt32Array = PackedInt32Array()
 var branch_moves_: Array[Dictionary] = []
@@ -146,6 +154,9 @@ var displayed_note_sequential_marks_: Array[Dictionary] = []
 var displayed_note_symbol_marks_: Array[Dictionary] = []
 var note_mark_mode_: int = kNoteMarkDisabled
 var active_note_symbol_: String = ""
+var territory_mode_: bool = false
+var territory_marks_: PackedInt32Array = PackedInt32Array()
+var territory_confidence_: PackedFloat32Array = PackedFloat32Array()
 
 
 func _ready() -> void:
@@ -310,6 +321,62 @@ func get_next_color() -> int:
 
 func get_next_color_texture() -> Texture2D:
 	return black_texture_ if next_color_ == kBlack else white_texture_
+
+
+func get_position_states() -> PackedInt32Array:
+	return position_states_.duplicate()
+
+
+func is_territory_mode() -> bool:
+	return territory_mode_
+
+
+func enter_territory_mode() -> bool:
+	if position_states_.size() != board_size_ * board_size_:
+		return false
+	cancel_pending_move()
+	set_find_mode_(kFindDisabled)
+	set_cut_branch_mode_(false)
+	set_playback_playing_(false)
+	clear_analysis_candidates()
+	territory_mode_ = true
+	territory_marks_ = PackedInt32Array()
+	territory_confidence_ = PackedFloat32Array()
+	set_note_board_controls_visible_(false)
+	refresh_hover_stone_()
+	queue_redraw()
+	return true
+
+
+func apply_territory_ownership(ownership: Array) -> bool:
+	var point_count: int = board_size_ * board_size_
+	if not territory_mode_ or ownership.size() != point_count:
+		return false
+	territory_marks_.resize(point_count)
+	territory_confidence_.resize(point_count)
+	for index: int in range(point_count):
+		var value: float = clampf(float(ownership[index]), -1.0, 1.0)
+		territory_marks_[index] = kBlack if value >= 0.0 else kWhite
+		territory_confidence_[index] = absf(value)
+	refresh_territory_overlay_()
+	return true
+
+
+func get_territory_marks() -> PackedInt32Array:
+	return territory_marks_.duplicate()
+
+
+func exit_territory_mode() -> void:
+	if not territory_mode_:
+		return
+	territory_mode_ = false
+	territory_marks_ = PackedInt32Array()
+	territory_confidence_ = PackedFloat32Array()
+	if territory_ownership_overlay_ != null:
+		territory_ownership_overlay_.clear_marks()
+	set_note_board_controls_visible_(true)
+	refresh_hover_stone_()
+	queue_redraw()
 
 
 func has_pending_move() -> bool:
@@ -948,6 +1015,10 @@ func _input(event: InputEvent) -> void:
 		return
 	if cut_branch_confirmation_.visible:
 		return
+	if key_event.keycode == KEY_ESCAPE and territory_mode_:
+		territory_cancel_requested.emit()
+		get_viewport().set_input_as_handled()
+		return
 	if key_event.keycode == KEY_ESCAPE and is_note_mark_mode():
 		note_mark_cancel_requested.emit()
 		get_viewport().set_input_as_handled()
@@ -1013,6 +1084,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
 	if not mouse_event.pressed:
+		return
+	if territory_mode_:
+		if mouse_event.button_index == MOUSE_BUTTON_LEFT:
+			toggle_territory_region_at_(mouse_event.position)
+			get_viewport().set_input_as_handled()
 		return
 	if is_note_mark_mode():
 		if mouse_event.button_index == MOUSE_BUTTON_LEFT:
@@ -1122,6 +1198,8 @@ func refresh_hover_stone_() -> void:
 	find_hover_.hide()
 	cut_branch_hover_.hide()
 	refresh_pending_stone_()
+	if territory_mode_:
+		return
 	if has_pending_move():
 		return
 	if is_note_mark_mode():
@@ -1481,10 +1559,66 @@ func _draw() -> void:
 
 
 	draw_coordinates_(cell_size)
-	if not is_note_mark_mode():
+	if not is_note_mark_mode() and not territory_mode_:
 		draw_branch_markers_(canvas_scale, cell_size)
 	if note_marks_overlay_ != null:
 		note_marks_overlay_.queue_redraw()
+
+
+func toggle_territory_region_at_(screen_position: Vector2) -> void:
+	if territory_marks_.size() != board_size_ * board_size_:
+		return
+	var intersection: Vector2i = intersection_at_screen_position_(
+		screen_position
+	)
+	if intersection == Vector2i.ZERO:
+		return
+	var start: int = (intersection.y - 1) * board_size_ \
+		+ intersection.x - 1
+	var original: int = territory_marks_[start]
+	var source_state: int = position_states_[start]
+	if original != kBlack and original != kWhite:
+		return
+	var replacement: int = kWhite if original == kBlack else kBlack
+	var visited: PackedByteArray = PackedByteArray()
+	visited.resize(territory_marks_.size())
+	var queue: Array[int] = [start]
+	var queue_index: int = 0
+	visited[start] = 1
+	while queue_index < queue.size():
+		var index: int = queue[queue_index]
+		queue_index += 1
+		territory_marks_[index] = replacement
+		territory_confidence_[index] = 1.0
+		var row: int = floori(float(index) / float(board_size_))
+		var column: int = index % board_size_
+		for direction: Vector2i in [
+			Vector2i(-1, 0), Vector2i(1, 0),
+			Vector2i(0, -1), Vector2i(0, 1),
+		]:
+			var next_row: int = row + direction.y
+			var next_column: int = column + direction.x
+			if next_row < 0 or next_row >= board_size_ \
+					or next_column < 0 or next_column >= board_size_:
+				continue
+			var next_index: int = next_row * board_size_ + next_column
+			var next_state: int = position_states_[next_index]
+			var same_position_region: bool = \
+				(source_state == 0 and next_state == 0) \
+				or (source_state != 0 and next_state == source_state)
+			if visited[next_index] == 0 and same_position_region \
+					and territory_marks_[next_index] == original:
+				visited[next_index] = 1
+				queue.append(next_index)
+	refresh_territory_overlay_()
+
+
+func refresh_territory_overlay_() -> void:
+	if territory_ownership_overlay_ == null:
+		return
+	territory_ownership_overlay_.configure(
+		territory_marks_, territory_confidence_, board_size_, cell_size_()
+	)
 
 
 func draw_coordinates_(cell_size: float) -> void:
@@ -2362,9 +2496,17 @@ func refresh_position_() -> bool:
 	board_size_ = new_board_size
 	position_states_ = states
 	move_numbers_ = move_numbers
+	last_move_position_index_ = -1
+	var last_color: int = int(node_data.get("color", 0))
+	var last_row: int = int(node_data.get("row", 0))
+	var last_column: int = int(node_data.get("column", 0))
+	if (last_color == kBlack or last_color == kWhite) \
+			and last_row >= 1 and last_row <= board_size_ \
+			and last_column >= 1 and last_column <= board_size_:
+		last_move_position_index_ = \
+			(last_row - 1) * board_size_ + last_column - 1
 	view_uid_ = target_uid
 	if not preset_mode_:
-		var last_color: int = int(node_data.get("color", 0))
 		var inferred_next_color: int = variation_start_color_ \
 			if variation_mode_ and target_uid == variation_base_uid_ \
 			else (kWhite if last_color == kBlack else kBlack)
@@ -2444,7 +2586,8 @@ func refresh_stones_() -> void:
 		var move_number: int = move_numbers_[index]
 		if move_number >= first_displayed_move and move_number > 0:
 			update_move_number_label_(
-				label, state, move_number, row, column, cell_size
+				label, state, move_number, row, column, cell_size,
+				index == last_move_position_index_
 			)
 		else:
 			label.visible = false
@@ -2536,7 +2679,8 @@ func update_move_number_label_(
 		move_number: int,
 		row: int,
 		column: int,
-		cell_size: float
+		cell_size: float,
+		is_last_move: bool
 ) -> void:
 	label.text = str(move_number)
 	var stone_position: Vector2 = Vector2(
@@ -2555,13 +2699,16 @@ func update_move_number_label_(
 		maxi(roundi(cell_size * font_ratio), 1)
 	)
 	var font_color: Color = Color.WHITE if state == kBlack else Color.BLACK
+	if is_last_move:
+		font_color = kLastMoveNumberColor if state == kBlack \
+			else kLastMoveNumberOnWhiteColor
 	var outline_color: Color = Color(0.0, 0.0, 0.0, 0.55) \
 		if state == kBlack else Color(1.0, 1.0, 1.0, 0.55)
 	label.add_theme_color_override("font_color", font_color)
 	label.add_theme_color_override("font_outline_color", outline_color)
 	label.add_theme_constant_override(
 		"outline_size",
-		maxi(roundi(cell_size * 0.02), 1)
+		0 if is_last_move else maxi(roundi(cell_size * 0.02), 1)
 	)
 	label.visible = true
 

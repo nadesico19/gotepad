@@ -24,6 +24,10 @@ const kStateContinuous: int = 4
 @onready var candidates_: Tree = $Panel/Margin/Content/Candidates
 @onready var curve_: AnalysisCurve = $Panel/Margin/Content/Curve
 @onready var score_legend_: Label = $Panel/Margin/Content/CurveFooter/ScoreLegend
+@onready var current_winrate_value_: Label = \
+	$Panel/Margin/Content/CurveFooter/CurrentWinrateValue
+@onready var current_score_value_: Label = \
+	$Panel/Margin/Content/CurveFooter/CurrentScoreValue
 @onready var analyze_game_button_: Button = \
 	$Panel/Margin/Content/CurveFooter/AnalyzeGame
 @onready var invalid_max_playouts_dialog_: AcceptDialog = \
@@ -92,7 +96,10 @@ func open_panel(go_notes: GoNotes, board: GoBoardView) -> void:
 	panel_.show()
 	refresh_candidates_(latest_move_infos_)
 	refresh_curve_()
-	update_controls_()
+	if continuous_.button_pressed:
+		on_continuous_toggled_(true)
+	else:
+		update_controls_()
 	panel_visibility_changed.emit(true)
 
 
@@ -102,6 +109,14 @@ func close_panel() -> void:
 		board_.clear_analysis_candidates()
 	continuous_.set_pressed_no_signal(false)
 	state_ = kStateIdle
+	panel_.hide()
+	panel_visibility_changed.emit(false)
+
+
+func suspend_panel() -> void:
+	stop_all_queries_()
+	if board_ != null:
+		board_.clear_analysis_candidates()
 	panel_.hide()
 	panel_visibility_changed.emit(false)
 
@@ -506,6 +521,24 @@ func refresh_curve_() -> void:
 		board_.get_playback_path(), results_by_uid_, show_score, current_uid_
 	)
 	score_legend_.visible = show_score
+	current_score_value_.visible = show_score
+	refresh_current_curve_values_()
+
+
+func refresh_current_curve_values_() -> void:
+	current_winrate_value_.text = "—"
+	current_score_value_.text = "—"
+	if not results_by_uid_.has(current_uid_):
+		return
+	var result: Dictionary = Dictionary(results_by_uid_[current_uid_])
+	if result.has("winrate"):
+		current_winrate_value_.text = "%.1f%%" % (
+			clampf(float(result.get("winrate", 0.0)), 0.0, 1.0) * 100.0
+		)
+	if result.has("scoreLead"):
+		current_score_value_.text = "%+.1f" % float(
+			result.get("scoreLead", 0.0)
+		)
 
 
 func configure_tree_() -> void:

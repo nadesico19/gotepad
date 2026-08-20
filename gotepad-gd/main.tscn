@@ -30,6 +30,7 @@
 [ext_resource type="PackedScene" path="res://scene/katago_analysis_panel.tscn" id="33_katago_panel"]
 [ext_resource type="Script" path="res://script/katago_analysis_service.gd" id="34_katago_service"]
 [ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="35_fixed_width_button"]
+[ext_resource type="Texture2D" path="res://assets/ui/territory_scoring.svg" id="36_territory_scoring"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
 bg_color = Color(0.22, 0.17, 0.055, 0.82)
@@ -42,6 +43,18 @@ corner_radius_top_left = 9
 corner_radius_top_right = 9
 corner_radius_bottom_right = 9
 corner_radius_bottom_left = 9
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxTerritoryLog"]
+bg_color = Color(0.055, 0.055, 0.065, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.42, 0.48, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="Main" type="Node2D" unique_id=1542382779]
 script = ExtResource("9_main_script")
@@ -341,15 +354,15 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 2.0
-offset_top = -22.0
-offset_right = 24.0
+offset_top = -32.0
+offset_right = 35.0
 offset_bottom = -2.0
 grow_vertical = 0
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
 theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
 theme_override_constants/outline_size = 3
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 24
 text = "✓"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -373,15 +386,15 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 2.0
-offset_top = -22.0
-offset_right = 24.0
+offset_top = -32.0
+offset_right = 35.0
 offset_bottom = -2.0
 grow_vertical = 0
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
 theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
 theme_override_constants/outline_size = 3
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 24
 text = "✓"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -479,6 +492,17 @@ flat = true
 icon_alignment = 1
 expand_icon = true
 
+[node name="TerritoryScoringButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "终局数目"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+icon = ExtResource("36_territory_scoring")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
 [node name="NotesPanel" parent="Interface/SafeArea" unique_id=441855980 instance=ExtResource("26_notes_panel")]
 
 [node name="SgfMetadataPanel" parent="Interface/SafeArea" instance=ExtResource("30_sgf_metadata_panel")]
@@ -491,6 +515,62 @@ offset_right = 72.0
 offset_bottom = 208.0
 mouse_filter = 2
 theme_override_constants/separation = 8
+
+[node name="TerritoryToolBar" type="VBoxContainer" parent="Interface/SafeArea"]
+visible = false
+offset_right = 72.0
+offset_bottom = 120.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="AcceptButton" type="Button" parent="Interface/SafeArea/TerritoryToolBar"]
+custom_minimum_size = Vector2(72, 56)
+layout_mode = 2
+tooltip_text = "接受所属判定并数目"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_colors/font_disabled_color = Color(0.25, 0.92, 0.38, 0.3)
+theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
+theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
+theme_override_font_sizes/font_size = 32
+text = "✓"
+flat = true
+disabled = true
+
+[node name="CancelButton" type="Button" parent="Interface/SafeArea/TerritoryToolBar"]
+custom_minimum_size = Vector2(72, 56)
+layout_mode = 2
+tooltip_text = "退出终局数目模式"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
+theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 32
+text = "✕"
+flat = true
+
+[node name="TerritoryLogPanel" type="PanelContainer" parent="Interface/SafeArea"]
+visible = false
+custom_minimum_size = Vector2(300, 240)
+offset_right = 420.0
+offset_bottom = 420.0
+theme_override_styles/panel = SubResource("StyleBoxTerritoryLog")
+
+[node name="Margin" type="MarginContainer" parent="Interface/SafeArea/TerritoryLogPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="Output" type="TextEdit" parent="Interface/SafeArea/TerritoryLogPanel/Margin"]
+layout_mode = 2
+editable = false
+wrap_mode = 1
+scroll_fit_content_height = false
+placeholder_text = "KataGo所属判定"
 
 [node name="PendingMoveAcceptButton" type="Button" parent="Interface/SafeArea/VariationToolBar"]
 visible = false
@@ -710,6 +790,26 @@ ok_button_text = "确定"
 
 [node name="SgfLoadWarningDialog" type="AcceptDialog" parent="Interface/SafeArea"]
 title = "棋谱已自动修复"
+transient = true
+exclusive = true
+ok_button_text = "确定"
+
+[node name="TerritoryModeConfirmation" type="ConfirmationDialog" parent="Interface/SafeArea"]
+title = "终局数目"
+transient = true
+exclusive = true
+ok_button_text = "开始判定"
+dialog_text = "终局数目目前只支持中国规则。请先收完所有单官，再开始所属判定。"
+cancel_button_text = "取消"
+
+[node name="TerritoryResultDialog" type="AcceptDialog" parent="Interface/SafeArea"]
+title = "终局数目结果"
+transient = true
+exclusive = true
+ok_button_text = "确定"
+
+[node name="TerritoryErrorDialog" type="AcceptDialog" parent="Interface/SafeArea"]
+title = "终局数目失败"
 transient = true
 exclusive = true
 ok_button_text = "确定"

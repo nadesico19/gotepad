@@ -146,6 +146,20 @@ layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.78, 0.18, 1)
 text = "━ 黑方目差"
 
+[node name="CurrentWinrateValue" type="Label" parent="Panel/Margin/Content/CurveFooter"]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.28, 0.9, 0.48, 1)
+text = "—"
+horizontal_alignment = 2
+
+[node name="CurrentScoreValue" type="Label" parent="Panel/Margin/Content/CurveFooter"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.78, 0.18, 1)
+text = "—"
+horizontal_alignment = 2
+
 [node name="FooterSpacer" type="Control" parent="Panel/Margin/Content/CurveFooter"]
 layout_mode = 2
 size_flags_horizontal = 3

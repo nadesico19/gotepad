@@ -2,6 +2,7 @@ class_name KataGoAnalysisService
 extends Node
 
 signal result_received(result: Dictionary)
+signal log_received(line: String)
 signal service_error(message: String)
 signal query_error(query_id: String, message: String)
 signal service_warning(message: String)
@@ -25,6 +26,7 @@ func set_transport(transport: KataGoTransport) -> void:
 	transport_ = transport
 	add_child(transport_)
 	transport_.line_received.connect(on_transport_line_)
+	transport_.log_received.connect(on_transport_log_)
 	transport_.transport_error.connect(on_transport_error_)
 	transport_.transport_stopped.connect(on_transport_stopped_)
 
@@ -87,6 +89,10 @@ func on_transport_line_(line: String) -> void:
 		service_warning.emit(str(result.get("warning", tr("KataGo分析警告。"))))
 		return
 	result_received.emit(result)
+
+
+func on_transport_log_(line: String) -> void:
+	log_received.emit(line)
 
 
 func on_transport_error_(message: String) -> void:

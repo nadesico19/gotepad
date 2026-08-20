@@ -39,6 +39,77 @@ set(USE_SYSTEM_PLUTOVG OFF CACHE BOOL
 add_subdirectory(third_party/lunasvg EXCLUDE_FROM_ALL)
 set_target_properties(lunasvg plutovg PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Board-image recognition uses the same static OpenCV core on Windows and
+# Android. Godot performs image decoding, so only core and imgproc are needed.
+if (WIN32 OR ANDROID)
+  set(BUILD_LIST core,imgproc CACHE STRING "OpenCV modules used by Gotepad" FORCE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build OpenCV statically" FORCE)
+  set(BUILD_opencv_apps OFF CACHE BOOL "Disable OpenCV applications" FORCE)
+  set(BUILD_opencv_calib3d OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_dnn OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_features2d OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_flann OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_gapi OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_highgui OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_imgcodecs OFF CACHE BOOL "Godot decodes image files" FORCE)
+  set(BUILD_opencv_java OFF CACHE BOOL "Disable OpenCV Java bindings" FORCE)
+  set(BUILD_opencv_js OFF CACHE BOOL "Disable OpenCV JavaScript bindings" FORCE)
+  set(BUILD_opencv_ml OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_objdetect OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_photo OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_python_bindings_generator OFF CACHE BOOL "Disable Python" FORCE)
+  set(BUILD_opencv_stitching OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_video OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_opencv_videoio OFF CACHE BOOL "Disable unused OpenCV modules" FORCE)
+  set(BUILD_TESTS OFF CACHE BOOL "Disable OpenCV tests" FORCE)
+  set(BUILD_PERF_TESTS OFF CACHE BOOL "Disable OpenCV performance tests" FORCE)
+  set(BUILD_EXAMPLES OFF CACHE BOOL "Disable OpenCV examples" FORCE)
+  set(BUILD_DOCS OFF CACHE BOOL "Disable OpenCV documentation" FORCE)
+  set(WITH_IPP OFF CACHE BOOL "Avoid downloading IPP during configure" FORCE)
+  set(WITH_OPENCL OFF CACHE BOOL "CPU implementation is sufficient" FORCE)
+  set(WITH_ITT OFF CACHE BOOL "Disable unused tracing support" FORCE)
+  set(WITH_ADE OFF CACHE BOOL "Disable unused graph support" FORCE)
+  set(WITH_FFMPEG OFF CACHE BOOL "Disable video codecs" FORCE)
+  set(WITH_GSTREAMER OFF CACHE BOOL "Disable video codecs" FORCE)
+  set(WITH_MSMF OFF CACHE BOOL "Disable video codecs" FORCE)
+  set(WITH_JPEG OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_OPENJPEG OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_JASPER OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_PNG OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_TIFF OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_WEBP OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_OPENEXR OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_AVIF OFF CACHE BOOL "Godot decodes images" FORCE)
+  set(WITH_PROTOBUF OFF CACHE BOOL "Disable unused DNN dependencies" FORCE)
+  set(WITH_QUIRC OFF CACHE BOOL "Disable unused QR support" FORCE)
+  set(WITH_LAPACK OFF CACHE BOOL "Disable unused linear algebra backend" FORCE)
+  set(WITH_VTK OFF CACHE BOOL "Disable unused visualization support" FORCE)
+  add_subdirectory(third_party/opencv EXCLUDE_FROM_ALL)
+
+endif ()
+
+if (WIN32)
+  # godot-cpp deliberately uses the release static CRT even for its
+  # template_debug target. OpenCV otherwise selects /MTd for the Debug
+  # configuration, which gives the two static-library sets incompatible STL
+  # ABIs. Apply the same CRT convention to every OpenCV target while keeping
+  # debug symbols and the Godot template_debug suffix intact.
+  set(gotepad_opencv_targets
+      opencv_core opencv_core_SSE4_1 opencv_core_SSE4_2 opencv_core_AVX
+      opencv_core_AVX2 opencv_core_AVX512_SKX
+      opencv_imgproc opencv_imgproc_SSE4_1 opencv_imgproc_AVX
+      opencv_imgproc_AVX2 opencv_imgproc_AVX512_SKX zlib)
+  foreach(opencv_target IN LISTS gotepad_opencv_targets)
+    if(TARGET ${opencv_target})
+      set_property(TARGET ${opencv_target} PROPERTY
+                   MSVC_RUNTIME_LIBRARY "MultiThreaded")
+      target_compile_options(${opencv_target} PRIVATE
+          $<$<CONFIG:Debug>:/U_DEBUG>
+          $<$<CONFIG:Debug>:/D_ITERATOR_DEBUG_LEVEL=0>)
+    endif()
+  endforeach()
+endif ()
+
 set(GODOTCPP_TARGET "template_debug" CACHE STRING
     "Godot target used to build the GDExtension")
 set(GODOTCPP_API_VERSION "4.7" CACHE STRING
@@ -98,12 +169,21 @@ target_link_goban_dependencies(test_pptx)
 
 add_library(go_gdext SHARED
     src/go_gdext.cpp
+    src/go_board_image_recognizer.cpp
     src/go_notes_sgf.cpp
     src/go_notes_sgf_save.cpp
     src/go_notes_pptx.cpp
     src/go_core.hpp
     src/go_notes.hpp)
 target_link_libraries(go_gdext PRIVATE godot::cpp goban_miniz lunasvg::lunasvg)
+if (WIN32 OR ANDROID)
+  target_link_libraries(go_gdext PRIVATE opencv_core opencv_imgproc)
+  target_include_directories(go_gdext SYSTEM PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/opencv/modules/core/include
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/opencv/modules/imgproc/include
+      ${CMAKE_CURRENT_BINARY_DIR})
+  target_compile_definitions(go_gdext PRIVATE GOTEPAD_HAS_OPENCV)
+endif ()
 target_link_goban_dependencies(go_gdext)
 get_target_property(GOBAN_GDEXT_SUFFIX godot-cpp GODOTCPP_SUFFIX)
 set_target_properties(go_gdext PROPERTIES

@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.6"
+const kGotepadVersion: String = "0.1.7"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -80,6 +80,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/LanguageOption
 @onready var horizontal_safe_margin_: SpinBox = \
 	$SettingsPanel/Margin/Options/HorizontalSafeMarginRow/Pixels
+@onready var board_width_percentage_: SpinBox = \
+	$SettingsPanel/Margin/Options/BoardWidthPercentageRow/Percentage
 @onready var large_ui_: CheckBox = \
 	$SettingsPanel/Margin/Options/LargeUiRow/Enabled
 @onready var large_ui_multiplier_: SpinBox = \
@@ -170,6 +172,7 @@ const kStoneWhitePaths: Array[String] = [
 var opening_board_path_: String
 var opening_language_: String
 var opening_horizontal_safe_margin_: int
+var opening_board_width_percentage_: int
 var opening_large_ui_: bool
 var opening_large_ui_multiplier_: float
 var opening_black_path_: String
@@ -213,6 +216,9 @@ func _ready() -> void:
 	settings_button_.pressed.connect(on_settings_pressed_)
 	language_option_.item_selected.connect(on_language_selected_)
 	horizontal_safe_margin_.value_changed.connect(
+		on_katago_analysis_option_changed_
+	)
+	board_width_percentage_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
 	large_ui_.toggled.connect(on_katago_boolean_option_changed_)
@@ -394,6 +400,8 @@ func open_panel_() -> void:
 	pending_katago_benchmark_batch_size_ = 0
 	opening_language_ = SettingsStore.get_language()
 	opening_horizontal_safe_margin_ = SettingsStore.get_horizontal_safe_margin()
+	opening_board_width_percentage_ = \
+		SettingsStore.get_board_width_percentage()
 	opening_large_ui_ = SettingsStore.get_large_ui_enabled()
 	opening_large_ui_multiplier_ = SettingsStore.get_large_ui_multiplier()
 	opening_board_path_ = SettingsStore.get_board_texture_path()
@@ -444,6 +452,9 @@ func open_panel_() -> void:
 	select_language_(opening_language_)
 	horizontal_safe_margin_.set_value_no_signal(
 		opening_horizontal_safe_margin_
+	)
+	board_width_percentage_.set_value_no_signal(
+		opening_board_width_percentage_
 	)
 	large_ui_.set_pressed_no_signal(opening_large_ui_)
 	large_ui_multiplier_.set_value_no_signal(opening_large_ui_multiplier_)
@@ -645,6 +656,8 @@ func has_staged_changes_() -> bool:
 		or selected_language_() != opening_language_ \
 		or selected_horizontal_safe_margin_() \
 			!= opening_horizontal_safe_margin_ \
+		or selected_board_width_percentage_() \
+			!= opening_board_width_percentage_ \
 		or selected_large_ui_() != opening_large_ui_ \
 		or not is_equal_approx(
 			selected_large_ui_multiplier_(), opening_large_ui_multiplier_
@@ -690,6 +703,14 @@ func selected_horizontal_safe_margin_() -> int:
 		roundi(horizontal_safe_margin_.value),
 		0,
 		SettingsStore.kHorizontalSafeMarginMaximum
+	)
+
+
+func selected_board_width_percentage_() -> int:
+	return clampi(
+		roundi(board_width_percentage_.value),
+		SettingsStore.kBoardWidthPercentageMinimum,
+		SettingsStore.kBoardWidthPercentageMaximum
 	)
 
 
@@ -836,6 +857,7 @@ func on_confirm_pressed_() -> void:
 		selected_playback_interval_seconds_(),
 		selected_stone_sound_volume_(),
 		selected_horizontal_safe_margin_(),
+		selected_board_width_percentage_(),
 		selected_large_ui_(),
 		selected_large_ui_multiplier_(),
 		selected_move_confirmation_(),
@@ -865,6 +887,7 @@ func on_confirm_pressed_() -> void:
 	opening_playback_interval_seconds_ = selected_playback_interval_seconds_()
 	opening_stone_sound_volume_ = selected_stone_sound_volume_()
 	opening_horizontal_safe_margin_ = selected_horizontal_safe_margin_()
+	opening_board_width_percentage_ = selected_board_width_percentage_()
 	opening_large_ui_ = selected_large_ui_()
 	opening_large_ui_multiplier_ = selected_large_ui_multiplier_()
 	opening_move_confirmation_ = selected_move_confirmation_()
@@ -898,6 +921,9 @@ func on_restore_pressed_() -> void:
 	select_language_(opening_language_)
 	horizontal_safe_margin_.set_value_no_signal(
 		opening_horizontal_safe_margin_
+	)
+	board_width_percentage_.set_value_no_signal(
+		opening_board_width_percentage_
 	)
 	large_ui_.set_pressed_no_signal(opening_large_ui_)
 	large_ui_multiplier_.set_value_no_signal(opening_large_ui_multiplier_)
@@ -1614,6 +1640,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	settings_button_.disabled = not enabled
 	language_option_.disabled = not enabled
 	horizontal_safe_margin_.editable = enabled
+	board_width_percentage_.editable = enabled
 	large_ui_.disabled = not enabled
 	large_ui_multiplier_.editable = enabled
 	board_option_.disabled = not enabled

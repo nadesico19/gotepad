@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Gotepad"
-config/version="0.1.6"
+config/version="0.1.7"
 run/main_scene="uid://bs3j88recurjb"
 config/features=PackedStringArray("4.7", "Mobile")
 run/max_fps=30
@@ -35,6 +35,10 @@ window/handheld/orientation=4
 
 project/assembly_name="Gotepad"
 
+[gui]
+
+theme/custom_font="res://assets/fonts/ui_font_with_cjk_fallback.tres"
+
 [input_devices]
 
 pointing/android/enable_pan_and_scale_gestures=true
@@ -43,10 +47,6 @@ pointing/android/enable_pan_and_scale_gestures=true
 
 locale/translations=PackedStringArray("res://localization/ui.zh_CN.translation", "res://localization/ui.ja.translation", "res://localization/ui.ko.translation", "res://localization/ui.en.translation")
 locale/fallback="zh_CN"
-
-[gui]
-
-theme/custom_font="res://assets/fonts/ui_font_with_cjk_fallback.tres"
 
 [physics]
 
