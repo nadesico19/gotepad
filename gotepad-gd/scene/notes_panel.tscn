@@ -104,6 +104,39 @@ theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
 theme_override_font_sizes/font_size = 22
 text = "✕"
 
+[node name="ClipboardButtons" type="HBoxContainer" parent="Panel/Margin/Content"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SelectAll" type="Button" parent="Panel/Margin/Content/ClipboardButtons"]
+custom_minimum_size = Vector2(64, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "全选"
+
+[node name="Copy" type="Button" parent="Panel/Margin/Content/ClipboardButtons"]
+custom_minimum_size = Vector2(64, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "复制"
+
+[node name="Cut" type="Button" parent="Panel/Margin/Content/ClipboardButtons"]
+custom_minimum_size = Vector2(64, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "剪切"
+
+[node name="Paste" type="Button" parent="Panel/Margin/Content/ClipboardButtons"]
+custom_minimum_size = Vector2(64, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "粘贴"
+
 [node name="CommentArea" type="Control" parent="Panel/Margin/Content"]
 custom_minimum_size = Vector2(0, 230)
 layout_mode = 2

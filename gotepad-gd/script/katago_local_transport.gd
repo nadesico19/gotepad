@@ -9,20 +9,54 @@ var stderr_error_detail_lines_: int = 0
 
 
 func start_transport() -> bool:
+	return start_custom_transport(
+		SettingsStore.get_katago_model_path(), "",
+		SettingsStore.get_katago_analysis_config_path(), ""
+	)
+
+
+func start_human_transport() -> bool:
+	return start_custom_transport(
+		SettingsStore.get_katago_model_path(),
+		SettingsStore.get_katago_human_model_path(),
+		SettingsStore.get_managed_katago_human_analysis_config_path(), ""
+	)
+
+
+func start_custom_transport(
+		model_path: String,
+		human_model_path: String,
+		config_path: String,
+		override_config: String
+) -> bool:
 	if is_transport_running():
 		return true
 	if OS.get_name() == "Android" or OS.get_name() == "iOS":
 		transport_error.emit(tr("移动端暂不支持本地KataGo引擎。"))
 		return false
-	if not SettingsStore.has_valid_katago_paths():
+	if not SettingsStore.is_katago_executable_path_valid(
+			SettingsStore.get_katago_executable_path()
+		) or not SettingsStore.is_katago_model_path_valid(model_path) \
+			or not SettingsStore.is_katago_analysis_config_path_valid(config_path) \
+			or (not human_model_path.is_empty() \
+				and not SettingsStore.is_katago_model_path_valid(human_model_path)):
 		transport_error.emit(tr("KataGo路径或配置文件无效，请先打开设置检查。"))
 		return false
 	var arguments: PackedStringArray = PackedStringArray([
 		"analysis",
-		"-model", SettingsStore.get_katago_model_path(),
-		"-config", SettingsStore.get_katago_analysis_config_path(),
-		"-override-config", "reportAnalysisWinratesAs=BLACK"
+		"-model", model_path,
+		"-config", config_path,
 	])
+	if not human_model_path.is_empty():
+		arguments.append_array(PackedStringArray([
+			"-human-model", human_model_path
+		]))
+	var effective_override: String = "reportAnalysisWinratesAs=BLACK"
+	if not override_config.strip_edges().is_empty():
+		effective_override += "," + override_config.strip_edges()
+	arguments.append_array(PackedStringArray([
+		"-override-config", effective_override
+	]))
 	process_ = OS.execute_with_pipe(
 		SettingsStore.get_katago_executable_path(), arguments, false
 	)

@@ -10,6 +10,7 @@ const kCornerHitRadius: float = 18.0
 const kMinimumPointHitRadius: float = 10.0
 const kCornerHandleGap: float = 15.0
 const kStoneMarkerScale: float = 0.8
+const kGridColor: Color = Color(0.25, 0.9, 1.0, 0.72)
 
 var source_image_: Image
 var source_texture_: ImageTexture
@@ -163,15 +164,14 @@ func _draw() -> void:
 
 
 func draw_grid_() -> void:
-	var line_color: Color = Color(0.25, 0.9, 1.0, 0.72)
 	for row: int in range(board_size_):
 		var first: Vector2 = local_grid_point_(row, 0)
 		var last: Vector2 = local_grid_point_(row, board_size_ - 1)
-		draw_line(first, last, line_color, 1.2, true)
+		draw_line(first, last, kGridColor, 1.2, true)
 	for column: int in range(board_size_):
 		var first: Vector2 = local_grid_point_(0, column)
 		var last: Vector2 = local_grid_point_(board_size_ - 1, column)
-		draw_line(first, last, line_color, 1.2, true)
+		draw_line(first, last, kGridColor, 1.2, true)
 
 
 func draw_cells_() -> void:
@@ -188,8 +188,10 @@ func draw_cells_() -> void:
 		var fill: Color = Color(0.03, 0.03, 0.03, 0.88) \
 			if color == kBlack else Color(0.97, 0.97, 0.95, 0.9)
 		draw_circle(center, radius, fill)
+		var outline: Color = kGridColor if color == kBlack else \
+			Color(0.05, 0.05, 0.05, 0.95)
 		draw_arc(center, radius, 0.0, TAU, 24,
-			Color(0.05, 0.05, 0.05, 0.95), 1.5, true)
+			outline, 1.5, true)
 		if index < confidence_.size() and confidence_[index] < 0.58:
 			draw_arc(center, radius + 3.0, 0.0, TAU, 24,
 				Color(1.0, 0.28, 0.12, 0.95), 2.5, true)

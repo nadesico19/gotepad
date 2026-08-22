@@ -586,6 +586,55 @@ theme_override_colors/font_color = Color(0.72, 0.72, 0.75, 1)
 text = "尚未配置"
 autowrap_mode = 2
 
+[node name="KatagoHumanSeparator" type="HSeparator" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+
+[node name="KatagoHumanTitle" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "KataGo 人类模仿棋"
+
+[node name="KatagoHumanModelLabel" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "Human SL 模型"
+
+[node name="KatagoHumanModelRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Path" type="LineEdit" parent="SettingsPanel/Margin/Options/KatagoHumanModelRow"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "请选择 Human SL .bin.gz 模型"
+clear_button_enabled = true
+
+[node name="Browse" type="Button" parent="SettingsPanel/Margin/Options/KatagoHumanModelRow"]
+custom_minimum_size = Vector2(64, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "浏览"
+
+[node name="KatagoHumanTestRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Benchmark" type="Button" parent="SettingsPanel/Margin/Options/KatagoHumanTestRow"]
+custom_minimum_size = Vector2(156, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "自动性能检测"
+tooltip_text = "测试适合当前设备和 Human SL 模型的搜索线程与批量大小"
+
+[node name="KatagoHumanStatus" type="Label" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.72, 0.72, 0.75, 1)
+text = "尚未配置"
+autowrap_mode = 2
+
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options"]
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
@@ -676,6 +725,16 @@ access = 2
 filters = PackedStringArray("*.bin.gz,*.txt.gz ; KataGo 神经网络模型 ; application/gzip,application/octet-stream")
 use_native_dialog = true
 
+[node name="KatagoHumanModelDialog" type="FileDialog" parent="."]
+title = "选择 KataGo Human SL 模型"
+transient = true
+exclusive = true
+size = Vector2i(900, 600)
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.bin.gz,*.txt.gz ; KataGo Human SL 模型 ; application/gzip,application/octet-stream")
+use_native_dialog = true
+
 [node name="KatagoConfigDialog" type="FileDialog" parent="."]
 title = "选择 KataGo Analysis Engine 配置文件"
 transient = true
@@ -691,6 +750,18 @@ title = "自动性能检测"
 size = Vector2i(520, 190)
 ok_button_text = "开始检测"
 cancel_button_text = "取消"
+
+[node name="KatagoHumanBenchmarkSaveConfirmation" type="ConfirmationDialog" parent="."]
+title = "保存人类模仿棋设置"
+size = Vector2i(600, 210)
+dialog_text = "当前选择的人类模仿棋模型路径尚未保存。是否保存设置并继续性能检测？"
+ok_button_text = "保存并继续"
+cancel_button_text = "取消"
+
+[node name="KatagoHumanBenchmarkPathAlert" type="AcceptDialog" parent="."]
+title = "人类模仿棋模型无效"
+size = Vector2i(600, 210)
+ok_button_text = "确定"
 
 [node name="KatagoBenchmarkWindow" type="Window" parent="."]
 title = "KataGo 自动性能检测"

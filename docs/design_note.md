@@ -72,6 +72,24 @@ KataGo 分析功能采用“上层统一 JSONL 协议、下层按平台替换传
 
 日志与协议结果必须分流：标准输出对应的 JSONL 结果进入 `line_received`，初始化和运行日志进入 `log_received` 或控制台，不能把普通日志当成 JSON 结果，也不能把多行日志直接显示在会参与布局的单行状态标签中。
 
+### 人类模仿棋的服务与模型边界
+
+人类模仿棋继续使用 KataGo Analysis Engine 的 JSONL 协议和现有平台传输层，但在业务层使用独立的 `KataGoHumanAnalysisService` 与 `KataGoHumanTransport`。`KataGoHumanTransport` 在 Windows 下包装 `KataGoLocalTransport`，在 Android 下包装 `KataGoAndroidTransport`，所以它自动继承桌面标准管道通信以及 Android OpenCL→Eigen 回退机制，上层人类对局逻辑不需要区分平台。Android 的 OpenCL Java 桥和远端 Service 是进程级单例，Eigen 后端也不应与另一套 KataGo 原生状态并行使用，因此两项业务服务虽然对象独立，底层引擎所有权必须互斥：进入人类模仿棋前停止普通分析后端，整个模式内只允许 Human SL 服务持有引擎，退出时先停止 Human SL 服务，再按进入前的面板状态重新启动普通分析。模式内调用终局数目时也复用 Human SL 服务发送普通 ownership 查询，不能另行启动普通分析后端。
+
+Human SL 不是普通策略网络的替代品，而是与主分析模型配套工作的附加模型。Windows 启动参数为 `analysis -model <主分析模型> -human-model <Human SL 模型> -config <Human SL 托管配置>`；Android 继续使用 APK 内置或用户选定的主分析模型，同时把用户通过系统文件选择器导入的 Human SL 模型作为 `human_model_path` 传入 OpenCL/Eigen 后端。Android 不把 Human SL 权重固化进 APK，导入后由应用数据目录管理真实文件路径，OpenCL 回退到 Eigen 时新后端继续使用同一主模型、Human SL 模型、配置和待处理 JSONL 请求。
+
+普通分析与 Human SL 使用两份托管配置。`SettingsStore` 在 `user://katago/` 下生成 Human SL 专用配置，单独保存搜索线程数、批量大小、缓存规模等参数，并提供保守的跨平台默认值；人类模仿棋的自动性能检测针对“主模型 + Human SL 模型”的组合单独运行，不能复用普通分析模型的检测结果。检测前先比较设置面板路径与当前已生效路径：尚未保存或不一致时先征求保存确认，再校验文件存在、可读且扩展名受支持；检测结果只有在用户点击设置面板绿色确认按钮后才写入专用配置。
+
+### Human SL 请求与选点
+
+`KataGoQueryBuilder.build_human_query()` 复用普通查询格式，但其输入来自人类模仿棋的临时 `GoNotes`：进入模式时的当前盘面作为 `initialStones`，原棋谱此前的落子历史不复制，只有进入模式后的新落子进入 `moves`；棋盘路数、规则和有效贴目从原棋谱继承。查询删除 `analyzeTurns`，只分析临时棋谱的最终局面，同时启用 `includePolicy`，并通过 `overrideSettings` 传入本局选择的 `humanSLProfile`、`ignorePreRootHistory=false`、`humanSLRootExploreProbWeightless` 和 `humanSLCpuctPermanent`。棋风与棋力组合编码为 KataGo 原生档位，例如现代 1 段是 `rank_1d`，AlphaGo 前 1 段是 `preaz_1d`。`initialPlayer` 表示第 0 手行棋方而不是最终局面轮到哪方：临时棋谱还没有新落子时显式设为本次 AI 的颜色，产生新落子后则由临时线性历史的首手及补入的 pass 确定颜色序列。
+
+最终结果优先从 `moveInfos` 中选择经过主模型搜索评价的 Human SL 候选。候选基础权重取 `humanPrior`，再按当前 AI 一方的 utility 使用 `humanPrior * exp(utility / 0.5)` 调整并进行加权随机抽样，使落子保留指定棋力的人类分布，同时降低明显亏损候选被选中的概率；白方使用反向 utility。候选还必须通过当前临时 `GoNotes` 的 `can_place_stone` 合法性检查。若搜索结果缺少可用候选，才回退到原始 `humanPolicy` 分布。Human SL 原始 pass 概率可能失真，所以只有主模型搜索也把 pass 判为第一选择时才接受 pass，随后由界面询问用户是否同意停一手。
+
+### 人类对局的临时棋谱
+
+人类模仿棋复用变化图的临时 `GoNotes` 机制：进入时新建空棋谱，把当前盘面固化为一个预置节点，并继承原棋谱的规则与有效贴目；此前的落子树和分支不复制。在这个基准节点之后由人类和 AI 线性追加落子，原棋谱在模式结束前不发生改变。模式内记录本次双方着手的 actor、UID 和颜色，使悔棋只能在人类回合一次删除“上一手人类落子及其后的 AI 应手”；接受时逐手把临时新增落子保留到主棋谱，放弃时直接销毁临时棋谱。AI 查询期间锁定棋盘交互并用查询 ID 丢弃过期结果，退出或取消时先终止活动请求，避免迟到的异步结果落到已经结束的模式中。
+
 ### Windows 桌面端
 
 Windows 端由 `KataGoLocalTransport` 使用 `OS.execute_with_pipe()` 启动用户指定的 KataGo 可执行文件，参数形式为 `analysis -model <模型> -config <配置> -override-config reportAnalysisWinratesAs=BLACK`。Godot 通过子进程的标准输入写入 JSONL 请求，通过标准输出读取 JSONL 结果，通过标准错误读取日志和启动错误；停止服务时终止外部进程并关闭管道。
@@ -84,7 +102,7 @@ Android 无法像桌面端一样依赖用户部署可执行文件和标准管道
 
 嵌入式引擎使用后台 C++ 工作线程运行 `analysisEmbedded()`。输入行、输出行和日志分别通过受互斥锁保护的队列传递，Godot 主线程只负责发送和轮询，不执行模型加载或搜索。停止时向输入队列写入 `terminate_all`，关闭输入并等待工作线程退出。KataGo 原本适合“独立进程失败即退出”的若干路径也做了嵌入适配：嵌入构建中的 fatal error 改为抛出异常；神经网络服务线程初始化异常会汇报给创建线程、清理已创建线程并重新抛出，避免 `std::terminate` 直接杀死宿主且让上层能够执行后端回退。
 
-内置模型以 Godot 资源随 APK 发布，首次使用时分块复制到 `user://katago/embedded/v1/`。这是因为 KataGo 的原生文件读取需要真实文件系统路径，不能直接读取打包资源路径。分析配置由程序写入 `user://katago/` 下的托管配置文件；默认采用较保守的线程数和批量大小，性能检测确认后再更新。OpenCL 调优数据另存到 `user://katago/opencl/`，供同一设备后续运行复用。
+内置模型以 Godot 资源随 APK 发布，首次使用时分块复制到 `user://katago/embedded/v1/`。这是因为 KataGo 的原生文件读取需要真实文件系统路径，不能直接读取打包资源路径。用户也可以通过 Android 系统文件选择器导入标准 `.bin.gz` 或 `.txt.gz` 主分析模型；导入任务在后台把内容复制到应用管理目录，设置确认后由普通分析和 Human SL 共同作为主模型使用，用户可以随时切回 APK 内置模型。Human SL 模型走独立的导入路径和设置字段，不能替代主分析模型。分析配置由程序写入 `user://katago/` 下的托管配置文件；默认采用较保守的线程数和批量大小，性能检测确认后再更新。OpenCL 调优数据另存到 `user://katago/opencl/`，供同一设备后续运行复用。
 
 ### Android 的 Eigen 后端
 

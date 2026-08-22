@@ -39,6 +39,7 @@ final class KataGoOpenCLBridge {
 	private static int state = KataGoOpenCLProtocol.STATE_STOPPED;
 	private static String error = "";
 	private static String modelPath = "";
+	private static String humanModelPath = "";
 	private static String configPath = "";
 	private static String overrideConfig = "";
 
@@ -98,7 +99,8 @@ final class KataGoOpenCLBridge {
 	private KataGoOpenCLBridge() {
 	}
 
-	static boolean start(Context context, String model, String config,
+	static boolean start(Context context, String model, String humanModel,
+			String config,
 			String override) {
 		if (context == null) {
 			return false;
@@ -110,6 +112,7 @@ final class KataGoOpenCLBridge {
 			}
 			applicationContext = context.getApplicationContext();
 			modelPath = model == null ? "" : model;
+			humanModelPath = humanModel == null ? "" : humanModel;
 			configPath = config == null ? "" : config;
 			overrideConfig = override == null ? "" : override;
 			lines.clear();
@@ -209,6 +212,8 @@ final class KataGoOpenCLBridge {
 		Message message = Message.obtain(null, KataGoOpenCLProtocol.MSG_START);
 		Bundle data = new Bundle();
 		data.putString(KataGoOpenCLProtocol.KEY_MODEL_PATH, modelPath);
+		data.putString(KataGoOpenCLProtocol.KEY_HUMAN_MODEL_PATH,
+				humanModelPath);
 		data.putString(KataGoOpenCLProtocol.KEY_CONFIG_PATH, configPath);
 		data.putString(KataGoOpenCLProtocol.KEY_OVERRIDE_CONFIG, overrideConfig);
 		message.setData(data);

@@ -27,6 +27,17 @@ https://github.com/lightvector/KataGo/releases/tag/v1.17.1
 - 来源：https://katagotraining.org/networks/
 - 下载：https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz
 
+人类模仿棋模型（1号开发机本地部署）：
+- 文件名：human_model.bin.gz
+- 原始名称：b18c384nbt-humanv0.bin.gz
+- 类型：KataGo Human SL b18c384nbt，可按 humanSLProfile 预测不同棋力和年代的人类落子策略
+- 来源：https://github.com/lightvector/KataGo/releases/tag/v1.15.0
+- 下载：https://github.com/lightvector/KataGo/releases/download/v1.15.0/b18c384nbt-humanv0.bin.gz
+- 文件大小：99066230 字节
+- SHA-256：637746E44F0EFE00AD1245A50AA9BBF0716EFE364C43965EAD97BD6835D84AB5
+- 此文件仅用于1号开发机本地测试，不随 Gotepad 安装包分发；客户端通过设置面板选择模型路径。
+- 仿人棋分析配置由程序维护在 `user://katago/human_analysis.cfg`，设置面板不开放外部配置路径；自动性能检测会更新其中的线程数与批量大小。
+
 Gotepad 分析配置：
 - 文件：gotepad_analysis.cfg
 - 并行分析局面数：1

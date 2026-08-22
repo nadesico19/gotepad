@@ -50,6 +50,8 @@ var query_turn_uids_: Dictionary = {}
 var batch_pending_turns_: Dictionary = {}
 var document_instance_id_: int = 0
 var cached_request_settings_signature_: String = ""
+var human_play_mode_: bool = false
+var human_play_previous_continuous_: bool = false
 
 
 func _ready() -> void:
@@ -103,6 +105,71 @@ func open_panel(go_notes: GoNotes, board: GoBoardView) -> void:
 	panel_visibility_changed.emit(true)
 
 
+func begin_human_play_mode(
+		go_notes: GoNotes, board: GoBoardView, show_panel: bool
+) -> void:
+	stop_all_queries_()
+	results_by_uid_.clear()
+	latest_move_infos_.clear()
+	go_notes_ = go_notes
+	board_ = board
+	document_instance_id_ = go_notes.get_instance_id()
+	current_uid_ = board.get_view_uid()
+	human_play_previous_continuous_ = continuous_.button_pressed
+	continuous_.set_pressed_no_signal(false)
+	human_play_mode_ = true
+	refresh_candidates_([])
+	refresh_curve_()
+	panel_.visible = show_panel
+	panel_visibility_changed.emit(show_panel)
+	update_controls_()
+
+
+func end_human_play_mode() -> void:
+	if not human_play_mode_:
+		return
+	stop_all_queries_()
+	if board_ != null:
+		board_.clear_analysis_candidates()
+	human_play_mode_ = false
+	continuous_.set_pressed_no_signal(human_play_previous_continuous_)
+	human_play_previous_continuous_ = false
+	go_notes_ = null
+	board_ = null
+	document_instance_id_ = 0
+	current_uid_ = -1
+	results_by_uid_.clear()
+	latest_move_infos_.clear()
+	candidates_.mouse_filter = Control.MOUSE_FILTER_STOP
+	candidates_.modulate = Color.WHITE
+	curve_.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel_.hide()
+	panel_visibility_changed.emit(false)
+	update_controls_()
+
+
+func record_human_play_result(uid: int, result: Dictionary) -> void:
+	if not human_play_mode_ or uid < 0 or result.is_empty():
+		return
+	results_by_uid_[uid] = result.duplicate(true)
+	current_uid_ = uid
+	refresh_curve_()
+
+
+func set_human_play_status(message: String) -> void:
+	if human_play_mode_:
+		status_label_.text = message
+
+
+func show_human_play_panel(opened: bool) -> void:
+	if not human_play_mode_:
+		return
+	panel_.visible = opened
+	if not opened and board_ != null:
+		board_.clear_analysis_candidates()
+	panel_visibility_changed.emit(opened)
+
+
 func close_panel() -> void:
 	stop_all_queries_()
 	if board_ != null:
@@ -137,6 +204,9 @@ func on_board_position_changed(uid: int) -> void:
 		latest_move_infos_.clear()
 		refresh_candidates_([])
 	refresh_curve_()
+	if human_play_mode_:
+		update_controls_()
+		return
 	if not is_panel_open():
 		return
 	if state_ == kStateContinuous:
@@ -157,12 +227,16 @@ func on_board_position_changed(uid: int) -> void:
 
 
 func on_curve_position_requested_(uid: int) -> void:
+	if human_play_mode_:
+		return
 	if board_ == null or uid == current_uid_:
 		return
 	var _roam_succeeded: bool = board_.roam_to_playback_uid(uid)
 
 
 func on_play_pressed_() -> void:
+	if human_play_mode_:
+		return
 	if state_ == kStatePaused:
 		state_ = kStateAnalyzing if not current_query_id_.is_empty() \
 			else kStateIdle
@@ -259,6 +333,8 @@ func start_current_analysis_(continuous: bool, max_playouts: int = 0) -> void:
 
 
 func on_analyze_game_pressed_() -> void:
+	if human_play_mode_:
+		return
 	if not batch_query_id_.is_empty():
 		stop_batch_query_()
 		return
@@ -491,6 +567,8 @@ func candidate_winrate_precedes_(left: Variant, right: Variant) -> bool:
 
 
 func on_candidates_gui_input_(event: InputEvent) -> void:
+	if human_play_mode_:
+		return
 	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
 	if mouse_event == null or not mouse_event.pressed \
 			or mouse_event.button_index != MOUSE_BUTTON_LEFT:
@@ -561,6 +639,24 @@ func configure_tree_() -> void:
 
 
 func update_controls_() -> void:
+	if human_play_mode_:
+		play_button_.disabled = true
+		pause_button_.disabled = true
+		stop_button_.disabled = true
+		increase_button_.disabled = true
+		max_playouts_.editable = false
+		continuous_.disabled = true
+		analyze_game_button_.disabled = true
+		candidates_.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		candidates_.modulate = Color(1.0, 1.0, 1.0, 0.45)
+		curve_.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		play_button_.queue_redraw()
+		pause_button_.queue_redraw()
+		stop_button_.queue_redraw()
+		return
+	candidates_.mouse_filter = Control.MOUSE_FILTER_STOP
+	candidates_.modulate = Color.WHITE
+	curve_.mouse_filter = Control.MOUSE_FILTER_STOP
 	var continuous_enabled: bool = state_ == kStateContinuous
 	play_button_.disabled = continuous_enabled or state_ == kStateAnalyzing \
 		or state_ == kStateStopping or not batch_query_id_.is_empty()

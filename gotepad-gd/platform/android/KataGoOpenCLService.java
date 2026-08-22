@@ -120,6 +120,7 @@ public final class KataGoOpenCLService extends Service {
 		}
 		boolean started = nativeStart(
 				data.getString(KataGoOpenCLProtocol.KEY_MODEL_PATH, ""),
+				data.getString(KataGoOpenCLProtocol.KEY_HUMAN_MODEL_PATH, ""),
 				data.getString(KataGoOpenCLProtocol.KEY_CONFIG_PATH, ""),
 				data.getString(KataGoOpenCLProtocol.KEY_OVERRIDE_CONFIG, ""));
 		if (!started) {
@@ -171,7 +172,8 @@ public final class KataGoOpenCLService extends Service {
 	}
 
 	private static native boolean nativeStart(
-			String modelPath, String configPath, String overrideConfig);
+			String modelPath, String humanModelPath, String configPath,
+			String overrideConfig);
 	private static native boolean nativeSendLine(String line);
 	private static native String[] nativePollLines();
 	private static native String[] nativePollLogs();

@@ -7,6 +7,7 @@ signal service_error(message: String)
 signal query_error(query_id: String, message: String)
 signal service_warning(message: String)
 signal running_changed(running: bool)
+signal transport_starting
 
 var transport_: KataGoTransport
 var query_serial_: int = 0
@@ -40,15 +41,26 @@ func submit_query(query: Dictionary) -> bool:
 	if transport_ == null:
 		service_error.emit(tr("KataGo分析传输层尚未初始化。"))
 		return false
-	if not transport_.is_transport_running():
-		if not transport_.start_transport():
-			return false
-		running_changed.emit(true)
+	if not ensure_running():
+		return false
 	var line: String = JSON.stringify(query, "", false)
 	if transport_.send_line(line):
 		return true
 	service_error.emit(tr("无法向KataGo发送分析请求。"))
 	return false
+
+
+func ensure_running() -> bool:
+	if transport_ == null:
+		service_error.emit(tr("KataGo分析传输层尚未初始化。"))
+		return false
+	if transport_.is_transport_running():
+		return true
+	transport_starting.emit()
+	if not transport_.start_transport():
+		return false
+	running_changed.emit(true)
+	return true
 
 
 func terminate_query(query_id: String) -> bool:

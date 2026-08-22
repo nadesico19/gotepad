@@ -3,7 +3,11 @@ extends Control
 signal exit_requested
 
 const kThumbnailSize: float = 116.0
-const kThumbnailTitleHeight: float = 14.0
+const kThumbnailTitleLineHeight: float = 14.0
+const kThumbnailTitleMaxLines: int = 2
+const kThumbnailTitleLineSpacing: int = -3
+const kThumbnailTitleHeight: float = \
+	kThumbnailTitleLineHeight * kThumbnailTitleMaxLines
 const kThumbnailTitleFontSize: float = 9.0
 const kHorizontalGap: float = 54.0
 const kVerticalGap: float = 70.0
@@ -280,8 +284,11 @@ func _cache_snapshots_(token: int) -> bool:
 		var comment: String = str(
 			node.get("first_note_comment", "")
 		).strip_edges()
+		var comment_line: String = _first_comment_line_(comment)
 		if title.is_empty():
-			title = _first_comment_line_(comment)
+			title = comment_line
+		elif not comment_line.is_empty():
+			title = "%s；%s" % [title, comment_line]
 		if not comment.is_empty():
 			title = kCommentNotebookIcon \
 				if title.is_empty() \
@@ -727,12 +734,49 @@ func _refresh_title_label_(uid: int, center: Vector2) -> void:
 	if label == null:
 		label = _acquire_title_label_()
 		active_title_labels_[uid] = label
-	label.text = title
 	label.position = center + Vector2(
 		-kThumbnailSize * 0.5,
 		-kThumbnailSize * 0.5 - kThumbnailTitleHeight
 	)
 	label.size = Vector2(kThumbnailSize, kThumbnailTitleHeight)
+	label.text = _wrap_thumbnail_title_(label, title)
+
+
+func _wrap_thumbnail_title_(label: Label, title: String) -> String:
+	var remaining: String = title.replace("\r", " ").replace("\n", " ")
+	var lines: PackedStringArray = PackedStringArray()
+	for _line_index: int in range(kThumbnailTitleMaxLines):
+		if remaining.is_empty():
+			break
+		var fitting_count: int = _fitting_title_character_count_(
+			label, remaining
+		)
+		lines.append(remaining.substr(0, fitting_count))
+		if fitting_count >= remaining.length():
+			break
+		remaining = remaining.substr(fitting_count)
+	return "\n".join(lines)
+
+
+func _fitting_title_character_count_(label: Label, text: String) -> int:
+	var font: Font = label.get_theme_font(&"font")
+	var font_size: int = label.get_theme_font_size(&"font_size")
+	var minimum: int = 1
+	var maximum: int = text.length()
+	var fitting_count: int = 1
+	while minimum <= maximum:
+		var count: int = minimum + floori(
+			float(maximum - minimum) * 0.5
+		)
+		var width: float = font.get_string_size(
+			text.substr(0, count), HORIZONTAL_ALIGNMENT_LEFT, -1, font_size
+		).x
+		if width <= kThumbnailSize:
+			fitting_count = count
+			minimum = count + 1
+		else:
+			maximum = count - 1
+	return fitting_count
 
 
 func _acquire_title_label_() -> Label:
@@ -741,7 +785,11 @@ func _acquire_title_label_() -> Label:
 		label = Label.new()
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		# 标签区域固定向棋盘上方扩展；底部对齐可让单行标题仍紧贴棋盘。
+		label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		# 使用字体实测宽度手动换行，避免 overrun 裁切先于自动换行生效。
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		label.max_lines_visible = kThumbnailTitleMaxLines
 		label.clip_text = true
 		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_CHAR
 		label.add_theme_font_size_override(
@@ -754,6 +802,9 @@ func _acquire_title_label_() -> Label:
 			&"font_outline_color", Color(0.04, 0.05, 0.045, 0.95)
 		)
 		label.add_theme_constant_override(&"outline_size", 2)
+		label.add_theme_constant_override(
+			&"line_spacing", kThumbnailTitleLineSpacing
+		)
 		label.z_index = 1
 		thumbnail_layer_.add_child(label)
 	else:

@@ -17,6 +17,16 @@ var query_id_: String = ""
 var query_started_usec_: int = 0
 var visits_per_second_: Dictionary = {}
 var finishing_: bool = false
+var human_model_: bool = false
+var human_model_path_: String = ""
+
+
+func _init(
+		use_human_model: bool = false,
+		human_model_path: String = ""
+) -> void:
+	human_model_ = use_human_model
+	human_model_path_ = human_model_path.strip_edges()
 
 
 func start_benchmark() -> bool:
@@ -33,7 +43,18 @@ func start_benchmark() -> bool:
 		"numSearchThreadsPerAnalysisThread=%d,nnMaxBatchSize=%d"
 		% [kMaxThreads, kMaxBatchSize]
 	)
-	if not transport_.start_transport_with_override(override_config):
+	var started: bool = false
+	if human_model_:
+		var model_path: String = human_model_path_ if not human_model_path_.is_empty() \
+			else SettingsStore.get_android_external_katago_human_model_path()
+		started = not model_path.is_empty() and bool(transport_.call(
+			"start_custom_transport", "", model_path,
+			SettingsStore.get_managed_katago_human_analysis_config_path(),
+			override_config
+		))
+	else:
+		started = transport_.start_transport_with_override(override_config)
+	if not started:
 		finish_(false, 0, 0, tr("无法启动内置 KataGo 性能检测。"))
 		return false
 	start_query_(true)
@@ -68,6 +89,13 @@ func start_query_(warmup: bool) -> void:
 		"analysisPVLen": 1,
 		"overrideSettings": {"numSearchThreads": threads}
 	}
+	if human_model_:
+		var overrides: Dictionary = Dictionary(query["overrideSettings"])
+		overrides["humanSLProfile"] = "rank_1d"
+		overrides["ignorePreRootHistory"] = false
+		overrides["analysisIgnorePreRootHistory"] = false
+		query["overrideSettings"] = overrides
+		query["includePolicy"] = true
 	if not warmup:
 		append_output_(tr("正在测试 %d 个搜索线程…") % threads)
 	query_started_usec_ = Time.get_ticks_usec()

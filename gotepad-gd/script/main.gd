@@ -113,12 +113,22 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/SgfMetadataPanel
 @onready var katago_analysis_service_: KataGoAnalysisService = \
 	$KataGoAnalysisService
+@onready var katago_human_analysis_service_: KataGoHumanAnalysisService = \
+	$KataGoHumanAnalysisService
 @onready var katago_analysis_button_: Button = \
 	$Interface/SafeArea/BoardToolBar/KatagoAnalysisButton
+@onready var human_play_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/HumanPlayButton
 @onready var katago_analysis_panel_: KataGoAnalysisPanel = \
 	$Interface/SafeArea/KatagoAnalysisPanel
 @onready var territory_scoring_button_: Button = \
 	$Interface/SafeArea/BoardToolBar/TerritoryScoringButton
+@onready var human_play_takeback_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/HumanPlayTakebackButton
+@onready var human_play_accept_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/HumanPlayAcceptButton
+@onready var human_play_cancel_button_: Button = \
+	$Interface/SafeArea/BoardToolBar/HumanPlayCancelButton
 @onready var territory_toolbar_: VBoxContainer = \
 	$Interface/SafeArea/TerritoryToolBar
 @onready var territory_accept_button_: Button = \
@@ -201,6 +211,30 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/ExportProgressDialog/ProgressBar
 @onready var close_tab_confirmation_: ConfirmationDialog = \
 	$Interface/SafeArea/CloseTabConfirmation
+@onready var human_play_options_dialog_: Window = \
+	$Interface/SafeArea/HumanPlayOptionsDialog
+@onready var human_play_current_turn_: Label = \
+	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/CurrentTurn
+@onready var human_play_ai_color_option_: OptionButton = \
+	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options/AiColor
+@onready var human_play_style_option_: OptionButton = \
+	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options/Style
+@onready var human_play_rank_option_: OptionButton = \
+	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options/Rank
+@onready var human_play_visits_input_: SpinBox = \
+	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options/Visits
+@onready var human_play_start_button_: Button = \
+	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Actions/Start
+@onready var human_play_options_cancel_button_: Button = \
+	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Actions/Cancel
+@onready var human_play_pass_dialog_: ConfirmationDialog = \
+	$Interface/SafeArea/HumanPlayPassDialog
+@onready var human_play_discard_dialog_: ConfirmationDialog = \
+	$Interface/SafeArea/HumanPlayDiscardDialog
+@onready var human_play_accept_dialog_: ConfirmationDialog = \
+	$Interface/SafeArea/HumanPlayAcceptDialog
+@onready var human_play_error_dialog_: AcceptDialog = \
+	$Interface/SafeArea/HumanPlayErrorDialog
 @onready var preset_button_: Button = $Board/PresetButton
 @onready var preset_unavailable_mark_: TextureRect = \
 	$Board/PresetButton/UnavailableMark
@@ -240,6 +274,19 @@ var android_open_action_pending_: bool = false
 var territory_mode_active_: bool = false
 var territory_query_id_: String = ""
 var territory_side_panel_to_restore_: int = kPendingPanelNone
+var human_play_mode_active_: bool = false
+var human_play_ai_color_: int = kWhite
+var human_play_profile_: String = "rank_1d"
+var human_play_max_visits_: int = 500
+var human_play_query_id_: String = ""
+var human_play_query_uid_: int = -1
+var human_play_turns_: Array[Dictionary] = []
+var human_play_ai_placing_: bool = false
+var human_play_takeback_in_progress_: bool = false
+var human_play_finished_: bool = false
+var human_play_panel_was_open_: bool = false
+var human_play_toolbar_visibility_: Dictionary = {}
+var human_play_discard_paused_ai_: bool = false
 
 
 func _enter_tree() -> void:
@@ -305,12 +352,63 @@ func _ready() -> void:
 	)
 	katago_analysis_button_.pressed.connect(on_katago_analysis_requested_)
 	katago_analysis_panel_.bind_service(katago_analysis_service_)
+	katago_analysis_service_.transport_starting.connect(
+		on_normal_katago_transport_starting_
+	)
+	SettingsStore.katago_paths_changed.connect(
+		on_human_katago_runtime_settings_changed_
+	)
+	SettingsStore.katago_human_paths_changed.connect(
+		on_human_katago_runtime_settings_changed_
+	)
 	katago_analysis_panel_.panel_visibility_changed.connect(
 		on_katago_analysis_panel_visibility_changed_
 	)
 	katago_analysis_panel_.variation_requested.connect(
 		on_katago_variation_requested_
 	)
+	human_play_button_.pressed.connect(on_human_play_requested_)
+	human_play_takeback_button_.pressed.connect(
+		on_human_play_takeback_requested_
+	)
+	human_play_accept_button_.pressed.connect(on_human_play_accept_requested_)
+	human_play_cancel_button_.pressed.connect(on_human_play_cancel_requested_)
+	human_play_start_button_.pressed.connect(on_human_play_start_requested_)
+	human_play_options_cancel_button_.pressed.connect(
+		Callable(human_play_options_dialog_, "hide")
+	)
+	human_play_options_dialog_.close_requested.connect(
+		Callable(human_play_options_dialog_, "hide")
+	)
+	human_play_pass_dialog_.confirmed.connect(on_human_play_pass_accepted_)
+	human_play_pass_dialog_.canceled.connect(on_human_play_pass_rejected_)
+	human_play_discard_dialog_.confirmed.connect(discard_human_play_)
+	human_play_discard_dialog_.canceled.connect(
+		on_human_play_discard_canceled_
+	)
+	human_play_accept_dialog_.confirmed.connect(keep_human_play_)
+	katago_human_analysis_service_.result_received.connect(
+		on_human_play_analysis_result_
+	)
+	katago_human_analysis_service_.query_error.connect(
+		on_human_play_query_error_
+	)
+	katago_human_analysis_service_.service_error.connect(
+		on_human_play_service_error_
+	)
+	katago_human_analysis_service_.result_received.connect(
+		on_territory_analysis_result_
+	)
+	katago_human_analysis_service_.query_error.connect(
+		on_territory_query_error_
+	)
+	katago_human_analysis_service_.log_received.connect(
+		on_territory_log_received_
+	)
+	katago_human_analysis_service_.service_warning.connect(
+		on_territory_service_warning_
+	)
+	configure_human_play_options_()
 	territory_scoring_button_.pressed.connect(
 		on_territory_scoring_requested_
 	)
@@ -372,6 +470,9 @@ func _ready() -> void:
 	)
 	board_.find_mode_changed.connect(on_find_mode_changed_)
 	board_.variation_mode_changed.connect(on_variation_mode_changed_)
+	board_.human_play_cancel_requested.connect(
+		on_human_play_cancel_requested_
+	)
 	board_.position_changed.connect(on_board_position_changed_)
 	board_.playback_navigation_changed.connect(
 		on_playback_navigation_changed_
@@ -1271,6 +1372,7 @@ func refresh_file_dialog_filters_() -> void:
 func refresh_localized_ui_() -> void:
 	refresh_tool_menu_()
 	refresh_file_dialog_filters_()
+	configure_human_play_options_()
 	var used_titles: Dictionary = {}
 	for document: DocumentState in documents_:
 		if not document.file_path.is_empty():
@@ -1737,6 +1839,11 @@ func on_sgf_metadata_panel_visibility_changed_(opened: bool) -> void:
 
 
 func on_katago_analysis_requested_() -> void:
+	if human_play_mode_active_:
+		katago_analysis_panel_.show_human_play_panel(
+			not katago_analysis_panel_.is_panel_open()
+		)
+		return
 	if katago_analysis_panel_.is_panel_open():
 		pending_side_panel_ = kPendingPanelNone
 		katago_analysis_panel_.close_panel()
@@ -1755,6 +1862,8 @@ func on_katago_analysis_requested_() -> void:
 
 func on_katago_analysis_panel_visibility_changed_(opened: bool) -> void:
 	katago_analysis_button_.set_pressed_no_signal(opened)
+	if human_play_mode_active_ and not territory_mode_active_:
+		human_play_panel_was_open_ = opened
 	if opened:
 		pending_side_panel_ = kPendingPanelNone
 		notes_button_.set_pressed_no_signal(false)
@@ -1783,8 +1892,518 @@ func enter_katago_variation_(pv: Array) -> void:
 		push_warning(tr("无法根据KataGo候选进入变化图。"))
 
 
-func on_territory_scoring_requested_() -> void:
+func configure_human_play_options_() -> void:
+	human_play_ai_color_option_.clear()
+	human_play_ai_color_option_.add_item(tr("AI执黑"), kBlack)
+	human_play_ai_color_option_.add_item(tr("AI执白"), kWhite)
+	human_play_style_option_.clear()
+	human_play_style_option_.add_item(tr("现代棋风"), 0)
+	human_play_style_option_.add_item(tr("AlphaGo前棋风"), 1)
+	human_play_rank_option_.clear()
+	for rank_number: int in range(20, 0, -1):
+		human_play_rank_option_.add_item("%dk" % rank_number)
+	for rank_number: int in range(1, 10):
+		human_play_rank_option_.add_item("%dd" % rank_number)
+	human_play_rank_option_.select(20)
+
+
+func on_human_play_requested_() -> void:
+	if human_play_mode_active_:
+		return
+	request_after_note_edit_resolution_(Callable(
+		self, "show_human_play_options_"
+	))
+
+
+func show_human_play_options_() -> void:
+	if not SettingsStore.has_valid_katago_human_paths():
+		show_human_play_error_(tr(
+			"KataGo人类模仿棋模型或分析配置无效，请先打开设置检查。"
+		))
+		return
+	var next_color: int = board_.get_next_color()
+	human_play_visits_input_.value = float(
+		SettingsStore.get_katago_max_visits()
+	)
+	human_play_current_turn_.text = tr("当前由黑方先行") \
+		if next_color == kBlack else tr("当前由白方先行")
+	var suggested_ai_color: int = kWhite if next_color == kBlack else kBlack
+	for index: int in range(human_play_ai_color_option_.item_count):
+		if human_play_ai_color_option_.get_item_id(index) == suggested_ai_color:
+			human_play_ai_color_option_.select(index)
+			break
+	human_play_options_dialog_.popup_centered()
+	prewarm_human_play_service_()
+
+
+func prewarm_human_play_service_() -> void:
+	if OS.get_name() == "Android" or OS.get_name() == "iOS" \
+			or katago_analysis_service_.is_running():
+		return
+	var _started: bool = katago_human_analysis_service_.ensure_running()
+
+
+func on_normal_katago_transport_starting_() -> void:
+	# 普通分析真正需要启动时再释放桌面端保温中的 Human SL 进程，
+	# 避免两套模型同时长期占用 GPU 显存。
+	katago_human_analysis_service_.shutdown()
+
+
+func on_human_katago_runtime_settings_changed_() -> void:
+	# 模型、程序或配置变化后不能继续复用按旧设置启动的进程。
+	katago_human_analysis_service_.shutdown()
+
+
+func on_human_play_start_requested_() -> void:
+	human_play_options_dialog_.hide()
+	var selected_ai_id: int = human_play_ai_color_option_.get_selected_id()
+	human_play_ai_color_ = kBlack if selected_ai_id == kBlack else kWhite
+	var rank_text: String = human_play_rank_option_.get_item_text(
+		human_play_rank_option_.selected
+	).to_lower()
+	var style_prefix: String = "preaz_" \
+		if human_play_style_option_.selected == 1 else "rank_"
+	human_play_profile_ = style_prefix + rank_text
+	human_play_max_visits_ = maxi(
+		roundi(human_play_visits_input_.value), 1
+	)
+	start_human_play_mode_()
+
+
+func start_human_play_mode_() -> void:
+	human_play_panel_was_open_ = katago_analysis_panel_.is_panel_open()
+	if notes_panel_.is_panel_open():
+		notes_panel_.close_panel()
+	if sgf_metadata_panel_.is_panel_open():
+		sgf_metadata_panel_.close_panel()
+	if katago_analysis_panel_.is_panel_open():
+		katago_analysis_panel_.suspend_panel()
+	human_play_mode_active_ = true
+	human_play_turns_.clear()
+	human_play_finished_ = false
+	human_play_ai_placing_ = false
+	human_play_takeback_in_progress_ = false
+	if not board_.enter_human_play_mode():
+		human_play_mode_active_ = false
+		show_human_play_error_(tr("无法从当前盘面进入人类模仿棋模式。"))
+		if human_play_panel_was_open_:
+			call_deferred(
+				&"restore_katago_panel_after_human_play_", go_notes_
+			)
+		human_play_panel_was_open_ = false
+		return
+	# Android 的 OpenCL 桥和远端 Service 是进程级单例，不能跨模式
+	# 保温。桌面端则复用已经预热或上一局留下的 Human SL 进程。
+	if OS.get_name() == "Android" or OS.get_name() == "iOS":
+		katago_human_analysis_service_.shutdown()
+	katago_analysis_service_.shutdown()
+	katago_analysis_panel_.begin_human_play_mode(
+		board_.get_go_notes(), board_, true
+	)
+	apply_human_play_toolbar_()
+	if board_.get_next_color() == human_play_ai_color_:
+		call_deferred(&"request_human_play_ai_move_")
+	else:
+		set_human_play_waiting_for_human_()
+
+
+func request_human_play_ai_move_() -> void:
+	if not human_play_mode_active_ or human_play_finished_ \
+			or not human_play_query_id_.is_empty():
+		return
+	board_.cancel_pending_move()
+	board_.set_human_play_interactions_enabled(false)
+	human_play_takeback_button_.disabled = true
+	human_play_accept_button_.disabled = true
+	territory_scoring_button_.disabled = true
+	set_human_play_status_(tr("AI正在思考…"))
+	var path: PackedInt64Array = board_.get_playback_path()
+	var current_index: int = path.find(board_.get_view_uid())
+	var context: Dictionary = {}
+	if current_index >= 0:
+		context = KataGoQueryBuilder.build_context(
+			board_.get_go_notes(), path, current_index
+		)
+	if context.is_empty():
+		on_human_play_service_error_(tr("无法构造当前局面的KataGo请求。"))
+		return
+	human_play_query_uid_ = board_.get_view_uid()
+	human_play_query_id_ = katago_human_analysis_service_.next_query_id(
+		"human-play"
+	)
+	var query: Dictionary = KataGoQueryBuilder.build_human_query(
+		context,
+		human_play_query_id_,
+		human_play_profile_,
+		human_play_max_visits_,
+		SettingsStore.get_katago_report_interval_seconds(),
+		SettingsStore.get_katago_analysis_pv_length()
+	)
+	# initialPlayer 表示第 0 手的行棋方，不是最终局面的行棋方。只有
+	# 没有任何历史着手时，才需要用当前 AI 颜色指定初始行棋方。
+	if Array(context.get("moves", [])).is_empty():
+		query["initialPlayer"] = \
+			"B" if human_play_ai_color_ == kBlack else "W"
+	if not katago_human_analysis_service_.submit_query(query):
+		human_play_query_id_ = ""
+		if not human_play_error_dialog_.visible:
+			on_human_play_service_error_(tr(
+				"无法向KataGo发送仿人棋请求。"
+			))
+
+
+func on_human_play_analysis_result_(result: Dictionary) -> void:
+	if not human_play_mode_active_ \
+			or str(result.get("id", "")) != human_play_query_id_:
+		return
+	var root_info: Dictionary = Dictionary(result.get("rootInfo", {}))
+	if not root_info.is_empty():
+		katago_analysis_panel_.record_human_play_result(
+			human_play_query_uid_, root_info
+		)
+	if bool(result.get("isDuringSearch", false)):
+		return
+	human_play_query_id_ = ""
+	var selected: Dictionary = select_human_policy_move_(result)
+	if selected.is_empty():
+		on_human_play_service_error_(tr("无法取得Human SL落子策略。"))
+		return
+	if bool(selected.get("pass", false)):
+		human_play_pass_dialog_.popup_centered(Vector2i(560, 230))
+		return
+	var row: int = int(selected.get("row", 0))
+	var column: int = int(selected.get("column", 0))
+	human_play_ai_placing_ = true
+	var placed: bool = board_.place_human_ai_stone(
+		human_play_ai_color_, row, column
+	)
+	human_play_ai_placing_ = false
+	if not placed:
+		on_human_play_service_error_(tr("AI落子失败。"))
+		return
+	human_play_turns_.append({
+		"actor": "ai",
+		"uid": board_.get_view_uid(),
+		"color": human_play_ai_color_,
+	})
+	var move_info: Dictionary = Dictionary(selected.get("move_info", {}))
+	if not move_info.is_empty():
+		katago_analysis_panel_.record_human_play_result(
+			board_.get_view_uid(), move_info
+		)
+	set_human_play_waiting_for_human_()
+
+
+func select_human_policy_move_(result: Dictionary) -> Dictionary:
+	var searched_choice: Dictionary = \
+		select_evaluated_human_move_(result)
+	if not searched_choice.is_empty():
+		return searched_choice
+	return select_raw_human_policy_move_(result)
+
+
+func select_evaluated_human_move_(result: Dictionary) -> Dictionary:
+	var move_infos: Array = Array(result.get("moveInfos", []))
+	if move_infos.is_empty():
+		return {}
+	# Human SL 对停一手的原始概率在部分棋谱中不够可靠。按照 KataGo
+	# 的建议，仅在主模型搜索结果也将 pass 判为第一选择时才停一手。
+	for value: Variant in move_infos:
+		var ordered_info: Dictionary = Dictionary(value)
+		if int(ordered_info.get("order", -1)) == 0 \
+				and str(ordered_info.get("move", "")).to_lower() == "pass":
+			return {"pass": true, "move_info": ordered_info}
+	var choices: Array[Dictionary] = []
+	var total_weight: float = 0.0
+	var notes: GoNotes = board_.get_go_notes()
+	for value: Variant in move_infos:
+		var info: Dictionary = Dictionary(value)
+		var move: String = str(info.get("move", "")).strip_edges().to_upper()
+		if move == "PASS":
+			continue
+		var intersection: Vector2i = human_gtp_coordinate_to_intersection_(move)
+		if intersection == Vector2i.ZERO:
+			continue
+		var row: int = intersection.y
+		var column: int = intersection.x
+		if not bool(notes.call(
+				&"can_place_stone", human_play_ai_color_, row, column
+		)):
+			continue
+		var human_prior: float = maxf(float(info.get("humanPrior", 0.0)), 0.0)
+		if human_prior <= 0.0:
+			continue
+		# KataGo 配置统一以黑方视角报告 utility；白方行棋时反向。
+		var utility: float = float(info.get("utility", 0.0))
+		var ai_utility: float = utility \
+			if human_play_ai_color_ == kBlack else -utility
+		# 官方建议以 humanPrior * exp(utility / 0.5) 混合人类棋风与
+		# 主模型判断。限制指数范围以抵御异常返回值。
+		var weight: float = human_prior * exp(clampf(ai_utility / 0.5, -20.0, 20.0))
+		if weight <= 0.0 or not is_finite(weight):
+			continue
+		choices.append({
+			"weight": weight,
+			"row": row,
+			"column": column,
+			"move_info": info,
+		})
+		total_weight += weight
+	return choose_weighted_human_move_(choices, total_weight)
+
+
+func select_raw_human_policy_move_(result: Dictionary) -> Dictionary:
+	var policy: Array = Array(result.get("humanPolicy", []))
+	var board_size: int = board_.get_board_size()
+	if policy.size() < board_size * board_size + 1:
+		return {}
+	var choices: Array[Dictionary] = []
+	var total_weight: float = 0.0
+	var notes: GoNotes = board_.get_go_notes()
+	for index: int in range(board_size * board_size):
+		var weight: float = maxf(float(policy[index]), 0.0)
+		if weight <= 0.0:
+			continue
+		var row: int = board_size - floori(float(index) / float(board_size))
+		var column: int = index % board_size + 1
+		if not bool(notes.call(
+			&"can_place_stone", human_play_ai_color_, row, column
+		)):
+			continue
+		choices.append({
+			"weight": weight, "row": row, "column": column,
+			"move_info": find_human_move_info_(result, row, column),
+		})
+		total_weight += weight
+	var pass_weight: float = maxf(float(policy[board_size * board_size]), 0.0)
+	if pass_weight > 0.0:
+		choices.append({"weight": pass_weight, "pass": true})
+		total_weight += pass_weight
+	if choices.is_empty() or total_weight <= 0.0:
+		return {}
+	return choose_weighted_human_move_(choices, total_weight)
+
+
+func choose_weighted_human_move_(
+		choices: Array[Dictionary], total_weight: float
+) -> Dictionary:
+	if choices.is_empty() or total_weight <= 0.0:
+		return {}
+	var target: float = randf() * total_weight
+	for choice: Dictionary in choices:
+		target -= float(choice.get("weight", 0.0))
+		if target <= 0.0:
+			return choice
+	return Dictionary(choices[-1])
+
+
+func human_gtp_coordinate_to_intersection_(coordinate: String) -> Vector2i:
+	const coordinate_letters: String = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+	if coordinate.length() < 2:
+		return Vector2i.ZERO
+	var column_index: int = coordinate_letters.find(coordinate.substr(0, 1))
+	var row_text: String = coordinate.substr(1)
+	if column_index < 0 or not row_text.is_valid_int():
+		return Vector2i.ZERO
+	var board_size: int = board_.get_board_size()
+	var row: int = board_size - int(row_text) + 1
+	var column: int = column_index + 1
+	if row < 1 or row > board_size or column < 1 or column > board_size:
+		return Vector2i.ZERO
+	return Vector2i(column, row)
+
+
+func find_human_move_info_(
+		result: Dictionary, row: int, column: int
+) -> Dictionary:
+	var coordinate: String = board_coordinate_to_gtp_(row, column)
+	for value: Variant in Array(result.get("moveInfos", [])):
+		var info: Dictionary = Dictionary(value)
+		if str(info.get("move", "")).to_upper() == coordinate:
+			return info
+	return {}
+
+
+func board_coordinate_to_gtp_(row: int, column: int) -> String:
+	const coordinate_letters: String = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+	if column < 1 or column > coordinate_letters.length():
+		return ""
+	return "%s%d" % [
+		coordinate_letters.substr(column - 1, 1),
+		board_.get_board_size() - row + 1,
+	]
+
+
+func set_human_play_waiting_for_human_() -> void:
+	if not human_play_mode_active_ or human_play_finished_:
+		return
+	var human_color: int = kWhite if human_play_ai_color_ == kBlack else kBlack
+	board_.set_human_play_next_color(human_color)
+	board_.set_human_play_interactions_enabled(true)
+	human_play_takeback_button_.disabled = not has_human_play_takeback_()
+	human_play_accept_button_.disabled = false
+	territory_scoring_button_.disabled = false
+	set_human_play_status_(tr("等待您落子"))
+
+
+func on_human_play_pass_accepted_() -> void:
+	if not human_play_mode_active_:
+		return
+	human_play_finished_ = true
+	board_.set_human_play_interactions_enabled(false)
+	human_play_takeback_button_.disabled = true
+	human_play_accept_button_.disabled = false
+	territory_scoring_button_.disabled = false
+	set_human_play_status_(tr(
+		"双方已停一手，可进行终局数目或保存棋局。"
+	))
+
+
+func on_human_play_pass_rejected_() -> void:
+	set_human_play_waiting_for_human_()
+
+
+func set_human_play_status_(message: String) -> void:
+	katago_analysis_panel_.set_human_play_status(
+		"[%s] %s" % [human_play_profile_, message]
+	)
+
+
+func on_human_play_takeback_requested_() -> void:
+	if not human_play_mode_active_ or human_play_finished_ \
+			or not human_play_query_id_.is_empty():
+		return
+	var human_index: int = -1
+	for index: int in range(human_play_turns_.size() - 1, -1, -1):
+		if str(human_play_turns_[index].get("actor", "")) == "human":
+			human_index = index
+			break
+	if human_index < 0:
+		return
+	var remove_count: int = human_play_turns_.size() - human_index
+	human_play_takeback_in_progress_ = true
+	var succeeded: bool = board_.takeback_human_play_moves(remove_count)
+	human_play_takeback_in_progress_ = false
+	if not succeeded:
+		show_human_play_error_(tr("无法悔棋到上一次人类行棋前。"))
+		return
+	human_play_turns_.resize(human_index)
+	set_human_play_waiting_for_human_()
+	katago_analysis_panel_.on_board_position_changed(board_.get_view_uid())
+
+
+func has_human_play_takeback_() -> bool:
+	for turn: Dictionary in human_play_turns_:
+		if str(turn.get("actor", "")) == "human":
+			return true
+	return false
+
+
+func on_human_play_accept_requested_() -> void:
+	if not human_play_mode_active_ or not human_play_query_id_.is_empty() \
+			or human_play_accept_dialog_.visible:
+		return
+	human_play_accept_dialog_.popup_centered(Vector2i(600, 240))
+
+
+func keep_human_play_() -> void:
+	if not human_play_mode_active_ or not human_play_query_id_.is_empty():
+		return
+	stop_human_play_query_()
+	if not board_.keep_human_play_mode():
+		show_human_play_error_(tr("无法将仿人棋对局保留到主棋谱。"))
+		return
+	finish_human_play_mode_()
+
+
+func on_human_play_cancel_requested_() -> void:
+	if human_play_mode_active_ and not human_play_discard_dialog_.visible:
+		human_play_discard_paused_ai_ = not human_play_query_id_.is_empty()
+		if human_play_discard_paused_ai_:
+			stop_human_play_query_()
+		human_play_discard_dialog_.popup_centered(Vector2i(560, 230))
+
+
+func on_human_play_discard_canceled_() -> void:
+	if not human_play_mode_active_:
+		return
+	var resume_ai: bool = human_play_discard_paused_ai_
+	human_play_discard_paused_ai_ = false
+	if resume_ai:
+		call_deferred(&"request_human_play_ai_move_")
+
+
+func discard_human_play_() -> void:
+	if not human_play_mode_active_:
+		return
+	stop_human_play_query_()
+	var _discarded: bool = board_.discard_human_play_mode()
+	finish_human_play_mode_()
+
+
+func finish_human_play_mode_() -> void:
+	# 移动端必须释放独占的嵌入式后端；桌面端保留已加载模型的进程，
+	# 下一局可直接复用。普通分析真正启动时会再释放该进程。
+	if OS.get_name() == "Android" or OS.get_name() == "iOS":
+		katago_human_analysis_service_.shutdown()
+	katago_analysis_panel_.end_human_play_mode()
+	human_play_mode_active_ = false
+	human_play_turns_.clear()
+	human_play_query_id_ = ""
+	human_play_query_uid_ = -1
+	human_play_finished_ = false
+	human_play_discard_paused_ai_ = false
+	restore_human_play_toolbar_()
+	if human_play_panel_was_open_:
+		call_deferred(
+			&"restore_katago_panel_after_human_play_", go_notes_
+		)
+	human_play_panel_was_open_ = false
+	update_mobile_playback_visibility_()
+	call_deferred(&"position_board_toolbar_")
+
+
+func restore_katago_panel_after_human_play_(expected_notes: GoNotes) -> void:
+	if not human_play_mode_active_ and go_notes_ == expected_notes:
+		katago_analysis_panel_.open_panel(expected_notes, board_)
+
+
+func stop_human_play_query_() -> void:
+	if not human_play_query_id_.is_empty():
+		var _terminated: bool = katago_human_analysis_service_.terminate_query(
+			human_play_query_id_
+		)
+	human_play_query_id_ = ""
+
+
+func on_human_play_query_error_(query_id: String, message: String) -> void:
+	if query_id == human_play_query_id_:
+		human_play_query_id_ = ""
+		on_human_play_service_error_(message)
+
+
+func on_human_play_service_error_(message: String) -> void:
+	if not human_play_mode_active_:
+		return
 	if territory_mode_active_:
+		on_territory_service_error_(message)
+		return
+	human_play_query_id_ = ""
+	board_.set_human_play_interactions_enabled(false)
+	human_play_takeback_button_.disabled = not has_human_play_takeback_()
+	human_play_accept_button_.disabled = false
+	territory_scoring_button_.disabled = false
+	show_human_play_error_(message)
+
+
+func show_human_play_error_(message: String) -> void:
+	human_play_error_dialog_.dialog_text = message
+	human_play_error_dialog_.popup_centered(Vector2i(600, 240))
+
+
+func on_territory_scoring_requested_() -> void:
+	if territory_mode_active_ or (human_play_mode_active_ \
+			and not human_play_query_id_.is_empty()):
 		return
 	request_after_note_edit_resolution_(
 		Callable(self, "show_territory_scoring_confirmation_")
@@ -1815,6 +2434,8 @@ func enter_territory_scoring_mode_() -> void:
 	elif katago_analysis_panel_.is_panel_open():
 		territory_side_panel_to_restore_ = kPendingPanelKatago
 		katago_analysis_panel_.suspend_panel()
+		if human_play_mode_active_:
+			human_play_panel_was_open_ = true
 	if not board_.enter_territory_mode():
 		show_territory_error_(tr("无法开始终局数目模式。"))
 		restore_side_panel_after_territory_()
@@ -1835,13 +2456,14 @@ func enter_territory_scoring_mode_() -> void:
 	var context: Dictionary = {}
 	if current_index >= 0:
 		context = KataGoQueryBuilder.build_context(
-			go_notes_, path, current_index
+			board_.get_go_notes(), path, current_index
 		)
 	if context.is_empty():
 		show_territory_error_(tr("无法构造当前局面的KataGo请求。"))
 		exit_territory_scoring_mode_()
 		return
-	territory_query_id_ = katago_analysis_service_.next_query_id(
+	var territory_service: KataGoAnalysisService = territory_analysis_service_()
+	territory_query_id_ = territory_service.next_query_id(
 		"territory"
 	)
 	var turns: Array = Array(context.get("analyze_turns", []))
@@ -1858,7 +2480,7 @@ func enter_territory_scoring_mode_() -> void:
 	query["initialPlayer"] = "W" \
 		if board_.get_next_color() == kWhite else "B"
 	query["includeOwnership"] = true
-	if not katago_analysis_service_.submit_query(query):
+	if not territory_service.submit_query(query):
 		if not territory_mode_active_:
 			return
 		territory_query_id_ = ""
@@ -1934,7 +2556,9 @@ func append_territory_log_(message: String) -> void:
 func on_territory_scoring_accept_requested_() -> void:
 	if not territory_mode_active_ or territory_accept_button_.disabled:
 		return
-	var metadata: Dictionary = Dictionary(go_notes_.call(&"get_sgf_metadata"))
+	var metadata: Dictionary = Dictionary(
+		board_.get_go_notes().call(&"get_sgf_metadata")
+	)
 	var komi_text: String = str(metadata.get("komi", "7.5")).strip_edges()
 	var komi: float = float(komi_text) if komi_text.is_valid_float() else 7.5
 	var score: Dictionary = TerritoryScoring.score_chinese(
@@ -1973,7 +2597,7 @@ func exit_territory_scoring_mode_() -> void:
 	if not territory_mode_active_:
 		return
 	if not territory_query_id_.is_empty():
-		var _terminated: bool = katago_analysis_service_.terminate_query(
+		var _terminated: bool = territory_analysis_service_().terminate_query(
 			territory_query_id_
 		)
 	territory_query_id_ = ""
@@ -1982,10 +2606,17 @@ func exit_territory_scoring_mode_() -> void:
 	territory_toolbar_.hide()
 	territory_log_panel_.hide()
 	board_toolbar_.show()
+	if human_play_mode_active_:
+		apply_human_play_toolbar_()
 	update_preset_button_()
 	update_mobile_playback_visibility_()
 	call_deferred(&"position_board_toolbar_")
 	restore_side_panel_after_territory_()
+
+
+func territory_analysis_service_() -> KataGoAnalysisService:
+	return katago_human_analysis_service_ if human_play_mode_active_ \
+		else katago_analysis_service_
 
 
 func restore_side_panel_after_territory_() -> void:
@@ -1996,7 +2627,10 @@ func restore_side_panel_after_territory_() -> void:
 	elif panel == kPendingPanelSgfMetadata:
 		sgf_metadata_panel_.open_panel(go_notes_)
 	elif panel == kPendingPanelKatago:
-		katago_analysis_panel_.open_panel(go_notes_, board_)
+		if human_play_mode_active_:
+			katago_analysis_panel_.show_human_play_panel(true)
+		else:
+			katago_analysis_panel_.open_panel(go_notes_, board_)
 	call_deferred(&"position_side_panels_")
 
 
@@ -2007,6 +2641,25 @@ func show_territory_error_(message: String) -> void:
 
 func on_board_position_changed_(uid: int) -> void:
 	update_variation_takeback_button_()
+	if human_play_mode_active_:
+		katago_analysis_panel_.on_board_position_changed(uid)
+		if human_play_ai_placing_ or human_play_takeback_in_progress_ \
+				or human_play_finished_:
+			return
+		var node: Dictionary = Dictionary(
+			board_.get_go_notes().call(&"get_node_at", uid)
+		)
+		var human_color: int = kWhite \
+			if human_play_ai_color_ == kBlack else kBlack
+		if int(node.get("color", 0)) != human_color:
+			return
+		human_play_turns_.append({
+			"actor": "human", "uid": uid, "color": human_color,
+		})
+		board_.set_human_play_interactions_enabled(false)
+		human_play_takeback_button_.disabled = true
+		call_deferred(&"request_human_play_ai_move_")
+		return
 	if board_.is_variation_mode():
 		return
 	katago_analysis_panel_.on_board_position_changed(uid)
@@ -2030,7 +2683,7 @@ func update_mobile_playback_visibility_() -> void:
 		and documents_[active_document_index_].initialized
 	mobile_playback_buttons_.visible = OS.has_feature("android") \
 		and document_initialized and not board_.is_preset_mode() \
-		and not territory_mode_active_
+		and not territory_mode_active_ and not human_play_mode_active_
 
 
 func on_displayed_note_marks_changed_(
@@ -2200,12 +2853,20 @@ func on_pending_move_cancel_requested_() -> void:
 
 func on_pending_move_changed_(active: bool) -> void:
 	pending_move_accept_button_.visible = active \
-		and not board_.is_variation_mode() and not board_.is_preset_mode()
+		and (not board_.is_variation_mode() or human_play_mode_active_) \
+		and not board_.is_preset_mode()
 	pending_move_cancel_button_.visible = pending_move_accept_button_.visible
 	variation_pending_move_accept_button_.visible = active \
-		and board_.is_variation_mode()
+		and board_.is_variation_mode() and not human_play_mode_active_
 	variation_pending_move_cancel_button_.visible = \
 		variation_pending_move_accept_button_.visible
+	if human_play_mode_active_:
+		human_play_accept_button_.disabled = active \
+			or not human_play_query_id_.is_empty()
+		human_play_takeback_button_.disabled = active \
+			or human_play_finished_ \
+			or not human_play_query_id_.is_empty() \
+			or not has_human_play_takeback_()
 	call_deferred(&"position_board_toolbar_")
 
 
@@ -2214,6 +2875,13 @@ func update_variation_takeback_button_() -> void:
 
 
 func on_variation_mode_changed_(enabled: bool) -> void:
+	if human_play_mode_active_:
+		board_toolbar_.show()
+		variation_toolbar_.hide()
+		preset_button_.hide()
+		update_mobile_playback_visibility_()
+		apply_human_play_toolbar_()
+		return
 	if enabled and katago_analysis_panel_.is_panel_open():
 		side_panel_after_variation_ = kPendingPanelKatago
 		katago_analysis_panel_.suspend_panel()
@@ -2508,6 +3176,10 @@ func switch_document_(index: int) -> void:
 func leave_transient_modes_() -> void:
 	if territory_mode_active_:
 		exit_territory_scoring_mode_()
+	if human_play_mode_active_:
+		stop_human_play_query_()
+		var _human_play_discarded: bool = board_.discard_human_play_mode()
+		finish_human_play_mode_()
 	if note_mark_mode_ != kNoteMarkDisabled:
 		on_note_mark_cancel_requested_()
 	if branch_visualization_layer_.visible:
@@ -2681,6 +3353,45 @@ func on_board_assets_changed_() -> void:
 	on_board_layout_changed_()
 
 
+func apply_human_play_toolbar_() -> void:
+	if not human_play_mode_active_:
+		return
+	if human_play_toolbar_visibility_.is_empty():
+		for child: Node in board_toolbar_.get_children():
+			if child is Control:
+				human_play_toolbar_visibility_[child.name] = \
+					(child as Control).visible
+	for child: Node in board_toolbar_.get_children():
+		if child is Control:
+			(child as Control).hide()
+	katago_analysis_button_.show()
+	human_play_takeback_button_.show()
+	human_play_accept_button_.show()
+	human_play_cancel_button_.show()
+	territory_scoring_button_.show()
+	human_play_takeback_button_.disabled = human_play_finished_ \
+		or not human_play_query_id_.is_empty() \
+		or not has_human_play_takeback_()
+	on_pending_move_changed_(board_.has_pending_move())
+	call_deferred(&"position_board_toolbar_")
+
+
+func restore_human_play_toolbar_() -> void:
+	for child: Node in board_toolbar_.get_children():
+		if child is Control and human_play_toolbar_visibility_.has(child.name):
+			(child as Control).visible = bool(
+				human_play_toolbar_visibility_[child.name]
+			)
+	human_play_toolbar_visibility_.clear()
+	human_play_takeback_button_.hide()
+	human_play_accept_button_.hide()
+	human_play_cancel_button_.hide()
+	update_history_buttons_()
+	update_preset_button_()
+	update_next_color_button_(board_.get_next_color())
+	on_pending_move_changed_(board_.has_pending_move())
+
+
 func reorder_board_toolbar_buttons_() -> void:
 	# 落子确认和预置分支是临时入口，仍保留在常驻按钮之前。
 	var insertion_index: int = setup_branch_button_.get_index() + 1
@@ -2695,9 +3406,13 @@ func reorder_board_toolbar_buttons_() -> void:
 		notes_button_,
 		sgf_metadata_button_,
 		katago_analysis_button_,
+		human_play_button_,
 		find_previous_button_,
 		find_next_button_,
 		territory_scoring_button_,
+		human_play_takeback_button_,
+		human_play_accept_button_,
+		human_play_cancel_button_,
 	]
 	for button: Control in ordered_buttons:
 		board_toolbar_.move_child(button, insertion_index)

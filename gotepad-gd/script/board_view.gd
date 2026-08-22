@@ -12,6 +12,7 @@ signal note_mark_cancel_requested
 signal note_mark_draft_changed
 signal setup_branches_changed(branches: Array[Dictionary])
 signal variation_mode_changed(enabled: bool)
+signal human_play_cancel_requested
 signal position_changed(uid: int)
 signal playback_navigation_changed(can_previous: bool, can_next: bool)
 signal territory_cancel_requested
@@ -146,6 +147,7 @@ var variation_original_next_color_: int = kBlack
 var variation_original_locked_: bool = false
 var variation_start_color_: int = kBlack
 var variation_base_uid_: int = 0
+var human_play_mode_: bool = false
 var edit_sensitive_action_gate_: Callable
 var note_numbering_preview_enabled_: bool = false
 var note_numbering_preview_uid_: int = -1
@@ -552,6 +554,74 @@ func is_variation_mode() -> bool:
 	return variation_mode_
 
 
+func is_human_play_mode() -> bool:
+	return human_play_mode_
+
+
+func enter_human_play_mode() -> bool:
+	if human_play_mode_ or variation_mode_:
+		return false
+	human_play_mode_ = true
+	if enter_variation_mode():
+		return true
+	human_play_mode_ = false
+	set_note_board_controls_visible_(true)
+	return false
+
+
+func discard_human_play_mode() -> bool:
+	if not human_play_mode_:
+		return false
+	human_play_mode_ = false
+	return exit_variation_mode()
+
+
+func keep_human_play_mode() -> bool:
+	if not human_play_mode_:
+		return false
+	human_play_mode_ = false
+	var kept: bool = keep_variation_branch()
+	if not kept and variation_mode_:
+		human_play_mode_ = true
+	return kept
+
+
+func set_human_play_next_color(color: int) -> void:
+	if human_play_mode_ and (color == kBlack or color == kWhite):
+		set_next_color_(color)
+
+
+func set_human_play_interactions_enabled(enabled: bool) -> void:
+	if human_play_mode_:
+		set_interactions_locked(not enabled)
+
+
+func place_human_ai_stone(color: int, row: int, column: int) -> bool:
+	if not human_play_mode_ or not variation_mode_ \
+			or not is_variation_terminal_position_() or go_notes_ == null:
+		return false
+	if color != kBlack and color != kWhite:
+		return false
+	if not bool(go_notes_.call(&"can_place_stone", color, row, column)):
+		return false
+	var outcome: Dictionary = {"completed": false, "success": true}
+	execute_place_stone_now_(color, row, column, outcome)
+	return bool(outcome.get("completed", false)) \
+		and bool(outcome.get("success", false))
+
+
+func takeback_human_play_moves(move_count: int) -> bool:
+	if not human_play_mode_ or go_notes_ == null or move_count <= 0:
+		return false
+	for _index: int in range(move_count):
+		if int(go_notes_.get_current_uid()) == variation_base_uid_:
+			return false
+		if int(go_notes_.execute_command("TAKEBACK;")) != 0:
+			push_warning(CommandMessages.localize(go_notes_.get_message()))
+			return false
+	return true
+
+
 func enter_variation_mode() -> bool:
 	if variation_mode_ or go_notes_ == null \
 			or position_states_.size() != board_size_ * board_size_:
@@ -702,6 +772,9 @@ func variation_path_moves_() -> Array[Dictionary]:
 
 
 func set_variation_navigation_mode_(enabled: bool) -> void:
+	if human_play_mode_:
+		set_note_board_controls_visible_(false)
+		return
 	playback_bar_.show()
 	playback_previous_button_.show()
 	playback_next_button_.show()
@@ -714,6 +787,32 @@ func create_variation_notes_() -> GoNotes:
 	var temporary_notes: GoNotes = GoNotes.new()
 	if not temporary_notes.reset(board_size_):
 		push_warning(temporary_notes.get_message())
+		return null
+	# 临时棋谱把当前盘面固化为预置节点，不复制此前的落子树；但规则
+	# 和贴目会直接影响 KataGo 对变化图及人类模仿棋的评价，必须继承。
+	var source_metadata: Dictionary = Dictionary(
+		go_notes_.call(&"get_sgf_metadata")
+	)
+	var rules_text: String = str(
+		source_metadata.get("rules", "Chinese")
+	).strip_edges()
+	if rules_text.is_empty():
+		rules_text = "Chinese"
+	var komi_text: String = str(source_metadata.get("komi", "7.5")).strip_edges()
+	var parsed_komi: float = float(komi_text) if komi_text.is_valid_float() \
+		else 7.5
+	if not is_finite(parsed_komi) or parsed_komi < 0.0 \
+			or parsed_komi > 100.0 \
+			or not is_equal_approx(parsed_komi * 2.0, roundf(parsed_komi * 2.0)):
+		komi_text = "7.5"
+	var analysis_metadata: Dictionary = {
+		"rules": rules_text,
+		"komi": komi_text,
+	}
+	if int(temporary_notes.call(
+			&"update_sgf_metadata", analysis_metadata
+		)) != 0:
+		push_warning(CommandMessages.localize(temporary_notes.get_message()))
 		return null
 	var empty_position := PackedInt32Array()
 	empty_position.resize(position_states_.size())
@@ -1028,6 +1127,10 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if key_event.keycode == KEY_ESCAPE and variation_mode_:
+		if human_play_mode_:
+			human_play_cancel_requested.emit()
+			get_viewport().set_input_as_handled()
+			return
 		var _variation_exited: bool = exit_variation_mode()
 		get_viewport().set_input_as_handled()
 		return
@@ -1134,6 +1237,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		place_stone_at_screen_position_(mouse_event.position, preset_color)
 	elif mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 		if variation_mode_:
+			if human_play_mode_:
+				return
 			request_takeback_()
 			return
 		if find_direction_ != kFindDisabled:

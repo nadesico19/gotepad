@@ -66,7 +66,8 @@ public:
 
   ~OpenCLEngine() { stop(); }
 
-  bool start(std::string model_path, std::string config_path,
+  bool start(std::string model_path, std::string human_model_path,
+             std::string config_path,
              std::string override_config);
   bool send_line(std::string line);
   std::vector<std::string> poll_lines();
@@ -76,7 +77,8 @@ public:
   std::string error() const;
 
 private:
-  void run_(std::string model_path, std::string config_path,
+  void run_(std::string model_path, std::string human_model_path,
+            std::string config_path,
             std::string override_config);
   bool read_line_(std::string &line);
   void write_line_(const std::string &line);
@@ -96,7 +98,8 @@ private:
   std::string error_message_{};
 };
 
-bool OpenCLEngine::start(std::string model_path, std::string config_path,
+bool OpenCLEngine::start(std::string model_path, std::string human_model_path,
+                         std::string config_path,
                          std::string override_config) {
   const int32_t current_state = state();
   if (current_state == kStarting || current_state == kRunning)
@@ -111,6 +114,11 @@ bool OpenCLEngine::start(std::string model_path, std::string config_path,
   }
   if (!readable_file_(model_path)) {
     fail_("Unable to open the OpenCL KataGo model: " + model_path);
+    return false;
+  }
+  if (!human_model_path.empty() && !readable_file_(human_model_path)) {
+    fail_("Unable to open the OpenCL KataGo Human SL model: " +
+          human_model_path);
     return false;
   }
   if (!readable_file_(config_path)) {
@@ -135,7 +143,8 @@ bool OpenCLEngine::start(std::string model_path, std::string config_path,
   write_log_("Creating the isolated OpenCL KataGo worker thread.");
   try {
     worker_ = std::thread(&OpenCLEngine::run_, this, std::move(model_path),
-                          std::move(config_path), std::move(override_config));
+                          std::move(human_model_path), std::move(config_path),
+                          std::move(override_config));
   } catch (const std::exception &error) {
     fail_(std::string("Unable to create the OpenCL KataGo worker: ") +
           error.what());
@@ -210,7 +219,9 @@ std::string OpenCLEngine::error() const {
   return error_message_;
 }
 
-void OpenCLEngine::run_(std::string model_path, std::string config_path,
+void OpenCLEngine::run_(std::string model_path,
+                        std::string human_model_path,
+                        std::string config_path,
                         std::string override_config) {
   try {
     std::vector<std::string> arguments{"analysis",
@@ -219,6 +230,10 @@ void OpenCLEngine::run_(std::string model_path, std::string config_path,
                                        "-config",
                                        std::move(config_path),
                                        "-quit-without-waiting"};
+    if (!human_model_path.empty()) {
+      arguments.push_back("-human-model");
+      arguments.push_back(std::move(human_model_path));
+    }
     if (!override_config.empty()) {
       arguments.push_back("-override-config");
       arguments.push_back(std::move(override_config));
@@ -280,10 +295,13 @@ OpenCLEngine &engine_() {
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_godot_game_KataGoOpenCLService_nativeStart(JNIEnv *environment, jclass,
                                                     jstring model_path,
+                                                    jstring human_model_path,
                                                     jstring config_path,
                                                     jstring override_config) {
   return nd::go::katago::android::engine_().start(
       nd::go::katago::android::from_java_string_(environment, model_path),
+      nd::go::katago::android::from_java_string_(environment,
+                                                 human_model_path),
       nd::go::katago::android::from_java_string_(environment, config_path),
       nd::go::katago::android::from_java_string_(environment, override_config));
 }

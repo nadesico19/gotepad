@@ -4,6 +4,7 @@ extends RefCounted
 const kBlack: int = 1
 const kWhite: int = 2
 const kGtpColumns: String = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+const kDefaultHumanProfile: String = "rank_1d"
 
 
 static func build_context(
@@ -116,6 +117,34 @@ static func build_query(
 		# 在达到指定 playouts 前就提前结束。
 		query["maxVisits"] = 1000000000
 		query["overrideSettings"] = {"maxPlayouts": max_playouts}
+	return query
+
+
+static func build_human_query(
+		context: Dictionary,
+		query_id: String,
+		human_profile: String,
+		max_visits: int = 40,
+		report_interval: float = 2.0,
+		pv_length: int = 10
+) -> Dictionary:
+	var query: Dictionary = build_query(
+		context, query_id, [], max_visits, report_interval, pv_length
+	)
+	# analyzeTurns 为空数组表示请求中没有任何待分析局面。仿人棋只需要
+	# 当前最终局面，因此省略该字段，交由 Analysis Engine 使用默认终点。
+	query.erase("analyzeTurns")
+	query["includePolicy"] = true
+	query["overrideSettings"] = {
+		"humanSLProfile": kDefaultHumanProfile \
+			if human_profile.strip_edges().is_empty() \
+			else human_profile.strip_edges(),
+		"ignorePreRootHistory": false,
+		# 让搜索覆盖 Human SL 认为像人类的候选，后续才能使用主模型
+		# 的评价抑制明显失误，而不是让 visits 只消耗时间却不参与选点。
+		"humanSLRootExploreProbWeightless": 0.5,
+		"humanSLCpuctPermanent": 2.0,
+	}
 	return query
 
 

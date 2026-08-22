@@ -31,6 +31,8 @@
 [ext_resource type="Script" path="res://script/katago_analysis_service.gd" id="34_katago_service"]
 [ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="35_fixed_width_button"]
 [ext_resource type="Texture2D" path="res://assets/ui/territory_scoring.svg" id="36_territory_scoring"]
+[ext_resource type="Script" path="res://script/katago_human_analysis_service.gd" id="37_human_service"]
+[ext_resource type="Texture2D" path="res://assets/ui/katago_human_play.svg" id="38_human_play"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
 bg_color = Color(0.22, 0.17, 0.055, 0.82)
@@ -95,6 +97,9 @@ margin = 12.0
 
 [node name="KataGoAnalysisService" type="Node" parent="."]
 script = ExtResource("34_katago_service")
+
+[node name="KataGoHumanAnalysisService" type="Node" parent="."]
+script = ExtResource("37_human_service")
 
 [node name="Interface" type="CanvasLayer" parent="." unique_id=97103342]
 layer = 10
@@ -492,6 +497,17 @@ flat = true
 icon_alignment = 1
 expand_icon = true
 
+[node name="HumanPlayButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "KataGo人类模仿棋"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+icon = ExtResource("38_human_play")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
 [node name="TerritoryScoringButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
@@ -502,6 +518,43 @@ icon = ExtResource("36_territory_scoring")
 flat = true
 icon_alignment = 1
 expand_icon = true
+
+[node name="HumanPlayTakebackButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
+visible = false
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "悔棋两手"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 34
+text = "↩"
+flat = true
+
+[node name="HumanPlayAcceptButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
+visible = false
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "保留对局并退出"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_font_sizes/font_size = 32
+text = "✓"
+flat = true
+
+[node name="HumanPlayCancelButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
+visible = false
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "放弃对局并退出"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_font_sizes/font_size = 32
+text = "✕"
+flat = true
 
 [node name="NotesPanel" parent="Interface/SafeArea" unique_id=441855980 instance=ExtResource("26_notes_panel")]
 
@@ -865,6 +918,134 @@ unresizable = true
 initial_position = 1
 size = Vector2i(520, 190)
 dialog_text = "正在准备导出…"
+
+[node name="HumanPlayOptionsDialog" type="Window" parent="Interface/SafeArea"]
+visible = false
+title = "KataGo人类模仿棋"
+transient = true
+exclusive = true
+unresizable = true
+initial_position = 1
+size = Vector2i(520, 450)
+
+[node name="Margin" type="MarginContainer" parent="Interface/SafeArea/HumanPlayOptionsDialog"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Heading" type="Label" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "人类模仿棋"
+horizontal_alignment = 1
+
+[node name="CurrentTurn" type="Label" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content"]
+layout_mode = 2
+text = "当前由黑方先行"
+horizontal_alignment = 1
+
+[node name="Options" type="GridContainer" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 14
+columns = 2
+
+[node name="AiColorLabel" type="Label" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+layout_mode = 2
+text = "AI执棋"
+
+[node name="AiColor" type="OptionButton" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+custom_minimum_size = Vector2(250, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StyleLabel" type="Label" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+layout_mode = 2
+text = "棋风"
+
+[node name="Style" type="OptionButton" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+custom_minimum_size = Vector2(250, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RankLabel" type="Label" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+layout_mode = 2
+text = "模仿棋力"
+
+[node name="Rank" type="OptionButton" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+custom_minimum_size = Vector2(250, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VisitsLabel" type="Label" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+layout_mode = 2
+text = "AI每手计算量"
+
+[node name="Visits" type="SpinBox" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options"]
+custom_minimum_size = Vector2(250, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1.0
+max_value = 100000.0
+step = 1.0
+value = 500.0
+suffix = " visits"
+
+[node name="Actions" type="HBoxContainer" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="Cancel" type="Button" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Actions"]
+custom_minimum_size = Vector2(100, 42)
+layout_mode = 2
+text = "取消"
+
+[node name="Start" type="Button" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Actions"]
+custom_minimum_size = Vector2(120, 42)
+layout_mode = 2
+text = "开始对局"
+
+[node name="HumanPlayPassDialog" type="ConfirmationDialog" parent="Interface/SafeArea"]
+title = "AI选择停一手"
+transient = true
+exclusive = true
+ok_button_text = "也停一手"
+dialog_text = "AI选择了停一手。您是否也停一手？"
+cancel_button_text = "继续落子"
+
+[node name="HumanPlayDiscardDialog" type="ConfirmationDialog" parent="Interface/SafeArea"]
+title = "放弃人类模仿棋"
+transient = true
+exclusive = true
+ok_button_text = "放弃对局"
+dialog_text = "确定放弃当前仿人棋对局记录吗？"
+cancel_button_text = "返回对局"
+
+[node name="HumanPlayAcceptDialog" type="ConfirmationDialog" parent="Interface/SafeArea"]
+title = "保留人类模仿棋"
+transient = true
+exclusive = true
+ok_button_text = "保留对局并退出"
+dialog_text = "确定结束当前对局，并将本次对局过程记录到主棋谱吗？"
+cancel_button_text = "返回对局"
+
+[node name="HumanPlayErrorDialog" type="AcceptDialog" parent="Interface/SafeArea"]
+title = "无法开始仿人棋模式"
+transient = true
+exclusive = true
+ok_button_text = "确定"
 
 [node name="ProgressBar" type="ProgressBar" parent="Interface/SafeArea/ExportProgressDialog"]
 layout_mode = 0

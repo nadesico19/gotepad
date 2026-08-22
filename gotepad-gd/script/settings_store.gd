@@ -5,6 +5,7 @@ signal move_numbers_changed
 signal playback_interval_changed
 signal move_confirmation_changed(enabled: bool)
 signal katago_paths_changed
+signal katago_human_paths_changed
 signal katago_analysis_settings_changed
 signal language_changed(locale: String)
 signal horizontal_safe_margin_changed(margin: int)
@@ -13,7 +14,7 @@ signal large_ui_changed(enabled: bool, multiplier: float)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 24
+const kSchemaVersion: int = 25
 const kLanguageSimplifiedChinese: String = "zh_CN"
 const kLanguageJapanese: String = "ja"
 const kLanguageKorean: String = "ko"
@@ -53,6 +54,7 @@ const kDefaultPptxImageFormat: int = kPptxImageFormatSvg
 const kDefaultPptxBoardCoordinates: bool = false
 const kDefaultKatagoExecutablePath: String = ""
 const kDefaultKatagoModelPath: String = ""
+const kDefaultKatagoHumanModelPath: String = ""
 const kDefaultKatagoMaxVisits: int = 500
 const kDefaultKatagoReportIntervalSeconds: float = 2.0
 const kDefaultKatagoAnalysisPvLength: int = 10
@@ -60,6 +62,8 @@ const kDefaultKatagoShowScoreLead: bool = true
 const kDefaultKatagoGameAnalysisVisits: int = 1
 const kManagedKatagoConfigPath: String = \
 	"user://katago/analysis.cfg"
+const kManagedKatagoHumanConfigPath: String = \
+	"user://katago/human_analysis.cfg"
 const kDefaultBoardTexturePath: String = \
 	"res://assets/board/wood_light.jpg"
 const kDefaultBlackTexturePath: String = \
@@ -99,6 +103,7 @@ var pptx_image_format_: int = kDefaultPptxImageFormat
 var pptx_board_coordinates_: bool = kDefaultPptxBoardCoordinates
 var katago_executable_path_: String = kDefaultKatagoExecutablePath
 var katago_model_path_: String = kDefaultKatagoModelPath
+var katago_human_model_path_: String = kDefaultKatagoHumanModelPath
 var katago_max_visits_: int = kDefaultKatagoMaxVisits
 var katago_report_interval_seconds_: float = \
 	kDefaultKatagoReportIntervalSeconds
@@ -117,6 +122,7 @@ func _ready() -> void:
 	apply_runtime_language_(language_)
 	load_window_state_()
 	ensure_managed_katago_analysis_config_()
+	ensure_managed_katago_human_analysis_config_()
 	load_textures_()
 
 
@@ -222,11 +228,22 @@ func get_katago_model_path() -> String:
 	return katago_model_path_
 
 
+func get_katago_human_model_path() -> String:
+	return katago_human_model_path_
+
+
 func get_android_external_katago_model_path() -> String:
 	if OS.get_name() != "Android" \
 			or not is_katago_model_path_valid(katago_model_path_):
 		return ""
 	return katago_model_path_
+
+
+func get_android_external_katago_human_model_path() -> String:
+	if OS.get_name() != "Android" \
+			or not is_katago_model_path_valid(katago_human_model_path_):
+		return ""
+	return katago_human_model_path_
 
 
 func get_katago_max_visits() -> int:
@@ -257,6 +274,10 @@ func get_katago_analysis_config_path() -> String:
 
 func get_managed_katago_analysis_config_path() -> String:
 	return ProjectSettings.globalize_path(kManagedKatagoConfigPath)
+
+
+func get_managed_katago_human_analysis_config_path() -> String:
+	return ProjectSettings.globalize_path(kManagedKatagoHumanConfigPath)
 
 
 func get_saved_window_state() -> Dictionary:
@@ -291,6 +312,18 @@ func has_valid_katago_paths() -> bool:
 	return is_katago_executable_path_valid(katago_executable_path_) \
 		and is_katago_model_path_valid(katago_model_path_) \
 		and is_katago_analysis_config_path_valid(katago_analysis_config_path_)
+
+
+func has_valid_katago_human_paths() -> bool:
+	if not is_katago_model_path_valid(katago_human_model_path_) \
+			or not is_katago_analysis_config_path_valid(
+				get_managed_katago_human_analysis_config_path()
+			):
+		return false
+	if OS.get_name() == "Android":
+		return true
+	return is_katago_executable_path_valid(katago_executable_path_) \
+		and is_katago_model_path_valid(katago_model_path_)
 
 
 func is_katago_executable_path_valid(path: String) -> bool:
@@ -339,6 +372,28 @@ func write_managed_katago_analysis_config(
 	return OK
 
 
+func write_managed_katago_human_analysis_config(
+		search_threads: int,
+		batch_size: int
+) -> Error:
+	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
+		ProjectSettings.globalize_path("user://katago")
+	)
+	if directory_error != OK and directory_error != ERR_ALREADY_EXISTS:
+		return directory_error
+	var file: FileAccess = FileAccess.open(
+		kManagedKatagoHumanConfigPath, FileAccess.WRITE
+	)
+	if file == null:
+		return FileAccess.get_open_error()
+	file.store_string(build_managed_katago_human_config_(
+		search_threads, batch_size
+	))
+	file.close()
+	katago_human_paths_changed.emit()
+	return OK
+
+
 func set_settings(
 		language: String,
 		board_path: String,
@@ -363,7 +418,8 @@ func set_settings(
 		katago_analysis_pv_length: int,
 		katago_show_score_lead: bool,
 		katago_game_analysis_visits: int,
-		katago_analysis_config_path: String
+		katago_analysis_config_path: String,
+		katago_human_model_path: String
 ) -> Error:
 	if not is_finite(large_ui_multiplier) \
 			or large_ui_multiplier < kLargeUiMultiplierMinimum \
@@ -387,6 +443,7 @@ func set_settings(
 	var previous_pptx_board_coordinates: bool = pptx_board_coordinates_
 	var previous_katago_executable_path: String = katago_executable_path_
 	var previous_katago_model_path: String = katago_model_path_
+	var previous_katago_human_model_path: String = katago_human_model_path_
 	var previous_katago_max_visits: int = katago_max_visits_
 	var previous_katago_report_interval: float = \
 		katago_report_interval_seconds_
@@ -429,6 +486,7 @@ func set_settings(
 	pptx_board_coordinates_ = pptx_board_coordinates
 	katago_executable_path_ = katago_executable_path.strip_edges()
 	katago_model_path_ = katago_model_path.strip_edges()
+	katago_human_model_path_ = katago_human_model_path.strip_edges()
 	katago_max_visits_ = maxi(katago_max_visits, 1)
 	katago_report_interval_seconds_ = clampf(
 		katago_report_interval_seconds, 0.1, 60.0
@@ -461,6 +519,7 @@ func set_settings(
 		pptx_board_coordinates_ = previous_pptx_board_coordinates
 		katago_executable_path_ = previous_katago_executable_path
 		katago_model_path_ = previous_katago_model_path
+		katago_human_model_path_ = previous_katago_human_model_path
 		katago_max_visits_ = previous_katago_max_visits
 		katago_report_interval_seconds_ = previous_katago_report_interval
 		katago_analysis_pv_length_ = previous_katago_analysis_pv_length
@@ -498,6 +557,8 @@ func set_settings(
 			or katago_analysis_config_path_ \
 				!= previous_katago_analysis_config_path:
 		katago_paths_changed.emit()
+	if katago_human_model_path_ != previous_katago_human_model_path:
+		katago_human_paths_changed.emit()
 	if katago_max_visits_ != previous_katago_max_visits \
 			or not is_equal_approx(
 				katago_report_interval_seconds_, previous_katago_report_interval
@@ -522,6 +583,7 @@ func reload() -> void:
 	board_width_percentage_changed.emit(board_width_percentage_)
 	large_ui_changed.emit(large_ui_enabled_, large_ui_multiplier_)
 	katago_paths_changed.emit()
+	katago_human_paths_changed.emit()
 	katago_analysis_settings_changed.emit()
 
 
@@ -684,6 +746,11 @@ func load_config_() -> void:
 		"model_path",
 		kDefaultKatagoModelPath
 	)).strip_edges()
+	katago_human_model_path_ = str(config.get_value(
+		"katago_human",
+		"model_path",
+		kDefaultKatagoHumanModelPath
+	)).strip_edges()
 	katago_max_visits_ = maxi(int(config.get_value(
 		"katago",
 		"max_visits",
@@ -796,6 +863,9 @@ func save_config_() -> Error:
 	)
 	config.set_value("katago", "executable_path", katago_executable_path_)
 	config.set_value("katago", "model_path", katago_model_path_)
+	config.set_value(
+		"katago_human", "model_path", katago_human_model_path_
+	)
 	config.set_value("katago", "max_visits", katago_max_visits_)
 	config.set_value(
 		"katago", "report_interval_seconds", katago_report_interval_seconds_
@@ -832,6 +902,7 @@ func reset_settings_() -> void:
 	pptx_board_coordinates_ = kDefaultPptxBoardCoordinates
 	katago_executable_path_ = kDefaultKatagoExecutablePath
 	katago_model_path_ = kDefaultKatagoModelPath
+	katago_human_model_path_ = kDefaultKatagoHumanModelPath
 	katago_max_visits_ = kDefaultKatagoMaxVisits
 	katago_report_interval_seconds_ = kDefaultKatagoReportIntervalSeconds
 	katago_analysis_pv_length_ = kDefaultKatagoAnalysisPvLength
@@ -859,6 +930,45 @@ func ensure_managed_katago_analysis_config_() -> void:
 		)
 
 
+func ensure_managed_katago_human_analysis_config_() -> void:
+	if FileAccess.file_exists(kManagedKatagoHumanConfigPath):
+		remove_deprecated_human_config_keys_()
+		return
+	var default_threads: int = 1 if OS.get_name() == "Android" else 2
+	var default_batch_size: int = 1 if OS.get_name() == "Android" else 2
+	var error: Error = write_managed_katago_human_analysis_config(
+		default_threads, default_batch_size
+	)
+	if error != OK:
+		push_warning(
+			"Failed to create managed KataGo Human SL config: %s" \
+				% error_string(error)
+		)
+
+
+func remove_deprecated_human_config_keys_() -> void:
+	var source: FileAccess = FileAccess.open(
+		kManagedKatagoHumanConfigPath, FileAccess.READ
+	)
+	if source == null:
+		return
+	var original: String = source.get_as_text()
+	var updated: String = original
+	for value: String in ["true", "false"]:
+		updated = updated.replace(
+			"analysisIgnorePreRootHistory = %s\r\n" % value, ""
+		).replace(
+			"analysisIgnorePreRootHistory = %s\n" % value, ""
+		)
+	if updated == original:
+		return
+	var destination: FileAccess = FileAccess.open(
+		kManagedKatagoHumanConfigPath, FileAccess.WRITE
+	)
+	if destination != null:
+		destination.store_string(updated)
+
+
 func build_managed_katago_config_(
 		search_threads: int,
 		batch_size: int
@@ -874,6 +984,30 @@ nnMaxBatchSize = %d
 nnCacheSizePowerOfTwo = %d
 nnMutexPoolSizePowerOfTwo = %d
 nnRandomize = true
+""" % [
+		maxi(search_threads, 1), maxi(batch_size, 1),
+		cache_power, mutex_pool_power
+]
+
+
+func build_managed_katago_human_config_(
+		search_threads: int,
+		batch_size: int
+) -> String:
+	var cache_power: int = 15 if OS.get_name() == "Android" else 18
+	var mutex_pool_power: int = 13 if OS.get_name() == "Android" else 16
+	return """# Generated by Gotepad for KataGo Human SL. This file may be regenerated by performance detection.
+reportAnalysisWinratesAs = BLACK
+maxVisits = 40
+numAnalysisThreads = 1
+numSearchThreadsPerAnalysisThread = %d
+nnMaxBatchSize = %d
+nnCacheSizePowerOfTwo = %d
+nnMutexPoolSizePowerOfTwo = %d
+nnRandomize = true
+humanSLProfile = rank_1d
+ignorePreRootHistory = false
+rootNumSymmetriesToSample = 2
 """ % [
 		maxi(search_threads, 1), maxi(batch_size, 1),
 		cache_power, mutex_pool_power

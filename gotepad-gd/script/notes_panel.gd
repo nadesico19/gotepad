@@ -33,6 +33,16 @@ const kSymbolMode: int = 2
 	$Panel/Margin/Content/TitleRow/ActionSlot/CommentActions/Accept
 @onready var comment_cancel_: Button = \
 	$Panel/Margin/Content/TitleRow/ActionSlot/CommentActions/Cancel
+@onready var clipboard_buttons_: HBoxContainer = \
+	$Panel/Margin/Content/ClipboardButtons
+@onready var clipboard_select_all_: Button = \
+	$Panel/Margin/Content/ClipboardButtons/SelectAll
+@onready var clipboard_copy_: Button = \
+	$Panel/Margin/Content/ClipboardButtons/Copy
+@onready var clipboard_cut_: Button = \
+	$Panel/Margin/Content/ClipboardButtons/Cut
+@onready var clipboard_paste_: Button = \
+	$Panel/Margin/Content/ClipboardButtons/Paste
 @onready var sequential_button_: Button = \
 	$Panel/Margin/Content/MarkButtons/Sequential
 @onready var triangle_button_: Button = \
@@ -66,6 +76,7 @@ var discard_and_continue_button_: Button
 
 
 func _ready() -> void:
+	configure_clipboard_buttons_()
 	populate_numbering_options_()
 	numbering_option_.item_selected.connect(on_numbering_selected_)
 	title_edit_.text_changed.connect(on_text_changed_)
@@ -120,6 +131,7 @@ func populate_numbering_options_() -> void:
 
 func refresh_localized_texts() -> void:
 	populate_numbering_options_()
+	refresh_clipboard_button_texts_()
 	if discard_and_continue_button_ != null:
 		discard_and_continue_button_.text = tr("放弃并继续")
 	if text_was_dirty_:
@@ -286,6 +298,7 @@ func load_selected_note_() -> void:
 	updating_numbering_ = false
 	text_was_dirty_ = false
 	comment_actions_.hide()
+	refresh_clipboard_buttons_()
 	numbering_preview_changed.emit(
 		has_note,
 		editing_uid_ if has_note else -1,
@@ -375,6 +388,99 @@ func show_unsaved_confirmation_after_focus_change_() -> void:
 
 func on_text_editor_focus_entered_(editor: Control) -> void:
 	last_focused_editor_ = editor
+	refresh_clipboard_buttons_()
+
+
+func configure_clipboard_buttons_() -> void:
+	clipboard_buttons_.visible = OS.has_feature("android")
+	if not clipboard_buttons_.visible:
+		return
+	title_edit_.deselect_on_focus_loss_enabled = false
+	comment_edit_.deselect_on_focus_loss_enabled = false
+	clipboard_select_all_.pressed.connect(
+		on_clipboard_action_.bind(&"select_all")
+	)
+	clipboard_copy_.pressed.connect(on_clipboard_action_.bind(&"copy"))
+	clipboard_cut_.pressed.connect(on_clipboard_action_.bind(&"cut"))
+	clipboard_paste_.pressed.connect(on_clipboard_action_.bind(&"paste"))
+	refresh_clipboard_button_texts_()
+	refresh_clipboard_buttons_()
+
+
+func refresh_clipboard_button_texts_() -> void:
+	clipboard_select_all_.text = tr("全选文本")
+	clipboard_copy_.text = tr("复制文本")
+	clipboard_cut_.text = tr("剪切文本")
+	clipboard_paste_.text = tr("粘贴文本")
+
+
+func on_clipboard_action_(action: StringName) -> void:
+	if last_focused_editor_ == null \
+			or not is_instance_valid(last_focused_editor_):
+		return
+	if last_focused_editor_ is LineEdit:
+		apply_line_edit_clipboard_action_(
+			last_focused_editor_ as LineEdit, action
+		)
+	elif last_focused_editor_ is TextEdit:
+		apply_text_edit_clipboard_action_(
+			last_focused_editor_ as TextEdit, action
+		)
+	last_focused_editor_.grab_focus()
+	call_deferred(&"refresh_clipboard_buttons_")
+
+
+func apply_line_edit_clipboard_action_(
+		editor: LineEdit, action: StringName
+) -> void:
+	match action:
+		&"select_all":
+			editor.menu_option(LineEdit.MENU_SELECT_ALL)
+		&"copy":
+			editor.menu_option(LineEdit.MENU_COPY)
+		&"cut":
+			editor.menu_option(LineEdit.MENU_CUT)
+		&"paste":
+			editor.menu_option(LineEdit.MENU_PASTE)
+
+
+func apply_text_edit_clipboard_action_(
+		editor: TextEdit, action: StringName
+) -> void:
+	match action:
+		&"select_all":
+			editor.menu_option(TextEdit.MENU_SELECT_ALL)
+		&"copy":
+			editor.menu_option(TextEdit.MENU_COPY)
+		&"cut":
+			editor.menu_option(TextEdit.MENU_CUT)
+		&"paste":
+			editor.menu_option(TextEdit.MENU_PASTE)
+
+
+func refresh_clipboard_buttons_() -> void:
+	if not clipboard_buttons_.visible:
+		return
+	var has_editor: bool = last_focused_editor_ != null \
+		and is_instance_valid(last_focused_editor_) \
+		and (last_focused_editor_ is LineEdit \
+			or last_focused_editor_ is TextEdit)
+	var has_selection: bool = false
+	var editable: bool = false
+	if last_focused_editor_ is LineEdit:
+		var line_edit: LineEdit = last_focused_editor_ as LineEdit
+		has_selection = line_edit.has_selection()
+		editable = line_edit.editable
+	elif last_focused_editor_ is TextEdit:
+		var text_edit: TextEdit = last_focused_editor_ as TextEdit
+		has_selection = text_edit.has_selection()
+		editable = text_edit.editable
+	clipboard_select_all_.disabled = not has_editor
+	clipboard_copy_.disabled = not has_selection
+	clipboard_cut_.disabled = not has_selection or not editable
+	# Android 对读取剪贴板有隐私提示和访问限制，因此不在每次刷新时
+	# 主动读取内容；粘贴按钮交给控件自身判断剪贴板是否为空。
+	clipboard_paste_.disabled = not has_editor or not editable
 
 
 func show_unsaved_confirmation_() -> void:
@@ -412,6 +518,8 @@ func continue_pending_action_() -> void:
 
 
 func on_text_editor_gui_input_(event: InputEvent) -> void:
+	if clipboard_buttons_.visible:
+		call_deferred(&"refresh_clipboard_buttons_")
 	if event is not InputEventKey:
 		return
 	var key_event: InputEventKey = event as InputEventKey

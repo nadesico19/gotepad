@@ -24,6 +24,11 @@ var temporary_path_: String = ""
 var copied_bytes_: int = 0
 var total_bytes_: int = 0
 var finishing_: bool = false
+var model_role_: String = "analysis"
+
+
+func _init(model_role: String = "analysis") -> void:
+	model_role_ = "human" if model_role == "human" else "analysis"
 
 
 func start_import(source_path: String) -> bool:
@@ -105,8 +110,8 @@ func complete_copy_() -> void:
 		return
 	var suffix: String = "bin.gz" if bool(validation.get("binary", false)) \
 		else "txt.gz"
-	var final_path: String = "%s/external-model-%d.%s" % [
-		kModelDirectory, Time.get_ticks_usec(), suffix
+	var final_path: String = "%s/external-%s-model-%d.%s" % [
+		kModelDirectory, model_role_, Time.get_ticks_usec(), suffix
 	]
 	var rename_error: Error = DirAccess.rename_absolute(
 		ProjectSettings.globalize_path(temporary_path_),

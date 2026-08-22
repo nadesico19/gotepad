@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.7"
+const kGotepadVersion: String = "0.1.8"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -50,6 +50,12 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoGameAnalysisVisitsRow",
 	"KatagoTestRow",
 	"KatagoStatus",
+	"KatagoHumanSeparator",
+	"KatagoHumanTitle",
+	"KatagoHumanModelLabel",
+	"KatagoHumanModelRow",
+	"KatagoHumanTestRow",
+	"KatagoHumanStatus",
 ]
 const kBoardNames: Array[String] = [
 	"浅色木纹",
@@ -144,12 +150,25 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoTestRow/Benchmark
 @onready var katago_status_: Label = \
 	$SettingsPanel/Margin/Options/KatagoStatus
+@onready var katago_human_model_path_: LineEdit = \
+	$SettingsPanel/Margin/Options/KatagoHumanModelRow/Path
+@onready var katago_human_model_browse_: Button = \
+	$SettingsPanel/Margin/Options/KatagoHumanModelRow/Browse
+@onready var katago_human_benchmark_button_: Button = \
+	$SettingsPanel/Margin/Options/KatagoHumanTestRow/Benchmark
+@onready var katago_human_status_: Label = \
+	$SettingsPanel/Margin/Options/KatagoHumanStatus
 @onready var katago_executable_dialog_: FileDialog = \
 	$KatagoExecutableDialog
 @onready var katago_model_dialog_: FileDialog = $KatagoModelDialog
+@onready var katago_human_model_dialog_: FileDialog = $KatagoHumanModelDialog
 @onready var katago_config_dialog_: FileDialog = $KatagoConfigDialog
 @onready var katago_benchmark_confirmation_: ConfirmationDialog = \
 	$KatagoBenchmarkConfirmation
+@onready var katago_human_benchmark_save_confirmation_: ConfirmationDialog = \
+	$KatagoHumanBenchmarkSaveConfirmation
+@onready var katago_human_benchmark_path_alert_: AcceptDialog = \
+	$KatagoHumanBenchmarkPathAlert
 @onready var katago_benchmark_window_: Window = $KatagoBenchmarkWindow
 @onready var katago_benchmark_output_edit_: TextEdit = \
 	$KatagoBenchmarkWindow/Panel/Margin/Content/Output
@@ -187,6 +206,7 @@ var opening_pptx_image_format_: int
 var opening_pptx_board_coordinates_: bool
 var opening_katago_executable_path_: String
 var opening_katago_model_path_: String
+var opening_katago_human_model_path_: String
 var opening_katago_analysis_config_path_: String
 var opening_katago_max_visits_: int
 var opening_katago_report_interval_seconds_: float
@@ -203,9 +223,14 @@ var katago_benchmark_output_: String = ""
 var katago_benchmark_state_: int = kBenchmarkStateIdle
 var pending_katago_benchmark_threads_: int = 0
 var pending_katago_benchmark_batch_size_: int = 0
+var pending_katago_human_benchmark_threads_: int = 0
+var pending_katago_human_benchmark_batch_size_: int = 0
+var katago_benchmark_human_mode_: bool = false
 var active_katago_file_dialog_: FileDialog
 var katago_model_importer_: KataGoAndroidModelImporter
 var pending_imported_model_path_: String = ""
+var pending_imported_human_model_path_: String = ""
+var importing_human_model_: bool = false
 
 
 func _ready() -> void:
@@ -242,6 +267,9 @@ func _ready() -> void:
 	pptx_board_coordinates_.toggled.connect(on_katago_boolean_option_changed_)
 	katago_executable_path_.text_changed.connect(on_katago_path_changed_)
 	katago_model_path_.text_changed.connect(on_katago_path_changed_)
+	katago_human_model_path_.text_changed.connect(
+		on_katago_human_path_changed_
+	)
 	katago_analysis_config_path_.text_changed.connect(on_katago_path_changed_)
 	katago_max_visits_.value_changed.connect(on_katago_max_visits_changed_)
 	katago_report_interval_seconds_.value_changed.connect(
@@ -258,6 +286,9 @@ func _ready() -> void:
 		on_katago_executable_browse_pressed_
 	)
 	katago_model_browse_.pressed.connect(on_katago_model_browse_pressed_)
+	katago_human_model_browse_.pressed.connect(
+		on_katago_human_model_browse_pressed_
+	)
 	katago_model_use_builtin_.pressed.connect(
 		on_katago_model_use_builtin_pressed_
 	)
@@ -268,13 +299,23 @@ func _ready() -> void:
 		on_katago_executable_selected_
 	)
 	katago_model_dialog_.file_selected.connect(on_katago_model_selected_)
+	katago_human_model_dialog_.file_selected.connect(
+		on_katago_human_model_selected_
+	)
 	katago_config_dialog_.file_selected.connect(on_katago_config_selected_)
 	katago_executable_dialog_.canceled.connect(on_katago_file_dialog_canceled_)
 	katago_model_dialog_.canceled.connect(on_katago_file_dialog_canceled_)
+	katago_human_model_dialog_.canceled.connect(on_katago_file_dialog_canceled_)
 	katago_config_dialog_.canceled.connect(on_katago_file_dialog_canceled_)
 	katago_test_button_.pressed.connect(on_katago_test_pressed_)
 	katago_benchmark_button_.pressed.connect(on_katago_benchmark_pressed_)
+	katago_human_benchmark_button_.pressed.connect(
+		on_katago_human_benchmark_pressed_
+	)
 	katago_benchmark_confirmation_.confirmed.connect(start_katago_benchmark_)
+	katago_human_benchmark_save_confirmation_.confirmed.connect(
+		on_katago_human_benchmark_save_confirmed_
+	)
 	katago_benchmark_action_button_.pressed.connect(
 		on_katago_benchmark_action_pressed_
 	)
@@ -314,6 +355,7 @@ func configure_platform_option_visibility_() -> void:
 			option_node.hide()
 	if OS.get_name() == "Android":
 		katago_model_path_.editable = false
+		katago_human_model_path_.editable = false
 		katago_test_button_.hide()
 
 
@@ -339,9 +381,15 @@ func refresh_localized_options_() -> void:
 		"*.bin.gz,*.txt.gz ; %s ; application/gzip,application/octet-stream" \
 			% tr("KataGo 神经网络模型"),
 	])
+	katago_human_model_dialog_.filters = PackedStringArray([
+		"*.bin.gz,*.txt.gz ; %s ; application/gzip,application/octet-stream" \
+			% tr("KataGo Human SL 模型"),
+	])
 	katago_model_use_builtin_.text = tr("内置")
 	katago_model_path_.placeholder_text = tr("使用内置模型") \
 		if OS.get_name() == "Android" else tr("请选择 .bin.gz 模型")
+	katago_human_model_path_.placeholder_text = \
+		tr("请选择 Human SL .bin.gz 模型")
 	katago_config_dialog_.filters = PackedStringArray([
 		"*.cfg ; %s" % tr("KataGo 配置文件"),
 	])
@@ -396,8 +444,11 @@ func toggle_panel() -> void:
 
 func open_panel_() -> void:
 	cleanup_pending_imported_model_()
+	cleanup_pending_imported_human_model_()
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
+	pending_katago_human_benchmark_threads_ = 0
+	pending_katago_human_benchmark_batch_size_ = 0
 	opening_language_ = SettingsStore.get_language()
 	opening_horizontal_safe_margin_ = SettingsStore.get_horizontal_safe_margin()
 	opening_board_width_percentage_ = \
@@ -422,6 +473,8 @@ func open_panel_() -> void:
 	opening_katago_executable_path_ = \
 		SettingsStore.get_katago_executable_path()
 	opening_katago_model_path_ = SettingsStore.get_katago_model_path()
+	opening_katago_human_model_path_ = \
+		SettingsStore.get_katago_human_model_path()
 	opening_katago_analysis_config_path_ = \
 		SettingsStore.get_katago_analysis_config_path()
 	opening_katago_max_visits_ = SettingsStore.get_katago_max_visits()
@@ -443,6 +496,11 @@ func open_panel_() -> void:
 		not opening_katago_model_path_.is_empty() \
 		and not SettingsStore.is_katago_model_path_valid(
 			opening_katago_model_path_
+		)
+	var human_model_path_invalid: bool = \
+		not opening_katago_human_model_path_.is_empty() \
+		and not SettingsStore.is_katago_model_path_valid(
+			opening_katago_human_model_path_
 		)
 	var config_path_invalid: bool = local_katago_available \
 		and not SettingsStore.is_katago_analysis_config_path_valid(
@@ -480,6 +538,8 @@ func open_panel_() -> void:
 		else opening_katago_executable_path_
 	katago_model_path_.text = "" if model_path_invalid \
 		else opening_katago_model_path_
+	katago_human_model_path_.text = "" if human_model_path_invalid \
+		else opening_katago_human_model_path_
 	katago_analysis_config_path_.text = "" if config_path_invalid \
 		else opening_katago_analysis_config_path_
 	katago_max_visits_.set_value_no_signal(opening_katago_max_visits_)
@@ -513,6 +573,12 @@ func open_panel_() -> void:
 		)
 	else:
 		refresh_katago_path_status_()
+	if human_model_path_invalid:
+		update_katago_human_path_status_(
+			tr("Human SL 模型路径已失效，请重新选择"), kStatusErrorColor
+		)
+	else:
+		refresh_katago_human_path_status_()
 	settings_panel_.show()
 	close_button_.show()
 	call_deferred(&"position_panel_left_buttons_")
@@ -525,9 +591,14 @@ func close_panel_() -> void:
 	cancel_katago_benchmark_()
 	cancel_katago_model_import_()
 	cleanup_pending_imported_model_()
+	cleanup_pending_imported_human_model_()
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
+	pending_katago_human_benchmark_threads_ = 0
+	pending_katago_human_benchmark_batch_size_ = 0
 	katago_benchmark_confirmation_.hide()
+	katago_human_benchmark_save_confirmation_.hide()
+	katago_human_benchmark_path_alert_.hide()
 	katago_benchmark_save_reminder_.hide()
 	katago_benchmark_window_.hide()
 	settings_panel_.hide()
@@ -637,6 +708,18 @@ func on_katago_path_changed_(_value: String) -> void:
 	if not katago_benchmark_process_.is_empty():
 		cancel_katago_benchmark_()
 	refresh_katago_path_status_()
+	refresh_katago_human_path_status_()
+	on_option_selected_(0)
+
+
+func on_katago_human_path_changed_(_value: String) -> void:
+	if updating_options_:
+		return
+	pending_katago_human_benchmark_threads_ = 0
+	pending_katago_human_benchmark_batch_size_ = 0
+	if is_katago_benchmark_running_():
+		cancel_katago_benchmark_()
+	refresh_katago_human_path_status_()
 	on_option_selected_(0)
 
 
@@ -653,6 +736,7 @@ func on_option_selected_(_index: int) -> void:
 
 func has_staged_changes_() -> bool:
 	return pending_katago_benchmark_threads_ > 0 \
+		or pending_katago_human_benchmark_threads_ > 0 \
 		or selected_language_() != opening_language_ \
 		or selected_horizontal_safe_margin_() \
 			!= opening_horizontal_safe_margin_ \
@@ -676,6 +760,8 @@ func has_staged_changes_() -> bool:
 		or selected_katago_executable_path_() \
 			!= opening_katago_executable_path_ \
 		or selected_katago_model_path_() != opening_katago_model_path_ \
+		or selected_katago_human_model_path_() \
+			!= opening_katago_human_model_path_ \
 		or selected_katago_analysis_config_path_() \
 			!= opening_katago_analysis_config_path_ \
 		or selected_katago_max_visits_() != opening_katago_max_visits_ \
@@ -795,6 +881,10 @@ func selected_katago_model_path_() -> String:
 	return katago_model_path_.text.strip_edges()
 
 
+func selected_katago_human_model_path_() -> String:
+	return katago_human_model_path_.text.strip_edges()
+
+
 func selected_katago_analysis_config_path_() -> String:
 	return katago_analysis_config_path_.text.strip_edges()
 
@@ -833,6 +923,11 @@ func on_confirm_pressed_() -> void:
 		error_label_.text = katago_validation_error
 		error_label_.show()
 		return
+	var human_validation_error: String = validate_selected_katago_human_path_()
+	if not human_validation_error.is_empty():
+		error_label_.text = human_validation_error
+		error_label_.show()
+		return
 	if pending_katago_benchmark_threads_ > 0:
 		var write_error: Error = \
 			SettingsStore.write_managed_katago_analysis_config(
@@ -844,8 +939,20 @@ func on_confirm_pressed_() -> void:
 				% error_string(write_error)
 			error_label_.show()
 			return
+	if pending_katago_human_benchmark_threads_ > 0:
+		var human_write_error: Error = \
+			SettingsStore.write_managed_katago_human_analysis_config(
+				pending_katago_human_benchmark_threads_,
+				pending_katago_human_benchmark_batch_size_
+			)
+		if human_write_error != OK:
+			error_label_.text = tr("写入仿人棋性能配置失败：%s") \
+				% error_string(human_write_error)
+			error_label_.show()
+			return
 
 	var previous_model_path: String = opening_katago_model_path_
+	var previous_human_model_path: String = opening_katago_human_model_path_
 	var error: Error = SettingsStore.set_settings(
 		selected_language_(),
 		selected_board_path_(),
@@ -870,7 +977,8 @@ func on_confirm_pressed_() -> void:
 		selected_katago_analysis_pv_length_(),
 		selected_katago_show_score_lead_(),
 		selected_katago_game_analysis_visits_(),
-		selected_katago_analysis_config_path_()
+		selected_katago_analysis_config_path_(),
+		selected_katago_human_model_path_()
 	)
 	if error != OK:
 		error_label_.text = tr("保存设置失败：%s") % error_string(error)
@@ -898,6 +1006,10 @@ func on_confirm_pressed_() -> void:
 	if previous_model_path != opening_katago_model_path_:
 		remove_managed_model_file_(previous_model_path)
 	pending_imported_model_path_ = ""
+	opening_katago_human_model_path_ = selected_katago_human_model_path_()
+	if previous_human_model_path != opening_katago_human_model_path_:
+		remove_managed_model_file_(previous_human_model_path)
+	pending_imported_human_model_path_ = ""
 	opening_katago_analysis_config_path_ = \
 		selected_katago_analysis_config_path_()
 	opening_katago_max_visits_ = selected_katago_max_visits_()
@@ -909,14 +1021,20 @@ func on_confirm_pressed_() -> void:
 		selected_katago_game_analysis_visits_()
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
+	pending_katago_human_benchmark_threads_ = 0
+	pending_katago_human_benchmark_batch_size_ = 0
 	error_label_.hide()
 	action_bar_.hide()
 	refresh_katago_path_status_()
+	refresh_katago_human_path_status_()
 
 func on_restore_pressed_() -> void:
 	cleanup_pending_imported_model_()
+	cleanup_pending_imported_human_model_()
 	pending_katago_benchmark_threads_ = 0
 	pending_katago_benchmark_batch_size_ = 0
+	pending_katago_human_benchmark_threads_ = 0
+	pending_katago_human_benchmark_batch_size_ = 0
 	updating_options_ = true
 	select_language_(opening_language_)
 	horizontal_safe_margin_.set_value_no_signal(
@@ -954,7 +1072,12 @@ func on_restore_pressed_() -> void:
 		if OS.has_feature("mobile") \
 			or SettingsStore.is_katago_model_path_valid(
 			opening_katago_model_path_
-		) else ""
+			) else ""
+	katago_human_model_path_.text = opening_katago_human_model_path_ \
+		if OS.has_feature("mobile") \
+			or SettingsStore.is_katago_model_path_valid(
+				opening_katago_human_model_path_
+			) else ""
 	katago_analysis_config_path_.text = opening_katago_analysis_config_path_ \
 		if OS.has_feature("mobile") \
 			or SettingsStore.is_katago_analysis_config_path_valid(
@@ -980,6 +1103,7 @@ func on_restore_pressed_() -> void:
 	error_label_.hide()
 	action_bar_.visible = has_staged_changes_()
 	refresh_katago_path_status_()
+	refresh_katago_human_path_status_()
 
 
 func on_cancel_pressed_() -> void:
@@ -1005,6 +1129,14 @@ func validate_selected_katago_paths_() -> String:
 	return ""
 
 
+func validate_selected_katago_human_path_() -> String:
+	var model_path: String = selected_katago_human_model_path_()
+	if not model_path.is_empty() \
+			and not SettingsStore.is_katago_model_path_valid(model_path):
+		return tr("KataGo Human SL 模型路径无效。")
+	return ""
+
+
 func validate_selected_katago_engine_paths_() -> String:
 	if not SettingsStore.is_katago_executable_path_valid(
 			selected_katago_executable_path_()
@@ -1014,6 +1146,24 @@ func validate_selected_katago_engine_paths_() -> String:
 			selected_katago_model_path_()
 		):
 		return tr("KataGo 神经网络模型路径无效。")
+	return ""
+
+
+func validate_selected_katago_human_engine_paths_() -> String:
+	if not SettingsStore.is_katago_model_path_valid(
+			selected_katago_human_model_path_()
+		):
+		return tr("KataGo Human SL 模型路径无效。")
+	if OS.get_name() == "Android":
+		return ""
+	if not SettingsStore.is_katago_executable_path_valid(
+			selected_katago_executable_path_()
+		):
+		return tr("KataGo 可执行文件路径无效。")
+	if not SettingsStore.is_katago_model_path_valid(
+			selected_katago_model_path_()
+		):
+		return tr("请先完整配置上方的 KataGo 本地分析模型。")
 	return ""
 
 
@@ -1080,6 +1230,41 @@ func update_katago_path_status_(message: String, color: Color) -> void:
 	katago_status_.add_theme_color_override(&"font_color", color)
 
 
+func refresh_katago_human_path_status_() -> void:
+	var model_path: String = selected_katago_human_model_path_()
+	var model_valid: bool = SettingsStore.is_katago_model_path_valid(model_path)
+	var engine_valid: bool = OS.get_name() == "Android" or (
+		SettingsStore.is_katago_executable_path_valid(
+			selected_katago_executable_path_()
+		) and SettingsStore.is_katago_model_path_valid(
+			selected_katago_model_path_()
+		)
+	)
+	katago_human_benchmark_button_.disabled = \
+		is_katago_benchmark_running_() or not engine_valid
+	if model_path.is_empty():
+		update_katago_human_path_status_(
+			tr("尚未配置 Human SL 模型"), kStatusNeutralColor
+		)
+	elif not model_valid:
+		update_katago_human_path_status_(
+			tr("Human SL 模型路径无效"), kStatusErrorColor
+		)
+	elif not engine_valid:
+		update_katago_human_path_status_(
+			tr("请先完成上方 KataGo 本地分析配置"), kStatusNeutralColor
+		)
+	else:
+		update_katago_human_path_status_(
+			tr("Human SL 模型配置有效，可以检测"), kStatusValidColor
+		)
+
+
+func update_katago_human_path_status_(message: String, color: Color) -> void:
+	katago_human_status_.text = message
+	katago_human_status_.add_theme_color_override(&"font_color", color)
+
+
 func on_katago_executable_browse_pressed_() -> void:
 	if focus_active_katago_file_dialog_():
 		return
@@ -1101,6 +1286,17 @@ func on_katago_model_browse_pressed_() -> void:
 	katago_model_dialog_.popup_centered_ratio(0.8)
 
 
+func on_katago_human_model_browse_pressed_() -> void:
+	if focus_active_katago_file_dialog_():
+		return
+	if OS.get_name() != "Android":
+		set_dialog_current_path_(
+			katago_human_model_dialog_, selected_katago_human_model_path_()
+		)
+	active_katago_file_dialog_ = katago_human_model_dialog_
+	katago_human_model_dialog_.popup_centered_ratio(0.8)
+
+
 func on_katago_config_browse_pressed_() -> void:
 	if focus_active_katago_file_dialog_():
 		return
@@ -1118,6 +1314,7 @@ func focus_active_katago_file_dialog_() -> bool:
 	var dialogs: Array[FileDialog] = [
 		katago_executable_dialog_,
 		katago_model_dialog_,
+		katago_human_model_dialog_,
 		katago_config_dialog_
 	]
 	for dialog: FileDialog in dialogs:
@@ -1149,10 +1346,20 @@ func on_katago_executable_selected_(path: String) -> void:
 func on_katago_model_selected_(path: String) -> void:
 	active_katago_file_dialog_ = null
 	if OS.get_name() == "Android":
-		start_katago_model_import_(path)
+		start_katago_model_import_(path, false)
 		return
 	katago_model_path_.text = path
 	refresh_katago_path_status_()
+	on_option_selected_(0)
+
+
+func on_katago_human_model_selected_(path: String) -> void:
+	active_katago_file_dialog_ = null
+	if OS.get_name() == "Android":
+		start_katago_model_import_(path, true)
+		return
+	katago_human_model_path_.text = path
+	refresh_katago_human_path_status_()
 	on_option_selected_(0)
 
 
@@ -1165,17 +1372,20 @@ func on_katago_model_use_builtin_pressed_() -> void:
 	on_option_selected_(0)
 
 
-func start_katago_model_import_(source_path: String) -> void:
+func start_katago_model_import_(source_path: String, human_model: bool) -> void:
 	if katago_model_importer_ != null:
 		return
-	katago_model_importer_ = KataGoAndroidModelImporter.new()
+	importing_human_model_ = human_model
+	katago_model_importer_ = KataGoAndroidModelImporter.new(
+		"human" if human_model else "analysis"
+	)
 	add_child(katago_model_importer_)
 	katago_model_importer_.progress_changed.connect(
 		on_katago_model_import_progress_
 	)
 	katago_model_importer_.completed.connect(on_katago_model_import_completed_)
 	set_katago_controls_enabled_(false)
-	update_katago_path_status_(tr("正在导入外置模型…"), kStatusCanceledColor)
+	update_active_model_import_status_(tr("正在导入外置模型…"), kStatusCanceledColor)
 	if not katago_model_importer_.start_import(source_path):
 		katago_model_importer_ = null
 		set_katago_controls_enabled_(true)
@@ -1185,7 +1395,7 @@ func on_katago_model_import_progress_(copied_bytes: int, total_bytes: int) -> vo
 	var percent: int = 0
 	if total_bytes > 0:
 		percent = clampi(roundi(float(copied_bytes) * 100.0 / total_bytes), 0, 100)
-	update_katago_path_status_(
+	update_active_model_import_status_(
 		tr("正在导入外置模型…%d%%") % percent,
 		kStatusCanceledColor
 	)
@@ -1200,16 +1410,30 @@ func on_katago_model_import_completed_(
 	katago_model_importer_ = null
 	set_katago_controls_enabled_(true)
 	if not succeeded:
-		update_katago_path_status_(message, kStatusErrorColor)
+		update_active_model_import_status_(message, kStatusErrorColor)
+		importing_human_model_ = false
 		return
-	cleanup_pending_imported_model_()
-	pending_imported_model_path_ = model_path
-	katago_model_path_.text = model_path
-	update_katago_path_status_(
+	if importing_human_model_:
+		cleanup_pending_imported_human_model_()
+		pending_imported_human_model_path_ = model_path
+		katago_human_model_path_.text = model_path
+	else:
+		cleanup_pending_imported_model_()
+		pending_imported_model_path_ = model_path
+		katago_model_path_.text = model_path
+	update_active_model_import_status_(
 		tr("已导入模型 %s，请点击绿✓保存设置") % model_name,
 		kStatusValidColor
 	)
 	action_bar_.visible = has_staged_changes_()
+	importing_human_model_ = false
+
+
+func update_active_model_import_status_(message: String, color: Color) -> void:
+	if importing_human_model_:
+		update_katago_human_path_status_(message, color)
+	else:
+		update_katago_path_status_(message, color)
 
 
 func cancel_katago_model_import_() -> void:
@@ -1218,6 +1442,7 @@ func cancel_katago_model_import_() -> void:
 	var importer: KataGoAndroidModelImporter = katago_model_importer_
 	katago_model_importer_ = null
 	importer.cancel_import()
+	importing_human_model_ = false
 	set_katago_controls_enabled_(true)
 
 
@@ -1226,6 +1451,13 @@ func cleanup_pending_imported_model_() -> void:
 		return
 	remove_managed_model_file_(pending_imported_model_path_)
 	pending_imported_model_path_ = ""
+
+
+func cleanup_pending_imported_human_model_() -> void:
+	if pending_imported_human_model_path_.is_empty():
+		return
+	remove_managed_model_file_(pending_imported_human_model_path_)
+	pending_imported_human_model_path_ = ""
 
 
 func remove_managed_model_file_(path: String) -> void:
@@ -1353,9 +1585,77 @@ func cancel_katago_test_() -> void:
 
 
 func on_katago_benchmark_pressed_() -> void:
+	prepare_katago_benchmark_(false)
+
+
+func on_katago_human_benchmark_pressed_() -> void:
 	if is_katago_benchmark_running_():
 		return
-	if OS.get_name() != "Android":
+	var selected_path: String = selected_katago_human_model_path_()
+	if selected_path.is_empty():
+		show_katago_human_benchmark_path_alert_(
+			tr("请先选择有效的人类模仿棋模型文件。")
+		)
+		return
+	var saved_path: String = SettingsStore.get_katago_human_model_path().strip_edges()
+	if saved_path.is_empty() or saved_path != selected_path:
+		katago_human_benchmark_save_confirmation_.dialog_text = tr(
+			"当前选择的人类模仿棋模型路径尚未保存。是否保存设置并继续性能检测？"
+		)
+		katago_human_benchmark_save_confirmation_.popup_centered()
+		return
+	continue_katago_human_benchmark_after_path_check_()
+
+
+func on_katago_human_benchmark_save_confirmed_() -> void:
+	var selected_path: String = selected_katago_human_model_path_()
+	if not validate_katago_human_benchmark_model_file_(selected_path):
+		return
+	on_confirm_pressed_()
+	if SettingsStore.get_katago_human_model_path().strip_edges() \
+			!= selected_path:
+		show_katago_human_benchmark_path_alert_(
+			tr("人类模仿棋模型路径未能保存，请检查设置后重试。")
+		)
+		return
+	prepare_katago_benchmark_(true)
+
+
+func continue_katago_human_benchmark_after_path_check_() -> void:
+	if not validate_katago_human_benchmark_model_file_(
+			selected_katago_human_model_path_()
+		):
+		return
+	prepare_katago_benchmark_(true)
+
+
+func validate_katago_human_benchmark_model_file_(path: String) -> bool:
+	if path.is_empty() or not FileAccess.file_exists(path) \
+			or not SettingsStore.is_katago_model_path_valid(path):
+		update_katago_human_path_status_(
+			tr("Human SL 模型路径无效"), kStatusErrorColor
+		)
+		show_katago_human_benchmark_path_alert_(
+			tr("人类模仿棋模型文件不存在或无法读取，请重新选择有效路径。")
+		)
+		return false
+	return true
+
+
+func show_katago_human_benchmark_path_alert_(message: String) -> void:
+	katago_human_benchmark_path_alert_.dialog_text = message
+	katago_human_benchmark_path_alert_.popup_centered()
+
+
+func prepare_katago_benchmark_(human_model: bool) -> void:
+	if is_katago_benchmark_running_():
+		return
+	if human_model:
+		var human_error: String = validate_selected_katago_human_engine_paths_()
+		if not human_error.is_empty():
+			update_katago_human_path_status_(human_error, kStatusErrorColor)
+			return
+	elif OS.get_name() != "Android":
 		var validation_error: String = validate_selected_katago_engine_paths_()
 		if validation_error.is_empty() and not \
 				SettingsStore.is_katago_analysis_config_path_valid(
@@ -1365,6 +1665,7 @@ func on_katago_benchmark_pressed_() -> void:
 		if not validation_error.is_empty():
 			update_katago_path_status_(validation_error, kStatusErrorColor)
 			return
+	katago_benchmark_human_mode_ = human_model
 	katago_benchmark_confirmation_.dialog_text = tr(
 		"DIALOG_BENCHMARK_CONFIRMATION_MESSAGE"
 	)
@@ -1372,10 +1673,17 @@ func on_katago_benchmark_pressed_() -> void:
 
 
 func start_katago_benchmark_() -> void:
-	pending_katago_benchmark_threads_ = 0
-	pending_katago_benchmark_batch_size_ = 0
+	if katago_benchmark_human_mode_:
+		pending_katago_human_benchmark_threads_ = 0
+		pending_katago_human_benchmark_batch_size_ = 0
+	else:
+		pending_katago_benchmark_threads_ = 0
+		pending_katago_benchmark_batch_size_ = 0
 	on_option_selected_(0)
 	katago_benchmark_output_ = ""
+	katago_benchmark_window_.title = tr(
+		"KataGo 人类模仿棋自动性能检测"
+	) if katago_benchmark_human_mode_ else tr("KataGo 自动性能检测")
 	katago_benchmark_output_edit_.text = tr("正在启动 KataGo benchmark…")
 	set_katago_benchmark_window_state_(kBenchmarkStateRunning)
 	# 清除上一次打开时保留的尺寸，再由 Godot 根据父视图的实际可用尺寸计算弹窗大小。
@@ -1383,16 +1691,17 @@ func start_katago_benchmark_() -> void:
 	katago_benchmark_window_.reset_size()
 	katago_benchmark_window_.popup_centered_ratio(0.8)
 	set_katago_controls_enabled_(false)
-	update_katago_path_status_(
-		tr("正在自动检测性能…"), kStatusNeutralColor
-	)
+	update_active_benchmark_status_(tr("正在自动检测性能…"), kStatusNeutralColor)
 	if OS.get_name() == "Android":
 		start_embedded_katago_benchmark_()
 		return
 	var arguments: PackedStringArray = PackedStringArray([
 		"benchmark",
-		"-model", selected_katago_model_path_(),
-		"-config", selected_katago_analysis_config_path_(),
+		"-model", selected_katago_human_model_path_() \
+			if katago_benchmark_human_mode_ else selected_katago_model_path_(),
+		"-config", SettingsStore.get_managed_katago_human_analysis_config_path() \
+			if katago_benchmark_human_mode_ \
+			else selected_katago_analysis_config_path_(),
 		"-override-config", "numSearchThreads=6",
 		"-v", str(kKatagoBenchmarkVisits),
 		"-t", kKatagoBenchmarkThreads,
@@ -1405,7 +1714,7 @@ func start_katago_benchmark_() -> void:
 		selected_katago_executable_path_(), arguments, false
 	)
 	if process.is_empty():
-		update_katago_path_status_(
+		update_active_benchmark_status_(
 			tr("无法启动KataGo性能检测"), kStatusErrorColor
 		)
 		katago_benchmark_output_edit_.text = tr("无法启动 KataGo benchmark。")
@@ -1417,7 +1726,10 @@ func start_katago_benchmark_() -> void:
 
 
 func start_embedded_katago_benchmark_() -> void:
-	katago_embedded_benchmark_ = KataGoEmbeddedBenchmark.new()
+	katago_embedded_benchmark_ = KataGoEmbeddedBenchmark.new(
+		katago_benchmark_human_mode_,
+		selected_katago_human_model_path_() if katago_benchmark_human_mode_ else ""
+	)
 	add_child(katago_embedded_benchmark_)
 	katago_embedded_benchmark_.output_changed.connect(
 		on_embedded_katago_benchmark_output_changed_
@@ -1447,7 +1759,7 @@ func on_embedded_katago_benchmark_completed_(
 	if not succeeded:
 		var effective_message: String = message if not message.is_empty() \
 			else tr("性能检测没有取得有效结果。")
-		update_katago_path_status_(effective_message, kStatusErrorColor)
+		update_active_benchmark_status_(effective_message, kStatusErrorColor)
 		set_katago_benchmark_window_state_(kBenchmarkStateFailed)
 		return
 	apply_katago_benchmark_result_(search_threads, batch_size)
@@ -1487,7 +1799,7 @@ func finish_katago_benchmark_() -> void:
 	set_process(false)
 	set_katago_controls_enabled_(true)
 	if best_threads <= 0:
-		update_katago_path_status_(
+		update_active_benchmark_status_(
 			tr("性能检测没有取得有效结果"),
 			kStatusErrorColor
 		)
@@ -1495,22 +1807,36 @@ func finish_katago_benchmark_() -> void:
 			katago_benchmark_output_edit_.text = tr("性能检测没有取得有效结果。")
 		set_katago_benchmark_window_state_(kBenchmarkStateFailed)
 		return
-	var batch_size: int = maxi(8, ceili(float(best_threads) / 2.0))
+	var minimum_batch_size: int = 2 if katago_benchmark_human_mode_ else 8
+	var batch_size: int = maxi(
+		minimum_batch_size, ceili(float(best_threads) / 2.0)
+	)
 	apply_katago_benchmark_result_(best_threads, batch_size)
 
 
 func apply_katago_benchmark_result_(best_threads: int, batch_size: int) -> void:
-	katago_analysis_config_path_.text = \
-		SettingsStore.get_managed_katago_analysis_config_path()
-	pending_katago_benchmark_threads_ = best_threads
-	pending_katago_benchmark_batch_size_ = batch_size
+	if katago_benchmark_human_mode_:
+		pending_katago_human_benchmark_threads_ = best_threads
+		pending_katago_human_benchmark_batch_size_ = batch_size
+	else:
+		katago_analysis_config_path_.text = \
+			SettingsStore.get_managed_katago_analysis_config_path()
+		pending_katago_benchmark_threads_ = best_threads
+		pending_katago_benchmark_batch_size_ = batch_size
 	on_option_selected_(0)
-	update_katago_path_status_(
+	update_active_benchmark_status_(
 		tr("检测完成：%d线程，批量%d；请确认保存") \
 			% [best_threads, batch_size],
 		kStatusValidColor
 	)
 	set_katago_benchmark_window_state_(kBenchmarkStateSucceeded)
+
+
+func update_active_benchmark_status_(message: String, color: Color) -> void:
+	if katago_benchmark_human_mode_:
+		update_katago_human_path_status_(message, color)
+	else:
+		update_katago_path_status_(message, color)
 
 
 func find_best_katago_benchmark_threads_(output: String) -> int:
@@ -1604,7 +1930,9 @@ func cancel_katago_benchmark_(show_canceled_status: bool = false) -> void:
 		benchmark.cancel_benchmark()
 		set_katago_controls_enabled_(true)
 		if show_canceled_status:
-			update_katago_path_status_(tr("已取消性能测试"), kStatusCanceledColor)
+			update_active_benchmark_status_(
+				tr("已取消性能测试"), kStatusCanceledColor
+			)
 		return
 	if katago_benchmark_process_.is_empty():
 		return
@@ -1617,7 +1945,9 @@ func cancel_katago_benchmark_(show_canceled_status: bool = false) -> void:
 	set_process(false)
 	set_katago_controls_enabled_(true)
 	if show_canceled_status:
-		update_katago_path_status_(tr("已取消性能测试"), kStatusCanceledColor)
+		update_active_benchmark_status_(
+			tr("已取消性能测试"), kStatusCanceledColor
+		)
 
 
 func close_katago_benchmark_pipes_() -> void:
@@ -1660,11 +1990,14 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	var android_model_enabled: bool = enabled and OS.get_name() == "Android"
 	katago_executable_path_.editable = desktop_paths_enabled
 	katago_model_path_.editable = desktop_paths_enabled
+	katago_human_model_path_.editable = desktop_paths_enabled
 	katago_analysis_config_path_.editable = desktop_paths_enabled
 	katago_executable_browse_.disabled = not desktop_paths_enabled
 	katago_model_browse_.disabled = \
 		not desktop_paths_enabled and not android_model_enabled
 	katago_model_use_builtin_.disabled = not android_model_enabled
+	katago_human_model_browse_.disabled = \
+		not desktop_paths_enabled and not android_model_enabled
 	katago_analysis_config_browse_.disabled = not desktop_paths_enabled
 	katago_max_visits_.editable = enabled
 	katago_report_interval_seconds_.editable = enabled
@@ -1673,6 +2006,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_game_analysis_visits_.editable = enabled
 	katago_test_button_.disabled = not desktop_paths_enabled
 	katago_benchmark_button_.disabled = not enabled
+	katago_human_benchmark_button_.disabled = not enabled
 	close_button_.disabled = not enabled
 	confirm_button_.disabled = not enabled
 	restore_button_.disabled = not enabled

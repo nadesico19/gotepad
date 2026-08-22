@@ -352,10 +352,11 @@ public class GodotApp extends GodotActivity {
 
 	/** Starts the isolated Android OpenCL backend. */
 	public static boolean startKataGoOpenCL(
-			String modelPath, String configPath, String overrideConfig) {
+			String modelPath, String humanModelPath, String configPath,
+			String overrideConfig) {
 		GodotApp activity = currentActivity.get();
 		return activity != null && KataGoOpenCLBridge.start(
-				activity, modelPath, configPath, overrideConfig);
+				activity, modelPath, humanModelPath, configPath, overrideConfig);
 	}
 
 	public static boolean sendKataGoOpenCLLine(String line) {

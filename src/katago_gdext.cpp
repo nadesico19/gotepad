@@ -55,6 +55,7 @@ public:
   ~KataGoEmbeddedEngine() override { stop_engine(); }
 
   bool start_engine(const godot::String &model_path,
+                    const godot::String &human_model_path,
                     const godot::String &config_path,
                     const godot::String &override_config);
   bool send_line(const godot::String &line);
@@ -68,7 +69,8 @@ protected:
   static void _bind_methods();
 
 private:
-  void run_(std::string model_path, std::string config_path,
+  void run_(std::string model_path, std::string human_model_path,
+            std::string config_path,
             std::string override_config);
   bool read_line_(std::string &line);
   void write_line_(const std::string &line);
@@ -92,8 +94,10 @@ private:
 };
 
 void KataGoEmbeddedEngine::_bind_methods() {
-  godot::ClassDB::bind_method(godot::D_METHOD("start_engine", "model_path",
-                                              "config_path", "override_config"),
+  godot::ClassDB::bind_method(godot::D_METHOD(
+                                  "start_engine", "model_path",
+                                  "human_model_path", "config_path",
+                                  "override_config"),
                               &KataGoEmbeddedEngine::start_engine);
   godot::ClassDB::bind_method(godot::D_METHOD("send_line", "line"),
                               &KataGoEmbeddedEngine::send_line);
@@ -121,10 +125,12 @@ void KataGoEmbeddedEngine::_bind_methods() {
 }
 
 bool KataGoEmbeddedEngine::start_engine(const godot::String &model_path,
+                                        const godot::String &human_model_path,
                                         const godot::String &config_path,
                                         const godot::String &override_config) {
 #ifndef GOTEPAD_KATAGO_EMBEDDED
   static_cast<void>(model_path);
+  static_cast<void>(human_model_path);
   static_cast<void>(config_path);
   static_cast<void>(override_config);
   set_error_("Embedded KataGo is not available on this platform");
@@ -140,9 +146,16 @@ bool KataGoEmbeddedEngine::start_engine(const godot::String &model_path,
     worker_.join();
 
   const std::string model = utf8_text_(model_path);
+  const std::string human_model = utf8_text_(human_model_path);
   const std::string config = utf8_text_(config_path);
   if (!readable_file_(model)) {
     set_error_("Unable to open embedded KataGo model: " + model);
+    state_.store(kFailed, std::memory_order_release);
+    return false;
+  }
+  if (!human_model.empty() && !readable_file_(human_model)) {
+    set_error_("Unable to open embedded KataGo Human SL model: " +
+               human_model);
     state_.store(kFailed, std::memory_order_release);
     return false;
   }
@@ -170,8 +183,8 @@ bool KataGoEmbeddedEngine::start_engine(const godot::String &model_path,
   state_.store(kStarting, std::memory_order_release);
   write_log_("Creating embedded KataGo worker thread.");
   try {
-    worker_ = std::thread(&KataGoEmbeddedEngine::run_, this, model, config,
-                          utf8_text_(override_config));
+    worker_ = std::thread(&KataGoEmbeddedEngine::run_, this, model,
+                          human_model, config, utf8_text_(override_config));
   } catch (const std::exception &error) {
     set_error_(std::string("Unable to create embedded KataGo worker thread: ") +
                error.what());
@@ -246,7 +259,9 @@ godot::String KataGoEmbeddedEngine::get_error() const {
   return godot::String::utf8(error_message_.c_str());
 }
 
-void KataGoEmbeddedEngine::run_(std::string model_path, std::string config_path,
+void KataGoEmbeddedEngine::run_(std::string model_path,
+                                std::string human_model_path,
+                                std::string config_path,
                                 std::string override_config) {
 #ifdef GOTEPAD_KATAGO_EMBEDDED
   try {
@@ -256,6 +271,10 @@ void KataGoEmbeddedEngine::run_(std::string model_path, std::string config_path,
                                        "-config",
                                        std::move(config_path),
                                        "-quit-without-waiting"};
+    if (!human_model_path.empty()) {
+      arguments.push_back("-human-model");
+      arguments.push_back(std::move(human_model_path));
+    }
     if (!override_config.empty()) {
       arguments.push_back("-override-config");
       arguments.push_back(std::move(override_config));
@@ -282,6 +301,7 @@ void KataGoEmbeddedEngine::run_(std::string model_path, std::string config_path,
   }
 #else
   static_cast<void>(model_path);
+  static_cast<void>(human_model_path);
   static_cast<void>(config_path);
   static_cast<void>(override_config);
   set_error_("Embedded KataGo is not available on this platform");

@@ -3,6 +3,9 @@ extends KataGoTransport
 
 var backend_: KataGoTransport
 var override_config_: String = ""
+var model_path_override_: String = ""
+var human_model_path_: String = ""
+var config_path_: String = ""
 var active_queries_: Dictionary = {}
 var using_fallback_: bool = false
 var stopping_: bool = false
@@ -14,10 +17,33 @@ func start_transport() -> bool:
 
 
 func start_transport_with_override(override_config: String) -> bool:
+	return start_custom_transport(
+		"", "", SettingsStore.get_managed_katago_analysis_config_path(),
+		override_config
+	)
+
+
+func start_human_transport_with_override(override_config: String) -> bool:
+	return start_custom_transport(
+		"", SettingsStore.get_android_external_katago_human_model_path(),
+		SettingsStore.get_managed_katago_human_analysis_config_path(),
+		override_config
+	)
+
+
+func start_custom_transport(
+		model_path_override: String,
+		human_model_path: String,
+		config_path: String,
+		override_config: String
+) -> bool:
 	if is_transport_running():
 		return true
 	stopping_ = false
 	using_fallback_ = false
+	model_path_override_ = model_path_override
+	human_model_path_ = human_model_path
+	config_path_ = config_path
 	override_config_ = override_config
 	return start_backend_(KataGoOpenCLTransport.new(), true)
 
@@ -53,8 +79,15 @@ func start_backend_(candidate: KataGoTransport, allow_fallback: bool) -> bool:
 	backend_.transport_error.connect(on_backend_error_.bind(candidate))
 	backend_.transport_stopped.connect(on_backend_stopped_.bind(candidate))
 	var started: bool = false
-	if backend_.has_method("start_transport_with_override"):
-		started = bool(backend_.call("start_transport_with_override", override_config_))
+	if backend_.has_method("start_custom_transport"):
+		started = bool(backend_.call(
+			"start_custom_transport", model_path_override_, human_model_path_,
+			config_path_, override_config_
+		))
+	elif backend_.has_method("start_transport_with_override"):
+		started = bool(backend_.call(
+			"start_transport_with_override", override_config_
+		))
 	else:
 		started = backend_.start_transport()
 	if started:

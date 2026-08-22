@@ -23,6 +23,26 @@ func start_transport() -> bool:
 
 
 func start_transport_with_override(override_config: String) -> bool:
+	return start_custom_transport(
+		"", "", SettingsStore.get_managed_katago_analysis_config_path(),
+		override_config
+	)
+
+
+func start_human_transport_with_override(override_config: String) -> bool:
+	return start_custom_transport(
+		"", SettingsStore.get_android_external_katago_human_model_path(),
+		SettingsStore.get_managed_katago_human_analysis_config_path(),
+		override_config
+	)
+
+
+func start_custom_transport(
+		model_path_override: String,
+		human_model_path: String,
+		config_path: String,
+		override_config: String
+) -> bool:
 	if is_transport_running():
 		return true
 	if OS.get_name() != "Android":
@@ -40,16 +60,16 @@ func start_transport_with_override(override_config: String) -> bool:
 	if engine_ == null:
 		transport_error.emit(tr("无法创建内置 KataGo 引擎。"))
 		return false
-	var model_path: String = ProjectSettings.globalize_path(
-		selected_model_path_()
-	)
-	var config_path: String = \
-		SettingsStore.get_managed_katago_analysis_config_path()
+	var selected_model_path: String = selected_model_path_() \
+		if model_path_override.is_empty() else model_path_override
+	var model_path: String = ProjectSettings.globalize_path(selected_model_path)
+	var effective_human_model_path: String = "" if human_model_path.is_empty() \
+		else ProjectSettings.globalize_path(human_model_path)
 	var effective_override: String = "reportAnalysisWinratesAs=BLACK"
 	if not override_config.strip_edges().is_empty():
 		effective_override += "," + override_config.strip_edges()
 	var started: bool = bool(engine_.call(
-		"start_engine", model_path, config_path,
+		"start_engine", model_path, effective_human_model_path, config_path,
 		effective_override
 	))
 	if not started:

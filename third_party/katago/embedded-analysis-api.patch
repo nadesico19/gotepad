@@ -1,0 +1,232 @@
+diff --git a/cpp/main.h b/cpp/main.h
+index f7e3f86..2c07144 100644
+--- a/cpp/main.h
++++ b/cpp/main.h
+@@ -1,7 +1,18 @@
+ #include "core/global.h"
+ 
++#include <functional>
++
+ namespace MainCmds {
+   int analysis(const std::vector<std::string>& args);
++  // Gotepad embedding hook. The regular command-line entry point above keeps
++  // its behavior, while an in-process host can provide a blocking line reader
++  // and a response sink without redirecting the process-wide standard streams.
++  int analysisEmbedded(
++    const std::vector<std::string>& args,
++    const std::function<bool(std::string&)>& readLine,
++    const std::function<void(const std::string&)>& writeLine,
++    bool allowProcessExit = false
++  );
+   int benchmark(const std::vector<std::string>& args);
+   int contribute(const std::vector<std::string>& args);
+   int evalsgf(const std::vector<std::string>& args);
+diff --git a/cpp/command/analysis.cpp b/cpp/command/analysis.cpp
+index 9a6e1f0..b3f3eff 100644
+--- a/cpp/command/analysis.cpp
++++ b/cpp/command/analysis.cpp
+@@ -58,6 +58,20 @@ struct AnalyzeRequest {
+ 
+ 
+ int MainCmds::analysis(const vector<string>& args) {
++  return analysisEmbedded(
++    args,
++    [](string& line) { return static_cast<bool>(getline(cin,line)); },
++    [](const string& line) { cout << line << endl; },
++    true
++  );
++}
++
++int MainCmds::analysisEmbedded(
++  const vector<string>& args,
++  const std::function<bool(string&)>& readLine,
++  const std::function<void(const string&)>& writeLine,
++  bool allowProcessExit
++) {
+   Board::initHash();
+   ScoreValue::initTables();
+   Rand seedRand;
+@@ -69,6 +84,7 @@ int MainCmds::analysis(const vector<string>& args) {
+   bool quitWithoutWaiting;
+ 
+   KataGoCommandLine cmd("Run KataGo parallel JSON-based analysis engine.");
++  cmd.setExceptionHandling(allowProcessExit);
+   try {
+     cmd.addConfigFileArg("","analysis_example.cfg");
+     cmd.addModelFileArg();
+@@ -94,6 +110,9 @@ int MainCmds::analysis(const vector<string>& args) {
+     cerr << "Error: " << e.error() << " for argument " << e.argId() << endl;
+     return 1;
+   }
++  catch (TCLAP::ExitException &e) {
++    return e.getExitStatus();
++  }
+   cfg.applyAlias("numSearchThreadsPerAnalysisThread", "numSearchThreads");
+ 
+   if(cfg.contains("numAnalysisThreads") && numAnalysisThreadsCmdlineSpecified)
+@@ -249,13 +267,13 @@ int MainCmds::analysis(const vector<string>& args) {
+   };
+ 
+   ThreadSafeQueue<string*> toWriteQueue;
+-  auto writeLoop = [&toWriteQueue,&logAllResponses,&logger]() {
++  auto writeLoop = [&toWriteQueue,&logAllResponses,&logger,&writeLine]() {
+     while(true) {
+       string* message;
+       bool suc = toWriteQueue.waitPop(message);
+       if(!suc)
+         break;
+-      cout << *message << endl;
++      writeLine(*message);
+       if(logAllResponses)
+         logger.write("Response: " + *message);
+       delete message;
+@@ -474,7 +492,7 @@ int MainCmds::analysis(const vector<string>& args) {
+   auto requestLoop = [&]() {
+     string line;
+     json input;
+-    while(getline(cin,line)) {
++    while(readLine(line)) {
+       line = Global::trim(line);
+       if(line.length() == 0)
+         continue;
+diff --git a/cpp/core/global.cpp b/cpp/core/global.cpp
+index 249f159..b7f03f4 100644
+--- a/cpp/core/global.cpp
++++ b/cpp/core/global.cpp
+@@ -23,12 +23,20 @@ void Global::fatalError(const char* s)
+ {
+   cout << "\nFATAL ERROR:\n" << s << endl;
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++  throw StringError(s);
++#else
+   quick_exit(EXIT_FAILURE);
++#endif
+ }
+ 
+ void Global::fatalError(const string& s)
+ {
+   cout << "\nFATAL ERROR:\n" << s << endl;
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++  throw StringError(s);
++#else
+   quick_exit(EXIT_FAILURE);
++#endif
+ }
+ 
+ //STRINGS---------------------------------
+diff --git a/cpp/neuralnet/nneval.h b/cpp/neuralnet/nneval.h
+index b266ff0..699255c 100644
+--- a/cpp/neuralnet/nneval.h
++++ b/cpp/neuralnet/nneval.h
+@@ -2,6 +2,7 @@
+ #define NEURALNET_NNEVAL_H_
+ 
+ #include <memory>
++#include <exception>
+ 
+ #include "../core/global.h"
+ #include "../core/commontypes.h"
+@@ -188,6 +189,12 @@ class NNEvaluator {
+   // This function itself is not threadsafe.
+   void spawnServerThreads();
+ 
++  // Returns true when an exception happened before the server thread finished
++  // initialization. Embedded hosts use this to turn model/buffer initialization
++  // failures into a normal startup error instead of std::terminate.
++  bool reportServerThreadStartupFailure(int serverThreadIdx,
++                                        std::exception_ptr error);
++
+   // Kill spawned server threads and join and free them. This function is not threadsafe, and along with spawnServerThreads
+   // should have calls to it and spawnServerThreads singlethreaded.
+   void killServerThreads();
+@@ -256,6 +263,7 @@ class NNEvaluator {
+ 
+   bool isKilled; // Flag used for killing server threads
+   int numServerThreadsStartingUp; // Counter for waiting until server threads are spawned
++  std::exception_ptr serverThreadStartupException;
+   std::condition_variable mainThreadWaitingForSpawn; // Condvar for waiting until server threads are spawned
+ 
+   std::vector<int> serverThreadsIsUsingFP16;
+diff --git a/cpp/neuralnet/nneval.cpp b/cpp/neuralnet/nneval.cpp
+index 881c9fb..f3076e6 100644
+--- a/cpp/neuralnet/nneval.cpp
++++ b/cpp/neuralnet/nneval.cpp
+@@ -367,14 +367,20 @@ static void serveEvals(
+   int gpuIdxForThisThread,
+   int serverThreadIdx
+ ) {
+-  NNServerBuf* buf = new NNServerBuf(*nnEval,loadedModel);
+-  Rand rand(randSeedThisThread);
+-
+-  // Used to have a try catch around this but actually we're in big trouble if this raises an exception
+-  // and causes possibly the only nnEval thread to die, so actually go ahead and let the exception escape to
+-  // toplevel for easier debugging
+-  nnEval->serve(*buf,rand,gpuIdxForThisThread,serverThreadIdx);
+-  delete buf;
++  try {
++    std::unique_ptr<NNServerBuf> buf(new NNServerBuf(*nnEval,loadedModel));
++    Rand rand(randSeedThisThread);
++
++    // KataGo normally runs as its own process and deliberately lets unexpected
++    // evaluation errors terminate that process. During startup in an embedded
++    // host, report initialization failures to the spawning thread instead.
++    nnEval->serve(*buf,rand,gpuIdxForThisThread,serverThreadIdx);
++  }
++  catch(...) {
++    if(nnEval->reportServerThreadStartupFailure(serverThreadIdx,std::current_exception()))
++      return;
++    throw;
++  }
+ }
+ 
+ void NNEvaluator::setNumThreads(const vector<int>& gpuIdxByServerThr) {
+@@ -390,7 +396,8 @@ void NNEvaluator::spawnServerThreads() {
+ 
+   {
+     lock_guard<std::mutex> lock(bufferMutex);
+-    serverThreadsIsUsingFP16.resize(numThreads,0);
++    serverThreadsIsUsingFP16.assign(numThreads,-1);
++    serverThreadStartupException = nullptr;
+   }
+ 
+   queryQueue.unsetReadOnly();
+@@ -409,6 +416,39 @@ void NNEvaluator::spawnServerThreads() {
+   unique_lock<std::mutex> lock(bufferMutex);
+   while(numServerThreadsStartingUp > 0)
+     mainThreadWaitingForSpawn.wait(lock);
++  std::exception_ptr startupException = serverThreadStartupException;
++  lock.unlock();
++
++  if(startupException != nullptr) {
++    queryQueue.setReadOnly();
++    waitingForFinish.notify_all();
++    for(size_t i = 0; i<serverThreads.size(); i++)
++      serverThreads[i]->join();
++    for(size_t i = 0; i<serverThreads.size(); i++)
++      delete serverThreads[i];
++    serverThreads.clear();
++    serverThreadsIsUsingFP16.clear();
++    queryQueue.unsetReadOnly();
++    std::rethrow_exception(startupException);
++  }
++}
++
++bool NNEvaluator::reportServerThreadStartupFailure(
++  int serverThreadIdx,
++  std::exception_ptr error
++) {
++  lock_guard<std::mutex> lock(bufferMutex);
++  if(serverThreadIdx < 0 || serverThreadIdx >= (int)serverThreadsIsUsingFP16.size() ||
++     serverThreadsIsUsingFP16[serverThreadIdx] != -1)
++    return false;
++
++  serverThreadsIsUsingFP16[serverThreadIdx] = 0;
++  if(serverThreadStartupException == nullptr)
++    serverThreadStartupException = error;
++  numServerThreadsStartingUp--;
++  if(numServerThreadsStartingUp <= 0)
++    mainThreadWaitingForSpawn.notify_all();
++  return true;
+ }
+ 
+ void NNEvaluator::killServerThreads() {

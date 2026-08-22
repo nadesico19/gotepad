@@ -14,6 +14,7 @@ final class KataGoOpenCLProtocol {
 	static final int MSG_ERROR = 13;
 
 	static final String KEY_MODEL_PATH = "model_path";
+	static final String KEY_HUMAN_MODEL_PATH = "human_model_path";
 	static final String KEY_CONFIG_PATH = "config_path";
 	static final String KEY_OVERRIDE_CONFIG = "override_config";
 	static final String KEY_TEXT = "text";
