@@ -54,6 +54,7 @@ var display_roots_: Array[int] = []
 var node_positions_: Dictionary = {}
 var node_fingerprints_: Dictionary = {}
 var node_titles_: Dictionary = {}
+var wrapped_node_titles_: Dictionary = {}
 var hit_uids_by_cell_: Dictionary = {}
 var snapshots_: Dictionary = {}
 var snapshot_cache_by_document_: Dictionary = {}
@@ -113,6 +114,7 @@ func rebuild(go_notes: GoNotes) -> void:
 	selected_order_.clear()
 	snapshots_.clear()
 	node_titles_.clear()
+	wrapped_node_titles_.clear()
 	_clear_active_sprites_()
 	pending_texture_uids_.clear()
 	pending_texture_uid_set_.clear()
@@ -678,17 +680,17 @@ func _refresh_visible_sprites_() -> void:
 		if sprite == null:
 			sprite = _acquire_sprite_()
 			active_sprites_[uid] = sprite
-		sprite.position = center
-		_refresh_title_label_(uid, center)
-		var texture: Texture2D = _cached_texture_(uid)
-		if texture != null:
-			_assign_sprite_texture_(sprite, texture)
-		else:
-			if placeholder_texture_ != null:
-				_assign_sprite_texture_(sprite, placeholder_texture_)
+			sprite.position = center
+			_refresh_title_label_(uid, center)
+			var texture: Texture2D = _cached_texture_(uid)
+			if texture != null:
+				_assign_sprite_texture_(sprite, texture)
 			else:
-				sprite.texture = null
-			_queue_texture_generation_(uid)
+				if placeholder_texture_ != null:
+					_assign_sprite_texture_(sprite, placeholder_texture_)
+				else:
+					sprite.texture = null
+				_queue_texture_generation_(uid)
 
 	for uid_value: Variant in active_sprites_.keys():
 		var uid: int = int(uid_value)
@@ -734,12 +736,20 @@ func _refresh_title_label_(uid: int, center: Vector2) -> void:
 	if label == null:
 		label = _acquire_title_label_()
 		active_title_labels_[uid] = label
-	label.position = center + Vector2(
-		-kThumbnailSize * 0.5,
-		-kThumbnailSize * 0.5 - kThumbnailTitleHeight
-	)
-	label.size = Vector2(kThumbnailSize, kThumbnailTitleHeight)
-	label.text = _wrap_thumbnail_title_(label, title)
+		label.position = center + Vector2(
+			-kThumbnailSize * 0.5,
+			-kThumbnailSize * 0.5 - kThumbnailTitleHeight
+		)
+		label.size = Vector2(kThumbnailSize, kThumbnailTitleHeight)
+		label.text = _wrapped_thumbnail_title_(uid, label, title)
+
+
+func _wrapped_thumbnail_title_(uid: int, label: Label, title: String) -> String:
+	if wrapped_node_titles_.has(uid):
+		return str(wrapped_node_titles_[uid])
+	var wrapped_title: String = _wrap_thumbnail_title_(label, title)
+	wrapped_node_titles_[uid] = wrapped_title
+	return wrapped_title
 
 
 func _wrap_thumbnail_title_(label: Label, title: String) -> String:

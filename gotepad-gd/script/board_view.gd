@@ -495,6 +495,7 @@ func set_analysis_candidates(
 	if analysis_candidates_overlay_ == null:
 		return
 	var candidates: Array[Dictionary] = []
+	var playback_next_move: Dictionary = playback_next_move_()
 	for info_value: Variant in move_infos:
 		if candidates.size() >= 3:
 			break
@@ -511,6 +512,9 @@ func set_analysis_candidates(
 			"row": intersection.y,
 			"column": intersection.x,
 			"winrate": candidate_winrate,
+			"is_played_next": is_playback_next_candidate_(
+				playback_next_move, intersection
+			),
 		})
 	var played_move_loss: Dictionary = build_played_move_loss_(
 		candidates, played_move
@@ -518,6 +522,25 @@ func set_analysis_candidates(
 	analysis_candidates_overlay_.configure(
 		candidates, played_move_loss, board_size_, cell_size_()
 	)
+
+
+func playback_next_move_() -> Dictionary:
+	var next_uid: int = playback_next_uid_()
+	if next_uid < 0:
+		return {}
+	for branch: Dictionary in branch_moves_:
+		if int(branch.get("uid", -1)) == next_uid:
+			return branch
+	return {}
+
+
+func is_playback_next_candidate_(
+		playback_next_move: Dictionary, intersection: Vector2i
+) -> bool:
+	return not playback_next_move.is_empty() \
+		and int(playback_next_move.get("color", 0)) == next_color_ \
+		and int(playback_next_move.get("row", 0)) == intersection.y \
+		and int(playback_next_move.get("column", 0)) == intersection.x
 
 
 func build_played_move_loss_(

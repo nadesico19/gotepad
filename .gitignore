@@ -6,6 +6,7 @@
 /gotepad-gd/bin/
 /gotepad-gd/android/
 /gotepad-model-test.keystore
+/docs/local_build_secrets.md
 /third_party/godot-cpp/**
 !/third_party/godot-cpp/gotepad_info.txt
 /third_party/libsgfcplusplus/**

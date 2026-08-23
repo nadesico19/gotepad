@@ -10,6 +10,7 @@ const kLightText: Color = Color(1.0, 1.0, 0.96, 0.98)
 const kDarkText: Color = Color(0.10, 0.075, 0.02, 0.98)
 const kLossColor: Color = Color(0.95, 0.48, 0.48, 0.68)
 const kLossText: Color = Color(0.28, 0.025, 0.025, 0.98)
+const kPlayedCandidateOutlineColor: Color = Color(0.02, 0.02, 0.02, 0.96)
 
 var candidates_: Array[Dictionary] = []
 var played_move_loss_: Dictionary = {}
@@ -55,6 +56,12 @@ func _draw() -> void:
 			kCandidateColors[index].lightened(0.20),
 			maxf(cell_size_ * 0.035, 1.0), true
 		)
+		if bool(candidate.get("is_played_next", false)):
+			draw_arc(
+				center, radius, 0.0, TAU, 48,
+				kPlayedCandidateOutlineColor,
+				maxf(cell_size_ * 0.035, 1.0), true
+			)
 		var text_color: Color = kLightText if index == 0 else kDarkText
 		draw_centered_text_(
 			font,
