@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "1.0.8-b1"
+const kGotepadVersion: String = "0.1.8-b2"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -1692,7 +1692,7 @@ func start_katago_benchmark_() -> void:
 	katago_benchmark_window_.popup_centered_ratio(0.8)
 	set_katago_controls_enabled_(false)
 	update_active_benchmark_status_(tr("正在自动检测性能…"), kStatusNeutralColor)
-	if OS.get_name() == "Android":
+	if OS.get_name() == "Android" or katago_benchmark_human_mode_:
 		start_embedded_katago_benchmark_()
 		return
 	var arguments: PackedStringArray = PackedStringArray([

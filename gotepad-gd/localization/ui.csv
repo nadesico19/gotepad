@@ -563,3 +563,7 @@ keys,zh_CN,ja,ko,en
 "请先选择有效的人类模仿棋模型文件。","请先选择有效的人类模仿棋模型文件。","有効な人間模倣対局モデルファイルを先に選択してください。","먼저 유효한 인간 모방 바둑 모델 파일을 선택하세요.","Select a valid human-like-play model file first."
 "人类模仿棋模型文件不存在或无法读取，请重新选择有效路径。","人类模仿棋模型文件不存在或无法读取，请重新选择有效路径。","人間模倣対局モデルファイルが存在しないか読み取れません。有効なパスを選び直してください。","인간 모방 바둑 모델 파일이 없거나 읽을 수 없습니다. 유효한 경로를 다시 선택하세요.","The human-like-play model file does not exist or cannot be read. Select a valid path again."
 "人类模仿棋模型路径未能保存，请检查设置后重试。","人类模仿棋模型路径未能保存，请检查设置后重试。","人間模倣対局モデルのパスを保存できませんでした。設定を確認して再試行してください。","인간 모방 바둑 모델 경로를 저장하지 못했습니다. 설정을 확인한 후 다시 시도하세요.","The human-like-play model path could not be saved. Check the settings and try again."
+"正在准备人类模仿棋端到端性能检测…","正在准备人类模仿棋端到端性能检测…","人間模倣対局をエンドツーエンドで性能測定する準備をしています…","인간 모방 바둑의 종단 간 성능 측정을 준비하는 중…","Preparing the end-to-end human-like-play benchmark…"
+"检测会同时运行主分析模型和 Human SL 模型。","检测会同时运行主分析模型和 Human SL 模型。","測定ではメイン解析モデルと Human SL モデルを同時に実行します。","측정 중 기본 분석 모델과 Human SL 모델을 함께 실행합니다.","The benchmark runs the main analysis model and Human SL model together."
+"正在测试仿人配置：%d线程，批量%d…","正在测试仿人配置：%d线程，批量%d…","人間模倣設定を測定中：%d スレッド、バッチ %d…","인간 모방 설정 측정 중: %d스레드, 배치 %d…","Testing human-like-play configuration: %d threads, batch %d…"
+"推荐仿人配置：%d线程，批量%d，单次选点%.3f秒","推荐仿人配置：%d线程，批量%d，单次选点%.3f秒","推奨人間模倣設定：%d スレッド、バッチ %d、1手 %.3f 秒","권장 인간 모방 설정: %d스레드, 배치 %d, 한 수당 %.3f초","Recommended human-like-play configuration: %d threads, batch %d, %.3f s per move"
