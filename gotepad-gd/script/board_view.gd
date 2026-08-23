@@ -562,7 +562,7 @@ func enter_human_play_mode() -> bool:
 	if human_play_mode_ or variation_mode_:
 		return false
 	human_play_mode_ = true
-	if enter_variation_mode():
+	if enter_variation_mode(true):
 		return true
 	human_play_mode_ = false
 	set_note_board_controls_visible_(true)
@@ -622,12 +622,12 @@ func takeback_human_play_moves(move_count: int) -> bool:
 	return true
 
 
-func enter_variation_mode() -> bool:
+func enter_variation_mode(preserve_history: bool = false) -> bool:
 	if variation_mode_ or go_notes_ == null \
 			or position_states_.size() != board_size_ * board_size_:
 		return false
 	cancel_pending_move()
-	var temporary_notes: GoNotes = create_variation_notes_()
+	var temporary_notes: GoNotes = create_variation_notes_(preserve_history)
 	if temporary_notes == null:
 		return false
 
@@ -783,7 +783,7 @@ func set_variation_navigation_mode_(enabled: bool) -> void:
 		playback_hover_bubble_.hide()
 
 
-func create_variation_notes_() -> GoNotes:
+func create_variation_notes_(preserve_history: bool = false) -> GoNotes:
 	var temporary_notes: GoNotes = GoNotes.new()
 	if not temporary_notes.reset(board_size_):
 		push_warning(temporary_notes.get_message())
@@ -814,6 +814,10 @@ func create_variation_notes_() -> GoNotes:
 		)) != 0:
 		push_warning(CommandMessages.localize(temporary_notes.get_message()))
 		return null
+	if preserve_history:
+		if replay_current_history_(temporary_notes):
+			return temporary_notes
+		return null
 	var empty_position := PackedInt32Array()
 	empty_position.resize(position_states_.size())
 	var command: String = build_preset_command_(
@@ -826,6 +830,65 @@ func create_variation_notes_() -> GoNotes:
 		))
 		return null
 	return temporary_notes
+
+
+func replay_current_history_(temporary_notes: GoNotes) -> bool:
+	var source_path: PackedInt64Array = PackedInt64Array(
+		go_notes_.call(&"get_straightforward_path")
+	)
+	var end_index: int = source_path.find(view_uid_)
+	if end_index < 0:
+		push_warning("Unable to locate the current position in its record path.")
+		return false
+	for index: int in range(1, end_index + 1):
+		var node: Dictionary = Dictionary(
+			go_notes_.call(&"get_node_at", int(source_path[index]))
+		)
+		var command: String = history_replay_command_(node)
+		if command.is_empty():
+			if int(node.get("color", -1)) == 0 \
+					and Array(node.get("preset_stones", [])).is_empty():
+				continue
+			push_warning("Unable to replay a source record node.")
+			return false
+		if int(temporary_notes.execute_command(command)) != 0:
+			push_warning(CommandMessages.localize(temporary_notes.get_message()))
+			return false
+	return true
+
+
+func history_replay_command_(node: Dictionary) -> String:
+	if node.is_empty():
+		return ""
+	var color: int = int(node.get("color", -1))
+	if color == kBlack or color == kWhite:
+		var row: int = int(node.get("row", 0))
+		var column: int = int(node.get("column", 0))
+		if row < 1 or row > board_size_ or column < 1 or column > board_size_:
+			return ""
+		return "PLACESTONE,%d,%d,%d;" % [color, row, column]
+	if color != 0:
+		return ""
+	var preset_value: Variant = node.get("preset_stones", [])
+	if not preset_value is Array:
+		return ""
+	var fields: PackedStringArray = PackedStringArray()
+	fields.append("PRESET")
+	for stone_value: Variant in Array(preset_value):
+		if not stone_value is Dictionary:
+			return ""
+		var stone: Dictionary = Dictionary(stone_value)
+		var stone_color: int = int(stone.get("color", -1))
+		var stone_row: int = int(stone.get("row", 0))
+		var stone_column: int = int(stone.get("column", 0))
+		if stone_color < 0 or stone_color > kWhite \
+				or stone_row < 1 or stone_row > board_size_ \
+				or stone_column < 1 or stone_column > board_size_:
+			return ""
+		fields.append(str(stone_color))
+		fields.append(str(stone_row))
+		fields.append(str(stone_column))
+	return "" if fields.size() == 1 else ",".join(fields) + ";"
 
 
 func clear_variation_restore_state_() -> void:

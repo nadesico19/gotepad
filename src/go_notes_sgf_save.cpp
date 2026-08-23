@@ -65,7 +65,7 @@ using LibSgfcPlusPlus::SgfcGameType;
 using LibSgfcPlusPlus::SgfcPlusPlusFactory;
 using LibSgfcPlusPlus::SgfcPropertyType;
 
-inline constexpr char kGotepadVersion[] = "0.1.8";
+inline constexpr char kGotepadVersion[] = "1.0.8-b1";
 inline constexpr char kGotepadProfileVersion[] = "1";
 inline constexpr char kInvalidGameResultMessage[] =
     "[GNE0029] SGF result is not valid";
