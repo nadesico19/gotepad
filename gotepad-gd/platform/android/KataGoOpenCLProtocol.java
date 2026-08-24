@@ -18,6 +18,7 @@ final class KataGoOpenCLProtocol {
 	static final String KEY_CONFIG_PATH = "config_path";
 	static final String KEY_OVERRIDE_CONFIG = "override_config";
 	static final String KEY_TEXT = "text";
+	static final String KEY_SESSION_ID = "session_id";
 
 	static final int STATE_STOPPED = 0;
 	static final int STATE_STARTING = 1;

@@ -617,6 +617,29 @@ layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "浏览"
 
+[node name="KatagoHumanMaxVisitsRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoHumanMaxVisitsRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "仿人棋计算量"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoHumanMaxVisitsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Visits" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoHumanMaxVisitsRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+min_value = 1.0
+max_value = 100000.0
+value = 500.0
+allow_greater = true
+suffix = " visits"
+
 [node name="KatagoHumanTestRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 theme_override_constants/separation = 8

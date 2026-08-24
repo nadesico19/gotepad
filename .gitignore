@@ -2,6 +2,7 @@
 # with this repository. Keep only the acquisition metadata in version control.
 /.tmp/
 /.idea/
+/.vscode/
 /gotepad-gd/.godot/
 /gotepad-gd/bin/
 /gotepad-gd/android/

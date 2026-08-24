@@ -9,16 +9,17 @@ const kWarmupVisits: int = 8
 const kBenchmarkVisits: int = 64
 const kMaxThreads: int = 8
 const kMaxBatchSize: int = 4
-const kHumanBenchmarkVisits: int = 40
 const kHumanCandidates: Array[Vector2i] = [
-	Vector2i(1, 1),
-	Vector2i(2, 1),
-	Vector2i(2, 2),
 	Vector2i(4, 2),
-	Vector2i(4, 4),
-	Vector2i(6, 4),
+	Vector2i(1, 1),
 	Vector2i(8, 4),
+	Vector2i(2, 1),
+	Vector2i(6, 4),
+	Vector2i(2, 2),
+	Vector2i(4, 4),
 ]
+const kHumanSimpleCandidateTolerance: float = 1.08
+const kHumanCandidateMaxRetries: int = 2
 
 var transport_: KataGoTransport
 var output_: String = ""
@@ -29,17 +30,24 @@ var visits_per_second_: Dictionary = {}
 var finishing_: bool = false
 var human_model_: bool = false
 var human_model_path_: String = ""
+var human_benchmark_visits_: int = SettingsStore.kDefaultKatagoHumanMaxVisits
+var human_candidates_: Array[Vector2i] = []
 var human_candidate_index_: int = 0
 var human_warming_up_: bool = true
-var human_latencies_: Dictionary = {}
+var human_retesting_: bool = false
+var human_latency_samples_: Dictionary = {}
+var human_candidate_retry_count_: int = 0
+var human_transport_starting_: bool = false
 
 
 func _init(
 		use_human_model: bool = false,
-		human_model_path: String = ""
+		human_model_path: String = "",
+		human_benchmark_visits: int = SettingsStore.kDefaultKatagoHumanMaxVisits
 ) -> void:
 	human_model_ = use_human_model
 	human_model_path_ = human_model_path.strip_edges()
+	human_benchmark_visits_ = maxi(human_benchmark_visits, 1)
 
 
 func start_benchmark() -> bool:
@@ -48,12 +56,17 @@ func start_benchmark() -> bool:
 	if human_model_:
 		append_output_(tr("正在准备人类模仿棋端到端性能检测…"))
 		append_output_(tr("检测会同时运行主分析模型和 Human SL 模型。"))
+		append_output_(tr("本次按 %d visits 检测仿人棋配置。") % \
+			human_benchmark_visits_)
+		human_candidates_ = kHumanCandidates.duplicate()
 		return start_human_candidate_()
 	return start_regular_benchmark_()
 
 
 func start_regular_benchmark_() -> bool:
-	transport_ = KataGoAndroidTransport.new()
+	# Benchmark only the requested OpenCL backend. Falling back to Eigen here
+	# would produce a valid-looking result for the wrong implementation.
+	transport_ = KataGoOpenCLTransport.new()
 	connect_transport_()
 	append_output_(tr("正在准备 Android 内置 KataGo 性能检测…"))
 	var override_config: String = (
@@ -71,14 +84,18 @@ func start_regular_benchmark_() -> bool:
 
 
 func start_human_candidate_() -> bool:
-	if human_candidate_index_ >= kHumanCandidates.size():
+	if human_candidate_index_ >= human_candidates_.size():
+		if not human_retesting_ and prepare_human_retest_():
+			return start_human_candidate_()
 		finish_human_success_()
 		return true
-	var candidate: Vector2i = kHumanCandidates[human_candidate_index_]
-	append_output_(tr("正在测试仿人配置：%d线程，批量%d…") % [
+	var candidate: Vector2i = human_candidates_[human_candidate_index_]
+	var status_text: String = "复测候选配置：%d线程，批量%d…" \
+		if human_retesting_ else "正在测试仿人配置：%d线程，批量%d…"
+	append_output_(tr(status_text) % [
 		candidate.x, candidate.y
 	])
-	transport_ = KataGoAndroidTransport.new() if OS.get_name() == "Android" \
+	transport_ = KataGoOpenCLTransport.new() if OS.get_name() == "Android" \
 		else KataGoLocalTransport.new()
 	connect_transport_()
 	var model_path: String = human_model_path_ if not human_model_path_.is_empty() \
@@ -89,11 +106,13 @@ func start_human_candidate_() -> bool:
 	)
 	var primary_model_path: String = "" if OS.get_name() == "Android" \
 		else SettingsStore.get_katago_model_path()
+	human_transport_starting_ = true
 	var started: bool = not model_path.is_empty() and bool(transport_.call(
 		"start_custom_transport", primary_model_path, model_path,
 		SettingsStore.get_managed_katago_human_analysis_config_path(),
 		override_config
 	))
+	human_transport_starting_ = false
 	if not started:
 		finish_(false, 0, 0, tr("无法启动内置 KataGo 性能检测。"))
 		return false
@@ -154,7 +173,7 @@ func start_query_(warmup: bool) -> void:
 
 
 func start_human_query_() -> void:
-	var candidate: Vector2i = kHumanCandidates[human_candidate_index_]
+	var candidate: Vector2i = human_candidates_[human_candidate_index_]
 	query_id_ = "human-benchmark-%s-%d-%d-%d" % [
 		"warmup" if human_warming_up_ else "measure",
 		candidate.x,
@@ -165,7 +184,8 @@ func start_human_query_() -> void:
 		human_benchmark_context_(human_warming_up_),
 		query_id_,
 		KataGoQueryBuilder.kDefaultHumanProfile,
-		kWarmupVisits if human_warming_up_ else kHumanBenchmarkVisits,
+		human_warmup_visits_() if human_warming_up_ \
+			else human_benchmark_visits_,
 		60.0,
 		2
 	)
@@ -249,38 +269,115 @@ func on_human_query_completed_(result: Dictionary) -> void:
 		0.001
 	)
 	var root_info: Dictionary = Dictionary(result.get("rootInfo", {}))
-	var visits: int = int(root_info.get("visits", kHumanBenchmarkVisits))
-	var candidate: Vector2i = kHumanCandidates[human_candidate_index_]
+	var visits: int = int(root_info.get("visits", human_benchmark_visits_))
+	var candidate: Vector2i = human_candidates_[human_candidate_index_]
 	var key: String = "%d:%d" % [candidate.x, candidate.y]
-	human_latencies_[key] = elapsed_seconds
+	var samples: Array = human_latency_samples_.get(key, [])
+	samples.append(elapsed_seconds)
+	human_latency_samples_[key] = samples
 	append_output_(
 		"threads = %d, batch = %d : latency = %.3f s, visits/s = %.2f"
 		% [candidate.x, candidate.y, elapsed_seconds,
 			float(visits) / elapsed_seconds]
 	)
+	human_candidate_retry_count_ = 0
 	human_candidate_index_ += 1
-	stop_transport_()
-	call_deferred(&"start_human_candidate_")
+	stop_transport_(Callable(self, "start_human_candidate_"))
+
+
+func recover_human_candidate_(message: String) -> void:
+	var candidate: Vector2i = human_candidates_[human_candidate_index_]
+	if human_candidate_retry_count_ < kHumanCandidateMaxRetries:
+		human_candidate_retry_count_ += 1
+		append_output_(tr(
+			"配置 %d线程、批量%d 的 OpenCL 服务异常，正在重试（%d/%d）…"
+		) % [candidate.x, candidate.y, human_candidate_retry_count_,
+			kHumanCandidateMaxRetries])
+		if not message.strip_edges().is_empty():
+			append_output_(message)
+		stop_transport_(Callable(self, "start_human_candidate_"))
+		return
+	append_output_(tr(
+		"配置 %d线程、批量%d 连续失败，已跳过并继续检测其他配置。"
+	) % [candidate.x, candidate.y])
+	if not message.strip_edges().is_empty():
+		append_output_(message)
+	human_candidate_retry_count_ = 0
+	human_candidate_index_ += 1
+	stop_transport_(Callable(self, "start_human_candidate_"))
 
 
 func finish_human_success_() -> void:
-	var best_candidate: Vector2i = Vector2i.ZERO
+	var fastest_candidate: Vector2i = Vector2i.ZERO
 	var best_latency: float = INF
 	for candidate: Vector2i in kHumanCandidates:
-		var key: String = "%d:%d" % [candidate.x, candidate.y]
-		if not human_latencies_.has(key):
+		var latency: float = human_average_latency_(candidate)
+		if not is_finite(latency):
 			continue
-		var latency: float = float(human_latencies_[key])
 		if latency < best_latency:
 			best_latency = latency
-			best_candidate = candidate
-	if best_candidate == Vector2i.ZERO:
+			fastest_candidate = candidate
+	if fastest_candidate == Vector2i.ZERO:
 		finish_(false, 0, 0, tr("性能检测没有取得有效结果。"))
 		return
+	var best_candidate: Vector2i = fastest_candidate
+	var best_cost: int = fastest_candidate.x * fastest_candidate.y
+	for candidate: Vector2i in kHumanCandidates:
+		var latency: float = human_average_latency_(candidate)
+		var cost: int = candidate.x * candidate.y
+		if is_finite(latency) \
+				and latency <= best_latency * kHumanSimpleCandidateTolerance \
+				and (cost < best_cost or (cost == best_cost \
+					and candidate.x < best_candidate.x)):
+			best_candidate = candidate
+			best_cost = cost
+	var selected_latency: float = human_average_latency_(best_candidate)
 	append_output_(tr("推荐仿人配置：%d线程，批量%d，单次选点%.3f秒") % [
-		best_candidate.x, best_candidate.y, best_latency
+		best_candidate.x, best_candidate.y, selected_latency
 	])
 	finish_(true, best_candidate.x, best_candidate.y, "")
+
+
+func human_warmup_visits_() -> int:
+	return clampi(roundi(float(human_benchmark_visits_) * 0.125), 8, 64)
+
+
+func human_average_latency_(candidate: Vector2i) -> float:
+	var key: String = "%d:%d" % [candidate.x, candidate.y]
+	var samples: Array = human_latency_samples_.get(key, [])
+	if samples.is_empty():
+		return INF
+	var total: float = 0.0
+	for sample: Variant in samples:
+		total += float(sample)
+	return total / float(samples.size())
+
+
+func prepare_human_retest_() -> bool:
+	var first: Vector2i = Vector2i.ZERO
+	var second: Vector2i = Vector2i.ZERO
+	var first_latency: float = INF
+	var second_latency: float = INF
+	for candidate: Vector2i in kHumanCandidates:
+		var latency: float = human_average_latency_(candidate)
+		if latency < first_latency:
+			second = first
+			second_latency = first_latency
+			first = candidate
+			first_latency = latency
+		elif latency < second_latency:
+			second = candidate
+			second_latency = latency
+	if first == Vector2i.ZERO:
+		return false
+	human_candidates_.clear()
+	human_candidates_.append(first)
+	if second != Vector2i.ZERO:
+		human_candidates_.append(second)
+	human_candidate_index_ = 0
+	human_retesting_ = true
+	append_output_(tr("将复测最快的候选配置，以降低首次运行和设备温度的影响。"))
+	return true
 
 
 func finish_success_() -> void:
@@ -326,12 +423,24 @@ func terminate_current_query_() -> void:
 	}, "", false))
 
 
-func stop_transport_() -> void:
+func stop_transport_(after_stopped: Callable = Callable()) -> void:
 	if transport_ != null:
 		var transport: KataGoTransport = transport_
 		transport_ = null
 		transport.stop_transport()
+		if after_stopped.is_valid():
+			transport.tree_exited.connect(
+				on_transport_tree_exited_.bind(after_stopped), CONNECT_ONE_SHOT
+			)
 		transport.queue_free()
+	elif after_stopped.is_valid():
+		after_stopped.call_deferred()
+
+
+func on_transport_tree_exited_(after_stopped: Callable) -> void:
+	# Start the next candidate on the following main-loop turn, after Godot has
+	# fully removed the old transport and its _exit_tree() has completed.
+	after_stopped.call_deferred()
 
 
 func append_output_(line: String) -> void:
@@ -352,6 +461,9 @@ func on_log_received_(line: String, source: KataGoTransport) -> void:
 func on_transport_error_(message: String, source: KataGoTransport) -> void:
 	if source != transport_:
 		return
+	if human_model_ and not human_transport_starting_:
+		recover_human_candidate_(message)
+		return
 	finish_(false, 0, 0, message)
 
 
@@ -359,6 +471,10 @@ func on_transport_stopped_(source: KataGoTransport) -> void:
 	if source != transport_:
 		return
 	if not finishing_:
+		if human_model_ and not human_transport_starting_:
+			recover_human_candidate_(
+				tr("内置 KataGo 性能检测意外停止。"))
+			return
 		finish_(false, 0, 0, tr("内置 KataGo 性能检测意外停止。"))
 
 

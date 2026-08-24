@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.8-b3"
+const kGotepadVersion: String = "0.1.8-b4"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -54,6 +54,7 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoHumanTitle",
 	"KatagoHumanModelLabel",
 	"KatagoHumanModelRow",
+	"KatagoHumanMaxVisitsRow",
 	"KatagoHumanTestRow",
 	"KatagoHumanStatus",
 ]
@@ -154,6 +155,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoHumanModelRow/Path
 @onready var katago_human_model_browse_: Button = \
 	$SettingsPanel/Margin/Options/KatagoHumanModelRow/Browse
+@onready var katago_human_max_visits_: SpinBox = \
+	$SettingsPanel/Margin/Options/KatagoHumanMaxVisitsRow/Visits
 @onready var katago_human_benchmark_button_: Button = \
 	$SettingsPanel/Margin/Options/KatagoHumanTestRow/Benchmark
 @onready var katago_human_status_: Label = \
@@ -207,6 +210,7 @@ var opening_pptx_board_coordinates_: bool
 var opening_katago_executable_path_: String
 var opening_katago_model_path_: String
 var opening_katago_human_model_path_: String
+var opening_katago_human_max_visits_: int
 var opening_katago_analysis_config_path_: String
 var opening_katago_max_visits_: int
 var opening_katago_report_interval_seconds_: float
@@ -269,6 +273,9 @@ func _ready() -> void:
 	katago_model_path_.text_changed.connect(on_katago_path_changed_)
 	katago_human_model_path_.text_changed.connect(
 		on_katago_human_path_changed_
+	)
+	katago_human_max_visits_.value_changed.connect(
+		on_katago_human_max_visits_changed_
 	)
 	katago_analysis_config_path_.text_changed.connect(on_katago_path_changed_)
 	katago_max_visits_.value_changed.connect(on_katago_max_visits_changed_)
@@ -475,6 +482,8 @@ func open_panel_() -> void:
 	opening_katago_model_path_ = SettingsStore.get_katago_model_path()
 	opening_katago_human_model_path_ = \
 		SettingsStore.get_katago_human_model_path()
+	opening_katago_human_max_visits_ = \
+		SettingsStore.get_katago_human_max_visits()
 	opening_katago_analysis_config_path_ = \
 		SettingsStore.get_katago_analysis_config_path()
 	opening_katago_max_visits_ = SettingsStore.get_katago_max_visits()
@@ -540,6 +549,9 @@ func open_panel_() -> void:
 		else opening_katago_model_path_
 	katago_human_model_path_.text = "" if human_model_path_invalid \
 		else opening_katago_human_model_path_
+	katago_human_max_visits_.set_value_no_signal(
+		opening_katago_human_max_visits_
+	)
 	katago_analysis_config_path_.text = "" if config_path_invalid \
 		else opening_katago_analysis_config_path_
 	katago_max_visits_.set_value_no_signal(opening_katago_max_visits_)
@@ -690,6 +702,12 @@ func on_katago_max_visits_changed_(_value: float) -> void:
 	on_option_selected_(0)
 
 
+func on_katago_human_max_visits_changed_(_value: float) -> void:
+	pending_katago_human_benchmark_threads_ = 0
+	pending_katago_human_benchmark_batch_size_ = 0
+	on_option_selected_(0)
+
+
 func on_katago_analysis_option_changed_(_value: float) -> void:
 	on_option_selected_(0)
 
@@ -762,6 +780,8 @@ func has_staged_changes_() -> bool:
 		or selected_katago_model_path_() != opening_katago_model_path_ \
 		or selected_katago_human_model_path_() \
 			!= opening_katago_human_model_path_ \
+		or selected_katago_human_max_visits_() \
+			!= opening_katago_human_max_visits_ \
 		or selected_katago_analysis_config_path_() \
 			!= opening_katago_analysis_config_path_ \
 		or selected_katago_max_visits_() != opening_katago_max_visits_ \
@@ -893,6 +913,10 @@ func selected_katago_max_visits_() -> int:
 	return maxi(roundi(katago_max_visits_.value), 1)
 
 
+func selected_katago_human_max_visits_() -> int:
+	return maxi(roundi(katago_human_max_visits_.value), 1)
+
+
 func selected_katago_report_interval_seconds_() -> float:
 	return clampf(katago_report_interval_seconds_.value, 0.1, 60.0)
 
@@ -978,7 +1002,8 @@ func on_confirm_pressed_() -> void:
 		selected_katago_show_score_lead_(),
 		selected_katago_game_analysis_visits_(),
 		selected_katago_analysis_config_path_(),
-		selected_katago_human_model_path_()
+		selected_katago_human_model_path_(),
+		selected_katago_human_max_visits_()
 	)
 	if error != OK:
 		error_label_.text = tr("保存设置失败：%s") % error_string(error)
@@ -1007,6 +1032,7 @@ func on_confirm_pressed_() -> void:
 		remove_managed_model_file_(previous_model_path)
 	pending_imported_model_path_ = ""
 	opening_katago_human_model_path_ = selected_katago_human_model_path_()
+	opening_katago_human_max_visits_ = selected_katago_human_max_visits_()
 	if previous_human_model_path != opening_katago_human_model_path_:
 		remove_managed_model_file_(previous_human_model_path)
 	pending_imported_human_model_path_ = ""
@@ -1075,9 +1101,12 @@ func on_restore_pressed_() -> void:
 			) else ""
 	katago_human_model_path_.text = opening_katago_human_model_path_ \
 		if OS.has_feature("mobile") \
-			or SettingsStore.is_katago_model_path_valid(
+		or SettingsStore.is_katago_model_path_valid(
 				opening_katago_human_model_path_
 			) else ""
+	katago_human_max_visits_.set_value_no_signal(
+		opening_katago_human_max_visits_
+	)
 	katago_analysis_config_path_.text = opening_katago_analysis_config_path_ \
 		if OS.has_feature("mobile") \
 			or SettingsStore.is_katago_analysis_config_path_valid(
@@ -1728,7 +1757,8 @@ func start_katago_benchmark_() -> void:
 func start_embedded_katago_benchmark_() -> void:
 	katago_embedded_benchmark_ = KataGoEmbeddedBenchmark.new(
 		katago_benchmark_human_mode_,
-		selected_katago_human_model_path_() if katago_benchmark_human_mode_ else ""
+		selected_katago_human_model_path_() if katago_benchmark_human_mode_ else "",
+		selected_katago_human_max_visits_()
 	)
 	add_child(katago_embedded_benchmark_)
 	katago_embedded_benchmark_.output_changed.connect(
@@ -1991,6 +2021,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_executable_path_.editable = desktop_paths_enabled
 	katago_model_path_.editable = desktop_paths_enabled
 	katago_human_model_path_.editable = desktop_paths_enabled
+	katago_human_max_visits_.editable = enabled
 	katago_analysis_config_path_.editable = desktop_paths_enabled
 	katago_executable_browse_.disabled = not desktop_paths_enabled
 	katago_model_browse_.disabled = \

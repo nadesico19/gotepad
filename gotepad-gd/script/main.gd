@@ -1923,7 +1923,7 @@ func show_human_play_options_() -> void:
 		return
 	var next_color: int = board_.get_next_color()
 	human_play_visits_input_.value = float(
-		SettingsStore.get_katago_max_visits()
+		SettingsStore.get_katago_human_max_visits()
 	)
 	human_play_current_turn_.text = tr("当前由黑方先行") \
 		if next_color == kBlack else tr("当前由白方先行")

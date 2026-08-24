@@ -15,6 +15,8 @@ const kStateFailed: int = 4
 
 var host_class_: Variant
 var stopped_emitted_: bool = false
+var stop_requested_: bool = false
+var session_id_: int = -1
 
 
 func start_transport() -> bool:
@@ -65,27 +67,33 @@ func start_custom_transport(
 		if model_path_override.is_empty() else model_path_override
 	var effective_human_model_path: String = "" if human_model_path.is_empty() \
 		else ProjectSettings.globalize_path(human_model_path)
-	var started: bool = bool(host_class_.startKataGoOpenCL(
+	var started_session_id: int = int(host_class_.startKataGoOpenCL(
 		ProjectSettings.globalize_path(selected_model_path),
 		effective_human_model_path,
 		config_path,
 		effective_override
 	))
-	if not started:
+	if started_session_id < 0:
 		transport_error.emit(native_error_())
 		return false
+	session_id_ = started_session_id
+	stop_requested_ = false
 	stopped_emitted_ = false
 	set_process(true)
 	return true
 
 
 func send_line(line: String) -> bool:
-	return host_class_ != null and bool(host_class_.sendKataGoOpenCLLine(line))
+	return host_class_ != null and session_id_ >= 0 and not stop_requested_ \
+		and bool(host_class_.sendKataGoOpenCLLine(session_id_, line))
 
 
 func stop_transport() -> void:
-	if host_class_ != null:
-		host_class_.stopKataGoOpenCL()
+	if stop_requested_:
+		return
+	stop_requested_ = true
+	if host_class_ != null and session_id_ >= 0:
+		host_class_.stopKataGoOpenCL(session_id_)
 	set_process(false)
 	emit_stopped_once_()
 
@@ -93,26 +101,28 @@ func stop_transport() -> void:
 func is_transport_running() -> bool:
 	if host_class_ == null:
 		return false
-	var state: int = int(host_class_.getKataGoOpenCLState())
+	if session_id_ < 0 or stop_requested_:
+		return false
+	var state: int = int(host_class_.getKataGoOpenCLState(session_id_))
 	return state == kStateStarting or state == kStateRunning
 
 
 func _process(_delta: float) -> void:
 	if host_class_ == null:
 		return
-	var response_values: Variant = host_class_.pollKataGoOpenCLLines()
+	var response_values: Variant = host_class_.pollKataGoOpenCLLines(session_id_)
 	if response_values != null:
 		for value: Variant in response_values:
 			var line: String = str(value)
 			if not line.is_empty():
 				line_received.emit(line)
-	var log_values: Variant = host_class_.pollKataGoOpenCLLogs()
+	var log_values: Variant = host_class_.pollKataGoOpenCLLogs(session_id_)
 	if log_values != null:
 		for value: Variant in log_values:
 			var line: String = str(value)
 			log_received.emit(line)
 			print("KataGo OpenCL: %s" % line)
-	var state: int = int(host_class_.getKataGoOpenCLState())
+	var state: int = int(host_class_.getKataGoOpenCLState(session_id_))
 	if state == kStateFailed:
 		set_process(false)
 		transport_error.emit(native_error_())
@@ -186,7 +196,7 @@ func copy_resource_file_(source_path: String, target_path: String) -> Error:
 func native_error_() -> String:
 	if host_class_ == null:
 		return tr("Android OpenCL 服务不可用。")
-	var message: String = str(host_class_.getKataGoOpenCLError())
+	var message: String = str(host_class_.getKataGoOpenCLError(session_id_))
 	return tr("OpenCL KataGo 启动失败。") if message.is_empty() else message
 
 

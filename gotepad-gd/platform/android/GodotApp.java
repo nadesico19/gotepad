@@ -351,36 +351,36 @@ public class GodotApp extends GodotActivity {
 	}
 
 	/** Starts the isolated Android OpenCL backend. */
-	public static boolean startKataGoOpenCL(
+	public static int startKataGoOpenCL(
 			String modelPath, String humanModelPath, String configPath,
 			String overrideConfig) {
 		GodotApp activity = currentActivity.get();
-		return activity != null && KataGoOpenCLBridge.start(
+		return activity == null ? -1 : KataGoOpenCLBridge.start(
 				activity, modelPath, humanModelPath, configPath, overrideConfig);
 	}
 
-	public static boolean sendKataGoOpenCLLine(String line) {
-		return KataGoOpenCLBridge.sendLine(line);
+	public static boolean sendKataGoOpenCLLine(int sessionId, String line) {
+		return KataGoOpenCLBridge.sendLine(sessionId, line);
 	}
 
-	public static String[] pollKataGoOpenCLLines() {
-		return KataGoOpenCLBridge.pollLines();
+	public static String[] pollKataGoOpenCLLines(int sessionId) {
+		return KataGoOpenCLBridge.pollLines(sessionId);
 	}
 
-	public static String[] pollKataGoOpenCLLogs() {
-		return KataGoOpenCLBridge.pollLogs();
+	public static String[] pollKataGoOpenCLLogs(int sessionId) {
+		return KataGoOpenCLBridge.pollLogs(sessionId);
 	}
 
-	public static void stopKataGoOpenCL() {
-		KataGoOpenCLBridge.stop();
+	public static boolean stopKataGoOpenCL(int sessionId) {
+		return KataGoOpenCLBridge.stop(sessionId);
 	}
 
-	public static int getKataGoOpenCLState() {
-		return KataGoOpenCLBridge.getState();
+	public static int getKataGoOpenCLState(int sessionId) {
+		return KataGoOpenCLBridge.getState(sessionId);
 	}
 
-	public static String getKataGoOpenCLError() {
-		return KataGoOpenCLBridge.getError();
+	public static String getKataGoOpenCLError(int sessionId) {
+		return KataGoOpenCLBridge.getError(sessionId);
 	}
 
 	@Override

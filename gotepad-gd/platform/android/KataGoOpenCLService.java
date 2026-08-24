@@ -19,6 +19,7 @@ public final class KataGoOpenCLService extends Service {
 	private static final String TAG = "GotepadKataGoOpenCL";
 	private static final long POLL_INTERVAL_MS = 40L;
 	private static final long FAILED_PROCESS_EXIT_DELAY_MS = 250L;
+	private static final long STOPPED_PROCESS_EXIT_DELAY_MS = 100L;
 
 	private final Handler handler = new Handler(Looper.getMainLooper());
 	private final Messenger incoming = new Messenger(
@@ -27,6 +28,7 @@ public final class KataGoOpenCLService extends Service {
 	private boolean nativeLibraryLoaded;
 	private boolean polling;
 	private int lastState = -1;
+	private int clientSessionId = -1;
 
 	private final Runnable pollNative = new Runnable() {
 		@Override
@@ -82,30 +84,37 @@ public final class KataGoOpenCLService extends Service {
 			nativeStop();
 		}
 		super.onDestroy();
+		// This process exists only for KataGo. Android may keep the process cached
+		// after the last client unbinds, while KataGo retains process-wide native
+		// allocations. Always end it so the next configuration starts cleanly.
+		android.os.Process.killProcess(android.os.Process.myPid());
 	}
 
 	private boolean handleMessage(Message message) {
-		if (message.replyTo != null) {
-			client = message.replyTo;
-		}
 		switch (message.what) {
 			case KataGoOpenCLProtocol.MSG_START:
+				if (message.replyTo != null) {
+					client = message.replyTo;
+				}
 				startEngine(message.getData());
 				return true;
 			case KataGoOpenCLProtocol.MSG_SEND_LINE:
-				if (nativeLibraryLoaded) {
+				if (isCurrentSession(message) && nativeLibraryLoaded) {
 					nativeSendLine(message.getData().getString(
 							KataGoOpenCLProtocol.KEY_TEXT, ""));
 				}
 				return true;
 			case KataGoOpenCLProtocol.MSG_STOP:
+				if (!isCurrentSession(message)) {
+					return true;
+				}
 				polling = false;
 				handler.removeCallbacks(pollNative);
 				if (nativeLibraryLoaded) {
 					nativeStop();
 				}
 				sendState(KataGoOpenCLProtocol.STATE_STOPPED);
-				stopSelf();
+				exitProcessAfterDelay(STOPPED_PROCESS_EXIT_DELAY_MS);
 				return true;
 			default:
 				return false;
@@ -113,6 +122,12 @@ public final class KataGoOpenCLService extends Service {
 	}
 
 	private void startEngine(Bundle data) {
+		clientSessionId = data.getInt(
+				KataGoOpenCLProtocol.KEY_SESSION_ID, -1);
+		if (clientSessionId < 0) {
+			failAndExitProcess("OpenCL KataGo session identifier is missing");
+			return;
+		}
 		if (!nativeLibraryLoaded) {
 			failAndExitProcess(
 					"OpenCL is unavailable or its system library cannot be loaded");
@@ -140,15 +155,22 @@ public final class KataGoOpenCLService extends Service {
 		// KataGo has process-wide native state. If initialization fails, ending
 		// this dedicated service process guarantees that a later retry starts
 		// from a clean state instead of reusing partially initialized globals.
+		exitProcessAfterDelay(FAILED_PROCESS_EXIT_DELAY_MS);
+	}
+
+	private void exitProcessAfterDelay(long delayMs) {
 		handler.postDelayed(() -> {
 			stopSelf();
 			android.os.Process.killProcess(android.os.Process.myPid());
-		}, FAILED_PROCESS_EXIT_DELAY_MS);
+		}, delayMs);
 	}
 
 	private void sendState(int state) {
 		Message message = Message.obtain(null, KataGoOpenCLProtocol.MSG_STATE);
 		message.arg1 = state;
+		Bundle data = new Bundle();
+		data.putInt(KataGoOpenCLProtocol.KEY_SESSION_ID, clientSessionId);
+		message.setData(data);
 		send(message);
 	}
 
@@ -156,8 +178,14 @@ public final class KataGoOpenCLService extends Service {
 		Message message = Message.obtain(null, what);
 		Bundle data = new Bundle();
 		data.putString(KataGoOpenCLProtocol.KEY_TEXT, text == null ? "" : text);
+		data.putInt(KataGoOpenCLProtocol.KEY_SESSION_ID, clientSessionId);
 		message.setData(data);
 		send(message);
+	}
+
+	private boolean isCurrentSession(Message message) {
+		return message.getData().getInt(
+				KataGoOpenCLProtocol.KEY_SESSION_ID, -1) == clientSessionId;
 	}
 
 	private void send(Message message) {

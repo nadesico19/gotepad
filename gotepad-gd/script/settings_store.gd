@@ -14,7 +14,7 @@ signal large_ui_changed(enabled: bool, multiplier: float)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 25
+const kSchemaVersion: int = 26
 const kLanguageSimplifiedChinese: String = "zh_CN"
 const kLanguageJapanese: String = "ja"
 const kLanguageKorean: String = "ko"
@@ -56,6 +56,7 @@ const kDefaultKatagoExecutablePath: String = ""
 const kDefaultKatagoModelPath: String = ""
 const kDefaultKatagoHumanModelPath: String = ""
 const kDefaultKatagoMaxVisits: int = 500
+const kDefaultKatagoHumanMaxVisits: int = 500
 const kDefaultKatagoReportIntervalSeconds: float = 2.0
 const kDefaultKatagoAnalysisPvLength: int = 10
 const kDefaultKatagoShowScoreLead: bool = true
@@ -105,6 +106,7 @@ var katago_executable_path_: String = kDefaultKatagoExecutablePath
 var katago_model_path_: String = kDefaultKatagoModelPath
 var katago_human_model_path_: String = kDefaultKatagoHumanModelPath
 var katago_max_visits_: int = kDefaultKatagoMaxVisits
+var katago_human_max_visits_: int = kDefaultKatagoHumanMaxVisits
 var katago_report_interval_seconds_: float = \
 	kDefaultKatagoReportIntervalSeconds
 var katago_analysis_pv_length_: int = kDefaultKatagoAnalysisPvLength
@@ -248,6 +250,10 @@ func get_android_external_katago_human_model_path() -> String:
 
 func get_katago_max_visits() -> int:
 	return katago_max_visits_
+
+
+func get_katago_human_max_visits() -> int:
+	return katago_human_max_visits_
 
 
 func get_katago_report_interval_seconds() -> float:
@@ -419,7 +425,8 @@ func set_settings(
 		katago_show_score_lead: bool,
 		katago_game_analysis_visits: int,
 		katago_analysis_config_path: String,
-		katago_human_model_path: String
+		katago_human_model_path: String,
+		katago_human_max_visits: int
 ) -> Error:
 	if not is_finite(large_ui_multiplier) \
 			or large_ui_multiplier < kLargeUiMultiplierMinimum \
@@ -445,6 +452,7 @@ func set_settings(
 	var previous_katago_model_path: String = katago_model_path_
 	var previous_katago_human_model_path: String = katago_human_model_path_
 	var previous_katago_max_visits: int = katago_max_visits_
+	var previous_katago_human_max_visits: int = katago_human_max_visits_
 	var previous_katago_report_interval: float = \
 		katago_report_interval_seconds_
 	var previous_katago_analysis_pv_length: int = \
@@ -488,6 +496,7 @@ func set_settings(
 	katago_model_path_ = katago_model_path.strip_edges()
 	katago_human_model_path_ = katago_human_model_path.strip_edges()
 	katago_max_visits_ = maxi(katago_max_visits, 1)
+	katago_human_max_visits_ = maxi(katago_human_max_visits, 1)
 	katago_report_interval_seconds_ = clampf(
 		katago_report_interval_seconds, 0.1, 60.0
 	)
@@ -521,6 +530,7 @@ func set_settings(
 		katago_model_path_ = previous_katago_model_path
 		katago_human_model_path_ = previous_katago_human_model_path
 		katago_max_visits_ = previous_katago_max_visits
+		katago_human_max_visits_ = previous_katago_human_max_visits
 		katago_report_interval_seconds_ = previous_katago_report_interval
 		katago_analysis_pv_length_ = previous_katago_analysis_pv_length
 		katago_show_score_lead_ = previous_katago_show_score_lead
@@ -756,6 +766,11 @@ func load_config_() -> void:
 		"max_visits",
 		kDefaultKatagoMaxVisits
 	)), 1)
+	katago_human_max_visits_ = maxi(int(config.get_value(
+		"katago_human",
+		"max_visits",
+		kDefaultKatagoHumanMaxVisits
+	)), 1)
 	katago_report_interval_seconds_ = clampf(float(config.get_value(
 		"katago",
 		"report_interval_seconds",
@@ -868,6 +883,9 @@ func save_config_() -> Error:
 	)
 	config.set_value("katago", "max_visits", katago_max_visits_)
 	config.set_value(
+		"katago_human", "max_visits", katago_human_max_visits_
+	)
+	config.set_value(
 		"katago", "report_interval_seconds", katago_report_interval_seconds_
 	)
 	config.set_value(
@@ -904,6 +922,7 @@ func reset_settings_() -> void:
 	katago_model_path_ = kDefaultKatagoModelPath
 	katago_human_model_path_ = kDefaultKatagoHumanModelPath
 	katago_max_visits_ = kDefaultKatagoMaxVisits
+	katago_human_max_visits_ = kDefaultKatagoHumanMaxVisits
 	katago_report_interval_seconds_ = kDefaultKatagoReportIntervalSeconds
 	katago_analysis_pv_length_ = kDefaultKatagoAnalysisPvLength
 	katago_show_score_lead_ = kDefaultKatagoShowScoreLead
@@ -918,6 +937,8 @@ func default_move_confirmation_enabled_() -> bool:
 
 func ensure_managed_katago_analysis_config_() -> void:
 	if FileAccess.file_exists(kManagedKatagoConfigPath):
+		if OS.get_name() != "Android":
+			remove_deprecated_desktop_batch_size_()
 		return
 	var default_threads: int = 1 if OS.get_name() == "Android" else 6
 	var default_batch_size: int = 1 if OS.get_name() == "Android" else 8
@@ -928,6 +949,27 @@ func ensure_managed_katago_analysis_config_() -> void:
 		push_warning(
 			"Failed to create managed KataGo config: %s" % error_string(error)
 		)
+
+
+func remove_deprecated_desktop_batch_size_() -> void:
+	var source: FileAccess = FileAccess.open(
+		kManagedKatagoConfigPath, FileAccess.READ
+	)
+	if source == null:
+		return
+	var original: String = source.get_as_text()
+	var kept_lines: PackedStringArray = PackedStringArray()
+	for line: String in original.split("\n", true):
+		if not line.strip_edges().begins_with("nnMaxBatchSize"):
+			kept_lines.append(line)
+	var updated: String = "\n".join(kept_lines)
+	if updated == original:
+		return
+	var destination: FileAccess = FileAccess.open(
+		kManagedKatagoConfigPath, FileAccess.WRITE
+	)
+	if destination != null:
+		destination.store_string(updated)
 
 
 func ensure_managed_katago_human_analysis_config_() -> void:
@@ -975,18 +1017,19 @@ func build_managed_katago_config_(
 ) -> String:
 	var cache_power: int = 16 if OS.get_name() == "Android" else 20
 	var mutex_pool_power: int = 14 if OS.get_name() == "Android" else 17
+	var batch_size_setting: String = ("nnMaxBatchSize = %d\n" \
+		% maxi(batch_size, 1)) if OS.get_name() == "Android" else ""
 	return """# Generated by Gotepad. This file may be regenerated by performance detection.
 reportAnalysisWinratesAs = BLACK
 maxVisits = 500
 numAnalysisThreads = 1
 numSearchThreadsPerAnalysisThread = %d
-nnMaxBatchSize = %d
-nnCacheSizePowerOfTwo = %d
+%snnCacheSizePowerOfTwo = %d
 nnMutexPoolSizePowerOfTwo = %d
 nnRandomize = true
 """ % [
-		maxi(search_threads, 1), maxi(batch_size, 1),
-		cache_power, mutex_pool_power
+		maxi(search_threads, 1), batch_size_setting, cache_power,
+		mutex_pool_power
 ]
 
 
