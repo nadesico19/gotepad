@@ -229,6 +229,7 @@ var pending_katago_benchmark_threads_: int = 0
 var pending_katago_benchmark_batch_size_: int = 0
 var pending_katago_human_benchmark_threads_: int = 0
 var pending_katago_human_benchmark_batch_size_: int = 0
+var android_katago_benchmark_prepare_: Callable
 var katago_benchmark_human_mode_: bool = false
 var active_katago_file_dialog_: FileDialog
 var katago_model_importer_: KataGoAndroidModelImporter
@@ -1722,6 +1723,9 @@ func start_katago_benchmark_() -> void:
 	set_katago_controls_enabled_(false)
 	update_active_benchmark_status_(tr("正在自动检测性能…"), kStatusNeutralColor)
 	if OS.get_name() == "Android" or katago_benchmark_human_mode_:
+		if OS.get_name() == "Android" \
+				and android_katago_benchmark_prepare_.is_valid():
+			android_katago_benchmark_prepare_.call()
 		start_embedded_katago_benchmark_()
 		return
 	var arguments: PackedStringArray = PackedStringArray([
@@ -1769,6 +1773,10 @@ func start_embedded_katago_benchmark_() -> void:
 	)
 	if not katago_embedded_benchmark_.start_benchmark():
 		katago_embedded_benchmark_ = null
+
+
+func set_android_katago_benchmark_prepare_callback(callback: Callable) -> void:
+	android_katago_benchmark_prepare_ = callback
 
 
 func on_embedded_katago_benchmark_output_changed_(output: String) -> void:

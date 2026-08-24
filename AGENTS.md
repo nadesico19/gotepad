@@ -3,6 +3,7 @@
 - 项目类型：围棋棋盘的客户端。
 - 语言和标准：C++ 17。
 - 构建系统：CMake。
+  - Windows 11 开发机没有安装 WindowsApp 版 Python，需要使用  `py` 命令而非 `python` 启动解释器。
 - 第三方库统一放在 third_party 文件夹下。在库专属的子目录内，使用 gotepad_info.txt 记录了库的用途、构建、部署等信息。
 - godot 环境在 D:\godot 中。本项目不需要使用 C# ，优先用 Godot_v4.7.1-stable_win64 中的环境。
 - 项目中涉及godot扩展的部分，如果修改了代码导致需要重新编译godot扩展时，仅限当前开发机可运行的版本，可不需要经我指示自行编译并处理编译错误。

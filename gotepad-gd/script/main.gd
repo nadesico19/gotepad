@@ -352,6 +352,10 @@ func _ready() -> void:
 	)
 	katago_analysis_button_.pressed.connect(on_katago_analysis_requested_)
 	katago_analysis_panel_.bind_service(katago_analysis_service_)
+	settings_ui_.call(
+		&"set_android_katago_benchmark_prepare_callback",
+		Callable(self, &"prepare_android_katago_benchmark_")
+	)
 	katago_analysis_service_.transport_starting.connect(
 		on_normal_katago_transport_starting_
 	)
@@ -1947,6 +1951,14 @@ func on_normal_katago_transport_starting_() -> void:
 	# 普通分析真正需要启动时再释放桌面端保温中的 Human SL 进程，
 	# 避免两套模型同时长期占用 GPU 显存。
 	katago_human_analysis_service_.shutdown()
+
+
+func prepare_android_katago_benchmark_() -> void:
+	if OS.get_name() != "Android":
+		return
+	katago_analysis_panel_.prepare_for_engine_shutdown()
+	katago_human_analysis_service_.shutdown()
+	katago_analysis_service_.shutdown()
 
 
 func on_human_katago_runtime_settings_changed_() -> void:

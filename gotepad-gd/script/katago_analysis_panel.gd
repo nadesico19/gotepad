@@ -188,6 +188,14 @@ func suspend_panel() -> void:
 	panel_visibility_changed.emit(false)
 
 
+func prepare_for_engine_shutdown() -> void:
+	stop_all_queries_()
+	continuous_.set_pressed_no_signal(false)
+	state_ = kStateIdle
+	status_label_.text = tr("分析引擎已停止")
+	update_controls_()
+
+
 func is_panel_open() -> bool:
 	return panel_.visible
 
