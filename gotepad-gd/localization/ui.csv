@@ -134,6 +134,8 @@ keys,zh_CN,ja,ko,en
 "从本地 SGF 棋谱创建","从本地 SGF 棋谱创建","ローカル SGF 棋譜から作成","로컬 SGF 기보에서 만들기","Create from a local SGF game record"
 "加载 SGF 棋谱","加载 SGF 棋谱","SGF 棋譜を読み込む","SGF 기보 불러오기","Load SGF game record"
 "加载","加载","読み込む","불러오기","Load"
+"粘贴","粘贴","貼り付け","붙여넣기","Paste"
+"剪贴板中没有 SGF 文本。","剪贴板中没有 SGF 文本。","クリップボードに SGF テキストがありません。","클립보드에 SGF 텍스트가 없습니다.","The clipboard does not contain SGF text."
 "加载失败","加载失败","読み込みに失敗","불러오기 실패","Load failed"
 "无法加载 SGF 棋谱。","无法加载 SGF 棋谱。","SGF 棋譜を読み込めません。","SGF 기보를 불러올 수 없습니다.","Could not load the SGF game record."
 "预置棋子（Ctrl+H）","预置棋子（Ctrl+H）","初期配置（Ctrl+H）","돌 배치(Ctrl+H)","Setup stones (Ctrl+H)"

@@ -130,6 +130,7 @@ public:
 
   bool reset(int64_t ngrids);
   bool load_sgf_file(const godot::String &path);
+  bool load_sgf_content(const godot::String &content);
   bool save_sgf_file(const godot::String &path);
   bool export_pptx_file(const godot::String &path,
                         const godot::String &template_path,
@@ -207,6 +208,8 @@ inline void GoNotes::_bind_methods() {
                               &GoNotes::reset);
   godot::ClassDB::bind_method(godot::D_METHOD("load_sgf_file", "path"),
                               &GoNotes::load_sgf_file);
+  godot::ClassDB::bind_method(godot::D_METHOD("load_sgf_content", "content"),
+                              &GoNotes::load_sgf_content);
   godot::ClassDB::bind_method(godot::D_METHOD("save_sgf_file", "path"),
                               &GoNotes::save_sgf_file);
   godot::ClassDB::bind_method(godot::D_METHOD("export_pptx_file", "path",
@@ -349,6 +352,21 @@ inline bool GoNotes::load_sgf_file(const godot::String &path) {
   }
   std::string error_message{};
   auto replacement = nd::go::GoNotes::from_sgf_content(content, error_message);
+  if (!replacement) {
+    wrapper_message_ = godot::String::utf8(error_message.c_str());
+    return false;
+  }
+
+  go_notes_ = std::move(replacement);
+  emit_signal("changed");
+  return true;
+}
+
+inline bool GoNotes::load_sgf_content(const godot::String &content) {
+  wrapper_message_ = godot::String{};
+  std::string error_message{};
+  auto replacement = nd::go::GoNotes::from_sgf_content(
+      utf8_text_(content), error_message);
   if (!replacement) {
     wrapper_message_ = godot::String::utf8(error_message.c_str());
     return false;

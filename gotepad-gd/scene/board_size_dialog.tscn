@@ -211,11 +211,16 @@ theme_override_font_sizes/font_size = 15
 text = "从本地 SGF 棋谱创建"
 horizontal_alignment = 1
 
-[node name="LoadSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea"]
+[node name="SgfButtons" type="HBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 12
+
+[node name="LoadSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea/SgfButtons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_horizontal = 3
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
 theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
@@ -223,7 +228,21 @@ theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 16
-text = "加载 SGF 棋谱"
+text = "加载"
+
+[node name="PasteSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea/SgfButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "粘贴"
 
 [node name="AreaSeparator" type="VSeparator" parent="Center/Panel/Margin/Content/AlternativeArea"]
 layout_mode = 2

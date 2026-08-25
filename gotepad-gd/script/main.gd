@@ -327,6 +327,7 @@ func _ready() -> void:
 	configure_android_open_intents_()
 	board_size_dialog_.create_requested.connect(on_create_requested_)
 	board_size_dialog_.sgf_load_requested.connect(on_sgf_load_requested_)
+	board_size_dialog_.sgf_paste_requested.connect(on_sgf_paste_requested_)
 	board_size_dialog_.image_create_requested.connect(
 		on_image_create_requested_
 	)
@@ -3558,35 +3559,44 @@ func on_sgf_load_requested_(path: String, source_writable: bool = true) -> void:
 		go_notes_.call(&"load_sgf_file", path)
 	)
 	if load_succeeded:
-		if active_document_index_ >= 0:
-			var document: DocumentState = documents_[active_document_index_]
-			var file_name: String = DocumentDisplayName.from_path(path)
-			if file_name.is_empty():
-				var metadata: Dictionary = Dictionary(
-					go_notes_.call(&"get_sgf_metadata")
-				)
-				file_name = DocumentDisplayName.sanitize(
-					str(metadata.get("game_name", ""))
-				)
-			if file_name.is_empty():
-				file_name = tr("新建笔记")
-			document.title = unique_document_title_(
-				file_name, active_document_index_
-			)
-			document.file_path = path
-			document.source_writable = source_writable
-			document.initialized = true
-			document.interactions_locked = true
-			refresh_document_tabs_()
-		board_lock_checkbox_.set_pressed_no_signal(true)
-		board_.set_interactions_locked(true)
-		update_history_buttons_()
-		update_preset_button_()
-		update_mobile_playback_visibility_()
-		board_size_dialog_.hide()
-		show_sgf_import_recovery_warnings_()
+		finish_sgf_load_(path, source_writable)
 	else:
 		board_size_dialog_.show_load_error(go_notes_.get_message())
+
+
+func on_sgf_paste_requested_(content: String) -> void:
+	if bool(go_notes_.call(&"load_sgf_content", content)):
+		finish_sgf_load_("", false)
+	else:
+		board_size_dialog_.show_load_error(go_notes_.get_message())
+
+
+func finish_sgf_load_(path: String, source_writable: bool) -> void:
+	if active_document_index_ >= 0:
+		var document: DocumentState = documents_[active_document_index_]
+		var file_name: String = DocumentDisplayName.from_path(path)
+		if file_name.is_empty():
+			var metadata: Dictionary = Dictionary(
+				go_notes_.call(&"get_sgf_metadata")
+			)
+			file_name = DocumentDisplayName.sanitize(
+				str(metadata.get("game_name", ""))
+			)
+		if file_name.is_empty():
+			file_name = tr("新建笔记")
+		document.title = unique_document_title_(file_name, active_document_index_)
+		document.file_path = path
+		document.source_writable = source_writable
+		document.initialized = true
+		document.interactions_locked = true
+		refresh_document_tabs_()
+	board_lock_checkbox_.set_pressed_no_signal(true)
+	board_.set_interactions_locked(true)
+	update_history_buttons_()
+	update_preset_button_()
+	update_mobile_playback_visibility_()
+	board_size_dialog_.hide()
+	show_sgf_import_recovery_warnings_()
 
 
 func show_sgf_import_recovery_warnings_() -> void:

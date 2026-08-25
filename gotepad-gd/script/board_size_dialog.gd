@@ -3,6 +3,7 @@ extends Control
 
 signal create_requested(board_size: int)
 signal sgf_load_requested(path: String)
+signal sgf_paste_requested(content: String)
 signal image_create_requested(
 	board_size: int, cells: PackedInt32Array, source_path: String
 )
@@ -23,6 +24,7 @@ var android_image_board_size_: int = 19
 @onready var size_19_: CheckBox = %Size19
 @onready var create_button_: Button = %CreateButton
 @onready var load_sgf_button_: Button = %LoadSgfButton
+@onready var paste_sgf_button_: Button = %PasteSgfButton
 @onready var sgf_file_dialog_: FileDialog = %SgfFileDialog
 @onready var load_error_dialog_: AcceptDialog = %LoadErrorDialog
 @onready var image_description_: Label = %ImageDescription
@@ -44,6 +46,7 @@ func _ready() -> void:
 	create_button_.pressed.connect(on_create_pressed_)
 	size_19_.grab_focus()
 	load_sgf_button_.pressed.connect(on_load_sgf_pressed_)
+	paste_sgf_button_.pressed.connect(on_paste_sgf_pressed_)
 	sgf_file_dialog_.file_selected.connect(on_sgf_file_selected_)
 	sgf_file_dialog_.canceled.connect(on_sgf_file_dialog_canceled_)
 	sgf_file_dialog_.visibility_changed.connect(
@@ -94,6 +97,8 @@ func refresh_localized_texts() -> void:
 	image_file_dialog_.title = tr("选择棋盘图片")
 	image_file_dialog_.ok_button_text = tr("选择")
 	image_description_.text = tr("从图片创建")
+	load_sgf_button_.text = tr("加载")
+	paste_sgf_button_.text = tr("粘贴")
 	select_image_button_.text = tr("选择本地图片")
 	camera_button_.text = tr("拍照")
 	gallery_button_.text = tr("相册")
@@ -152,6 +157,18 @@ func on_load_sgf_pressed_() -> void:
 	sgf_file_dialog_.popup_centered_ratio(0.75)
 
 
+func on_paste_sgf_pressed_() -> void:
+	if sgf_file_dialog_open_ or sgf_file_dialog_.visible \
+			or image_file_dialog_open_ or image_file_dialog_.visible \
+			or image_import_dialog_.visible:
+		return
+	var content: String = DisplayServer.clipboard_get()
+	if content.strip_edges().is_empty():
+		show_load_error(tr("剪贴板中没有 SGF 文本。"))
+		return
+	sgf_paste_requested.emit(content)
+
+
 func on_sgf_file_selected_(path: String) -> void:
 	finish_sgf_file_dialog_()
 	sgf_load_requested.emit(path)
@@ -180,6 +197,7 @@ func set_creation_controls_disabled_(disabled: bool) -> void:
 	create_button_.disabled = disabled
 	# 文件选择期间仍允许再次点击此按钮，以便将原生对话框提到前台。
 	load_sgf_button_.disabled = false
+	paste_sgf_button_.disabled = disabled
 	select_image_button_.disabled = false
 	if OS.get_name() != "Android":
 		return
