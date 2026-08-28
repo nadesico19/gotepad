@@ -220,3 +220,9 @@ layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 fit_to_longest_item = false
+
+[node name="Preview" type="Button" parent="Panel/Margin/Content/NumberingRow"]
+custom_minimum_size = Vector2(72, 38)
+layout_mode = 2
+focus_mode = 0
+text = "专注"

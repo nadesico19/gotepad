@@ -532,6 +532,25 @@ value = 10.0
 allow_greater = true
 suffix = " 手"
 
+[node name="KatagoExtraBoardCandidatesRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoExtraBoardCandidatesRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "额外盘面候选数"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoExtraBoardCandidatesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Count" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoExtraBoardCandidatesRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+max_value = 99.0
+
 [node name="KatagoShowScoreLead" type="CheckBox" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 focus_mode = 0

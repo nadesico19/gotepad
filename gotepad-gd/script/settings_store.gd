@@ -14,7 +14,7 @@ signal large_ui_changed(enabled: bool, multiplier: float)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 26
+const kSchemaVersion: int = 27
 const kLanguageSimplifiedChinese: String = "zh_CN"
 const kLanguageJapanese: String = "ja"
 const kLanguageKorean: String = "ko"
@@ -59,6 +59,8 @@ const kDefaultKatagoMaxVisits: int = 500
 const kDefaultKatagoHumanMaxVisits: int = 500
 const kDefaultKatagoReportIntervalSeconds: float = 2.0
 const kDefaultKatagoAnalysisPvLength: int = 10
+const kDefaultKatagoExtraBoardCandidates: int = 0
+const kKatagoExtraBoardCandidatesMaximum: int = 99
 const kDefaultKatagoShowScoreLead: bool = true
 const kDefaultKatagoGameAnalysisVisits: int = 1
 const kManagedKatagoConfigPath: String = \
@@ -110,6 +112,7 @@ var katago_human_max_visits_: int = kDefaultKatagoHumanMaxVisits
 var katago_report_interval_seconds_: float = \
 	kDefaultKatagoReportIntervalSeconds
 var katago_analysis_pv_length_: int = kDefaultKatagoAnalysisPvLength
+var katago_extra_board_candidates_: int = kDefaultKatagoExtraBoardCandidates
 var katago_show_score_lead_: bool = kDefaultKatagoShowScoreLead
 var katago_game_analysis_visits_: int = kDefaultKatagoGameAnalysisVisits
 var katago_analysis_config_path_: String = ""
@@ -262,6 +265,10 @@ func get_katago_report_interval_seconds() -> float:
 
 func get_katago_analysis_pv_length() -> int:
 	return katago_analysis_pv_length_
+
+
+func get_katago_extra_board_candidates() -> int:
+	return katago_extra_board_candidates_
 
 
 func get_katago_show_score_lead() -> bool:
@@ -422,6 +429,7 @@ func set_settings(
 		katago_max_visits: int,
 		katago_report_interval_seconds: float,
 		katago_analysis_pv_length: int,
+		katago_extra_board_candidates: int,
 		katago_show_score_lead: bool,
 		katago_game_analysis_visits: int,
 		katago_analysis_config_path: String,
@@ -457,6 +465,8 @@ func set_settings(
 		katago_report_interval_seconds_
 	var previous_katago_analysis_pv_length: int = \
 		katago_analysis_pv_length_
+	var previous_katago_extra_board_candidates: int = \
+		katago_extra_board_candidates_
 	var previous_katago_show_score_lead: bool = katago_show_score_lead_
 	var previous_katago_game_analysis_visits: int = \
 		katago_game_analysis_visits_
@@ -501,6 +511,9 @@ func set_settings(
 		katago_report_interval_seconds, 0.1, 60.0
 	)
 	katago_analysis_pv_length_ = maxi(katago_analysis_pv_length, 1)
+	katago_extra_board_candidates_ = clampi(
+		katago_extra_board_candidates, 0, kKatagoExtraBoardCandidatesMaximum
+	)
 	katago_show_score_lead_ = katago_show_score_lead
 	katago_game_analysis_visits_ = maxi(katago_game_analysis_visits, 1)
 	katago_analysis_config_path_ = get_managed_katago_analysis_config_path() \
@@ -533,6 +546,8 @@ func set_settings(
 		katago_human_max_visits_ = previous_katago_human_max_visits
 		katago_report_interval_seconds_ = previous_katago_report_interval
 		katago_analysis_pv_length_ = previous_katago_analysis_pv_length
+		katago_extra_board_candidates_ = \
+			previous_katago_extra_board_candidates
 		katago_show_score_lead_ = previous_katago_show_score_lead
 		katago_game_analysis_visits_ = previous_katago_game_analysis_visits
 		katago_analysis_config_path_ = previous_katago_analysis_config_path
@@ -574,6 +589,8 @@ func set_settings(
 				katago_report_interval_seconds_, previous_katago_report_interval
 			) or katago_analysis_pv_length_ \
 				!= previous_katago_analysis_pv_length \
+			or katago_extra_board_candidates_ \
+				!= previous_katago_extra_board_candidates \
 			or katago_show_score_lead_ != previous_katago_show_score_lead \
 			or katago_game_analysis_visits_ \
 				!= previous_katago_game_analysis_visits:
@@ -781,6 +798,11 @@ func load_config_() -> void:
 		"analysis_pv_length",
 		kDefaultKatagoAnalysisPvLength
 	)), 1)
+	katago_extra_board_candidates_ = clampi(int(config.get_value(
+		"katago",
+		"extra_board_candidates",
+		kDefaultKatagoExtraBoardCandidates
+	)), 0, kKatagoExtraBoardCandidatesMaximum)
 	katago_show_score_lead_ = bool(config.get_value(
 		"katago",
 		"show_score_lead",
@@ -891,6 +913,9 @@ func save_config_() -> Error:
 	config.set_value(
 		"katago", "analysis_pv_length", katago_analysis_pv_length_
 	)
+	config.set_value(
+		"katago", "extra_board_candidates", katago_extra_board_candidates_
+	)
 	config.set_value("katago", "show_score_lead", katago_show_score_lead_)
 	config.set_value(
 		"katago", "game_analysis_visits", katago_game_analysis_visits_
@@ -925,6 +950,7 @@ func reset_settings_() -> void:
 	katago_human_max_visits_ = kDefaultKatagoHumanMaxVisits
 	katago_report_interval_seconds_ = kDefaultKatagoReportIntervalSeconds
 	katago_analysis_pv_length_ = kDefaultKatagoAnalysisPvLength
+	katago_extra_board_candidates_ = kDefaultKatagoExtraBoardCandidates
 	katago_show_score_lead_ = kDefaultKatagoShowScoreLead
 	katago_game_analysis_visits_ = kDefaultKatagoGameAnalysisVisits
 	katago_analysis_config_path_ = get_managed_katago_analysis_config_path()

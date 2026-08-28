@@ -1,4 +1,7 @@
 keys,zh_CN,ja,ko,en
+"专注","专注","集中","집중","Focus"
+"无法预览","无法预览","プレビューできません","미리보기 불가","Unable to preview"
+"当前棋谱没有可预览的笔记。","当前棋谱没有可预览的笔记。","現在の棋譜にはプレビューできるノートがありません。","현재 기보에는 미리 볼 노트가 없습니다.","The current game record has no notes to preview."
 "设置","设置","設定","설정","Settings"
 "界面语言","界面语言","表示言語","인터페이스 언어","Interface language"
 "屏幕左右边距（移动端用）","屏幕左右边距（移动端用）","画面左右余白（モバイル用）","화면 좌우 여백(모바일용)","Screen side margins (mobile)"
@@ -40,6 +43,7 @@ keys,zh_CN,ja,ko,en
 "分析计算量","分析计算量","解析量","분석 연산량","Analysis effort"
 "分析刷新间隔","分析刷新间隔","解析更新間隔","분석 갱신 간격","Analysis refresh interval"
 "候选变化图手数","候选变化图手数","候補変化図の手数","후보 변화도 수순","Candidate variation length"
+"额外盘面候选数","额外盘面候选数","盤面の追加候補数","추가 바둑판 후보 수","Additional board candidates"
 "显示目差","显示目差","目数差を表示","집 차이 표시","Show score lead"
 "整局快速分析计算量","整局快速分析计算量","全局高速解析量","전체 대국 빠른 분석량","Fast full-game analysis effort"
 "每个局面的 visits；1 最快，仅用于观察胜率和目差趋势","每个局面的 visits；1 最快，仅用于观察胜率和目差趋势","各局面の visits。1 が最速で、勝率と目数差の傾向確認専用です","각 국면의 visits입니다. 1이 가장 빠르며 승률과 집 차이 추세 확인용입니다","Visits per position; 1 is fastest and intended only for win-rate and score-lead trends"

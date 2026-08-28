@@ -101,6 +101,21 @@ texture = ExtResource("5_history_unavailable")
 expand_mode = 1
 stretch_mode = 5
 
+[node name="NotePreviewPageLabel" type="Label" parent="."]
+visible = false
+z_index = 20
+offset_left = -510.0
+offset_top = 520.0
+offset_right = -424.0
+offset_bottom = 560.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "1/1"
+horizontal_alignment = 2
+vertical_alignment = 1
+clip_text = true
+
 [node name="PlaybackBar" type="HSlider" parent="."]
 z_index = 20
 offset_left = -416.0

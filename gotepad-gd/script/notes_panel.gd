@@ -16,6 +16,8 @@ signal mark_mode_requested(
 signal text_edit_became_dirty
 signal edit_resolution_canceled
 signal numbering_preview_changed(enabled: bool, uid: int, note_index: int)
+signal preview_requested(note_index: int)
+signal preview_close_requested
 
 const kSequentialMode: int = 1
 const kSymbolMode: int = 2
@@ -57,6 +59,8 @@ const kSymbolMode: int = 2
 	$Panel/Margin/Content/MarkButtons/Erase
 @onready var numbering_option_: OptionButton = \
 	$Panel/Margin/Content/NumberingRow/Option
+@onready var preview_button_: Button = \
+	$Panel/Margin/Content/NumberingRow/Preview
 @onready var unsaved_confirmation_: ConfirmationDialog = \
 	$UnsavedConfirmation
 
@@ -73,6 +77,7 @@ var last_focused_editor_: Control
 var text_was_dirty_: bool = false
 var resolving_edit_: bool = false
 var discard_and_continue_button_: Button
+var preview_mode_: bool = false
 
 
 func _ready() -> void:
@@ -91,6 +96,7 @@ func _ready() -> void:
 	comment_edit_.gui_input.connect(on_text_editor_gui_input_)
 	comment_accept_.pressed.connect(on_comment_accept_pressed_)
 	comment_cancel_.pressed.connect(on_comment_cancel_pressed_)
+	preview_button_.pressed.connect(on_preview_pressed_)
 	unsaved_confirmation_.confirmed.connect(on_unsaved_edit_confirmed_)
 	unsaved_confirmation_.canceled.connect(on_unsaved_edit_canceled_)
 	unsaved_confirmation_.custom_action.connect(on_unsaved_custom_action_)
@@ -131,6 +137,7 @@ func populate_numbering_options_() -> void:
 
 func refresh_localized_texts() -> void:
 	populate_numbering_options_()
+	preview_button_.text = tr("退出") if preview_mode_ else tr("专注")
 	refresh_clipboard_button_texts_()
 	if discard_and_continue_button_ != null:
 		discard_and_continue_button_.text = tr("放弃并继续")
@@ -211,6 +218,42 @@ func get_selected_note_index() -> int:
 	return selected_note_index_
 
 
+func enter_preview_mode() -> void:
+	preview_mode_ = true
+	preview_button_.text = tr("退出")
+	rebuild_tabs_()
+
+
+func select_preview_note(note_index: int) -> void:
+	if not preview_mode_:
+		return
+	refresh_current_position()
+	if notes_.is_empty():
+		return
+	selected_note_index_ = clampi(note_index, 0, notes_.size() - 1)
+	rebuild_tabs_()
+	load_selected_note_()
+
+
+func exit_preview_mode() -> void:
+	if not preview_mode_:
+		return
+	preview_mode_ = false
+	preview_button_.text = tr("专注")
+	refresh_current_position()
+
+
+func is_preview_mode() -> bool:
+	return preview_mode_
+
+
+func on_preview_pressed_() -> void:
+	if preview_mode_:
+		preview_close_requested.emit()
+	else:
+		preview_requested.emit(selected_note_index_)
+
+
 func rebuild_tabs_() -> void:
 	for child: Node in tabs_.get_children():
 		tabs_.remove_child(child)
@@ -223,6 +266,7 @@ func rebuild_tabs_() -> void:
 		select_button.text = str(index)
 		select_button.toggle_mode = true
 		select_button.button_pressed = index == selected_note_index_
+		select_button.disabled = preview_mode_
 		select_button.focus_mode = Control.FOCUS_NONE
 		select_button.custom_minimum_size = Vector2(42.0, 34.0)
 		select_button.pressed.connect(on_note_tab_pressed_.bind(index))
@@ -232,6 +276,7 @@ func rebuild_tabs_() -> void:
 			close_button.text = "✕"
 			close_button.tooltip_text = tr("关闭最后一层笔记")
 			close_button.focus_mode = Control.FOCUS_NONE
+			close_button.disabled = preview_mode_
 			close_button.custom_minimum_size = Vector2(30.0, 34.0)
 			close_button.add_theme_color_override(
 				&"font_color", Color(0.96, 0.3, 0.3)
@@ -244,6 +289,7 @@ func rebuild_tabs_() -> void:
 	append_button.text = "+"
 	append_button.tooltip_text = tr("增加一层笔记")
 	append_button.focus_mode = Control.FOCUS_NONE
+	append_button.disabled = preview_mode_
 	append_button.custom_minimum_size = Vector2(42.0, 34.0)
 	append_button.add_theme_font_size_override(&"font_size", 22)
 	append_button.pressed.connect(on_append_note_pressed_)

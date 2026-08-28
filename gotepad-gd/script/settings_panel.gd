@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.9"
+const kGotepadVersion: String = "0.1.10"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -46,6 +46,7 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoMaxVisitsRow",
 	"KatagoReportIntervalRow",
 	"KatagoAnalysisPvLengthRow",
+	"KatagoExtraBoardCandidatesRow",
 	"KatagoShowScoreLead",
 	"KatagoGameAnalysisVisitsRow",
 	"KatagoTestRow",
@@ -141,6 +142,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoReportIntervalRow/Seconds
 @onready var katago_analysis_pv_length_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow/Moves
+@onready var katago_extra_board_candidates_: SpinBox = \
+	$SettingsPanel/Margin/Options/KatagoExtraBoardCandidatesRow/Count
 @onready var katago_show_score_lead_: CheckBox = \
 	$SettingsPanel/Margin/Options/KatagoShowScoreLead
 @onready var katago_game_analysis_visits_: SpinBox = \
@@ -215,6 +218,7 @@ var opening_katago_analysis_config_path_: String
 var opening_katago_max_visits_: int
 var opening_katago_report_interval_seconds_: float
 var opening_katago_analysis_pv_length_: int
+var opening_katago_extra_board_candidates_: int
 var opening_katago_show_score_lead_: bool
 var opening_katago_game_analysis_visits_: int
 var updating_options_: bool = false
@@ -284,6 +288,9 @@ func _ready() -> void:
 		on_katago_analysis_option_changed_
 	)
 	katago_analysis_pv_length_.value_changed.connect(
+		on_katago_analysis_option_changed_
+	)
+	katago_extra_board_candidates_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
 	katago_show_score_lead_.toggled.connect(on_katago_boolean_option_changed_)
@@ -492,6 +499,8 @@ func open_panel_() -> void:
 		SettingsStore.get_katago_report_interval_seconds()
 	opening_katago_analysis_pv_length_ = \
 		SettingsStore.get_katago_analysis_pv_length()
+	opening_katago_extra_board_candidates_ = \
+		SettingsStore.get_katago_extra_board_candidates()
 	opening_katago_show_score_lead_ = \
 		SettingsStore.get_katago_show_score_lead()
 	opening_katago_game_analysis_visits_ = \
@@ -561,6 +570,9 @@ func open_panel_() -> void:
 	)
 	katago_analysis_pv_length_.set_value_no_signal(
 		opening_katago_analysis_pv_length_
+	)
+	katago_extra_board_candidates_.set_value_no_signal(
+		opening_katago_extra_board_candidates_
 	)
 	katago_show_score_lead_.set_pressed_no_signal(
 		opening_katago_show_score_lead_
@@ -791,6 +803,8 @@ func has_staged_changes_() -> bool:
 			opening_katago_report_interval_seconds_
 		) or selected_katago_analysis_pv_length_() \
 			!= opening_katago_analysis_pv_length_ \
+		or selected_katago_extra_board_candidates_() \
+			!= opening_katago_extra_board_candidates_ \
 		or selected_katago_show_score_lead_() \
 			!= opening_katago_show_score_lead_ \
 		or selected_katago_game_analysis_visits_() \
@@ -926,6 +940,14 @@ func selected_katago_analysis_pv_length_() -> int:
 	return maxi(roundi(katago_analysis_pv_length_.value), 1)
 
 
+func selected_katago_extra_board_candidates_() -> int:
+	return clampi(
+		roundi(katago_extra_board_candidates_.value),
+		0,
+		SettingsStore.kKatagoExtraBoardCandidatesMaximum
+	)
+
+
 func selected_katago_show_score_lead_() -> bool:
 	return katago_show_score_lead_.button_pressed
 
@@ -1000,6 +1022,7 @@ func on_confirm_pressed_() -> void:
 		selected_katago_max_visits_(),
 		selected_katago_report_interval_seconds_(),
 		selected_katago_analysis_pv_length_(),
+		selected_katago_extra_board_candidates_(),
 		selected_katago_show_score_lead_(),
 		selected_katago_game_analysis_visits_(),
 		selected_katago_analysis_config_path_(),
@@ -1043,6 +1066,8 @@ func on_confirm_pressed_() -> void:
 	opening_katago_report_interval_seconds_ = \
 		selected_katago_report_interval_seconds_()
 	opening_katago_analysis_pv_length_ = selected_katago_analysis_pv_length_()
+	opening_katago_extra_board_candidates_ = \
+		selected_katago_extra_board_candidates_()
 	opening_katago_show_score_lead_ = selected_katago_show_score_lead_()
 	opening_katago_game_analysis_visits_ = \
 		selected_katago_game_analysis_visits_()
@@ -1119,6 +1144,9 @@ func on_restore_pressed_() -> void:
 	)
 	katago_analysis_pv_length_.set_value_no_signal(
 		opening_katago_analysis_pv_length_
+	)
+	katago_extra_board_candidates_.set_value_no_signal(
+		opening_katago_extra_board_candidates_
 	)
 	katago_show_score_lead_.set_pressed_no_signal(
 		opening_katago_show_score_lead_
@@ -2041,6 +2069,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_max_visits_.editable = enabled
 	katago_report_interval_seconds_.editable = enabled
 	katago_analysis_pv_length_.editable = enabled
+	katago_extra_board_candidates_.editable = enabled
 	katago_show_score_lead_.disabled = not enabled
 	katago_game_analysis_visits_.editable = enabled
 	katago_test_button_.disabled = not desktop_paths_enabled

@@ -2,6 +2,7 @@ class_name GoBoardView
 extends Sprite2D
 
 signal board_texture_changed
+signal analysis_candidate_requested(pv: Array)
 signal cut_branch_mode_changed(enabled: bool)
 signal find_mode_changed(direction: int)
 signal next_color_changed(color: int)
@@ -15,6 +16,7 @@ signal variation_mode_changed(enabled: bool)
 signal human_play_cancel_requested
 signal position_changed(uid: int)
 signal playback_navigation_changed(can_previous: bool, can_next: bool)
+signal note_preview_page_requested(index: int)
 signal territory_cancel_requested
 
 const kBlack: int = 1
@@ -102,6 +104,7 @@ const kStoneSound4: AudioStream = preload(
 @onready var playback_button_: Button = $PlaybackButton
 @onready var playback_timer_: Timer = $PlaybackTimer
 @onready var preset_button_: Button = $PresetButton
+@onready var note_preview_page_label_: Label = $NotePreviewPageLabel
 
 var board_size_: int = 19
 var black_texture_: Texture2D
@@ -123,7 +126,11 @@ var follow_current_: bool = true
 var playback_navigation_: bool = false
 var updating_playback_bar_: bool = false
 var playback_playing_: bool = false
+var note_preview_playback_active_: bool = false
+var note_preview_page_count_: int = 0
+var note_preview_page_index_: int = 0
 var interactions_locked_: bool = false
+var analysis_candidate_pvs_: Dictionary = {}
 var preset_mode_: bool = false
 var preset_erase_mode_: bool = false
 var preset_editing_current_: bool = false
@@ -437,6 +444,11 @@ func get_playback_path() -> PackedInt64Array:
 
 
 func can_navigate_playback(direction: int) -> bool:
+	if note_preview_playback_active_:
+		if direction < 0:
+			return note_preview_page_index_ > 0
+		return direction > 0 \
+			and note_preview_page_index_ < note_preview_page_count_ - 1
 	if direction == 0 or not follow_current_ or go_notes_ == null \
 			or playback_path_.is_empty():
 		return false
@@ -464,6 +476,48 @@ func stop_playback() -> void:
 
 func restore_playback_position() -> void:
 	refresh_playback_path_()
+
+
+func enter_note_preview_playback(page_count: int, page_index: int) -> bool:
+	if page_count <= 0:
+		return false
+	set_playback_playing_(false)
+	note_preview_playback_active_ = true
+	note_preview_page_count_ = page_count
+	note_preview_page_index_ = clampi(page_index, 0, page_count - 1)
+	preset_button_.hide()
+	note_preview_page_label_.show()
+	playback_bar_.show()
+	playback_previous_button_.show()
+	playback_next_button_.show()
+	playback_button_.show()
+	refresh_note_preview_playback_()
+	return true
+
+
+func set_note_preview_page_index(page_index: int) -> void:
+	if not note_preview_playback_active_ or note_preview_page_count_ <= 0:
+		return
+	note_preview_page_index_ = clampi(
+		page_index, 0, note_preview_page_count_ - 1
+	)
+	refresh_note_preview_playback_()
+
+
+func exit_note_preview_playback() -> void:
+	if not note_preview_playback_active_:
+		return
+	set_playback_playing_(false)
+	note_preview_playback_active_ = false
+	note_preview_page_count_ = 0
+	note_preview_page_index_ = 0
+	note_preview_page_label_.hide()
+	preset_button_.show()
+	var _following: bool = follow_current_position()
+
+
+func is_note_preview_playback() -> bool:
+	return note_preview_playback_active_
 
 
 func set_note_numbering_preview(
@@ -494,10 +548,13 @@ func set_analysis_candidates(
 ) -> void:
 	if analysis_candidates_overlay_ == null:
 		return
+	analysis_candidate_pvs_.clear()
 	var candidates: Array[Dictionary] = []
+	var maximum_candidates: int = 3 + \
+		SettingsStore.get_katago_extra_board_candidates()
 	var playback_next_move: Dictionary = playback_next_move_()
 	for info_value: Variant in move_infos:
-		if candidates.size() >= 3:
+		if candidates.size() >= maximum_candidates:
 			break
 		var info: Dictionary = Dictionary(info_value)
 		var intersection: Vector2i = gtp_coordinate_to_intersection_(
@@ -516,8 +573,14 @@ func set_analysis_candidates(
 				playback_next_move, intersection
 			),
 		})
+		var pv: Array = truncate_analysis_pv_(Array(info.get("pv", [])))
+		if not pv.is_empty():
+			analysis_candidate_pvs_[intersection] = pv
+	var primary_candidates: Array[Dictionary] = []
+	for index: int in range(mini(candidates.size(), 3)):
+		primary_candidates.append(candidates[index])
 	var played_move_loss: Dictionary = build_played_move_loss_(
-		candidates, played_move
+		primary_candidates, played_move
 	)
 	analysis_candidates_overlay_.configure(
 		candidates, played_move_loss, board_size_, cell_size_()
@@ -569,8 +632,21 @@ func build_played_move_loss_(
 
 
 func clear_analysis_candidates() -> void:
+	analysis_candidate_pvs_.clear()
 	if analysis_candidates_overlay_ != null:
 		analysis_candidates_overlay_.clear_candidates()
+
+
+func truncate_analysis_pv_(pv: Array) -> Array:
+	var result: Array = []
+	for move_value: Variant in pv:
+		if result.size() >= SettingsStore.get_katago_analysis_pv_length():
+			break
+		var move: String = str(move_value).strip_edges()
+		if move.to_upper() == "PASS" or move.to_upper() == "RESIGN":
+			break
+		result.append(move)
+	return result
 
 
 func is_variation_mode() -> bool:
@@ -1050,7 +1126,9 @@ func begin_note_mark_mode_() -> void:
 
 
 func set_note_board_controls_visible_(visible: bool) -> void:
-	preset_button_.visible = visible
+	preset_button_.visible = visible and not note_preview_playback_active_
+	note_preview_page_label_.visible = \
+		visible and note_preview_playback_active_
 	playback_bar_.visible = visible
 	playback_previous_button_.visible = visible
 	playback_next_button_.visible = visible
@@ -1264,7 +1342,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not follow_current_ or go_notes_ == null \
+	if (not follow_current_ and not note_preview_playback_active_) \
+			or go_notes_ == null \
 			or takeback_confirmation_.visible \
 			or cut_branch_confirmation_.visible:
 		return
@@ -1291,9 +1370,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		playback_direction = 1
 	if playback_direction != 0:
-		if is_screen_position_on_board_(mouse_event.position) \
+		if (note_preview_playback_active_ \
+				or is_screen_position_on_board_(mouse_event.position)) \
 				and navigate_playback_by_(playback_direction):
 			get_viewport().set_input_as_handled()
+		return
+	if note_preview_playback_active_:
 		return
 	if has_pending_move() \
 			and mouse_event.button_index == MOUSE_BUTTON_RIGHT:
@@ -1309,6 +1391,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if cut_branch_mode_:
 			if try_cut_branch_at_(mouse_event.position):
 				get_viewport().set_input_as_handled()
+			return
+		if interactions_locked_ \
+				and try_request_analysis_candidate_at_(mouse_event.position):
+			get_viewport().set_input_as_handled()
 			return
 		if not variation_mode_ and not preset_mode_ \
 				and try_activate_branch_at_(mouse_event.position):
@@ -1379,6 +1465,19 @@ func intersection_at_screen_position_(
 			cell_size * kIntersectionHitRadiusRatio:
 		return Vector2i.ZERO
 	return Vector2i(column_index + 1, row_index + 1)
+
+
+func try_request_analysis_candidate_at_(screen_position: Vector2) -> bool:
+	if analysis_candidate_pvs_.is_empty():
+		return false
+	var intersection: Vector2i = intersection_at_screen_position_(screen_position)
+	if intersection == Vector2i.ZERO \
+			or not analysis_candidate_pvs_.has(intersection):
+		return false
+	analysis_candidate_requested.emit(
+		Array(analysis_candidate_pvs_[intersection]).duplicate()
+	)
+	return true
 
 
 func refresh_hover_stone_() -> void:
@@ -1750,7 +1849,8 @@ func _draw() -> void:
 
 
 	draw_coordinates_(cell_size)
-	if not is_note_mark_mode() and not territory_mode_:
+	if not is_note_mark_mode() and not territory_mode_ \
+			and not note_preview_playback_active_:
 		draw_branch_markers_(canvas_scale, cell_size)
 	if note_marks_overlay_ != null:
 		note_marks_overlay_.queue_redraw()
@@ -2375,6 +2475,9 @@ func refresh_playback_path_() -> bool:
 	playback_hover_bubble_.hide()
 	if go_notes_ == null or playback_bar_ == null:
 		return false
+	if note_preview_playback_active_:
+		refresh_note_preview_playback_()
+		return true
 	var path: PackedInt64Array = PackedInt64Array(
 		go_notes_.call(&"get_straightforward_path")
 	)
@@ -2434,6 +2537,21 @@ func update_playback_position_() -> void:
 
 
 func update_playback_editable_() -> void:
+	if note_preview_playback_active_:
+		playback_bar_.editable = note_preview_page_count_ > 1
+		playback_previous_button_.disabled = note_preview_page_index_ <= 0
+		playback_next_button_.disabled = note_preview_page_index_ \
+			>= note_preview_page_count_ - 1
+		playback_navigation_changed.emit(
+			not playback_previous_button_.disabled,
+			not playback_next_button_.disabled
+		)
+		playback_button_.disabled = note_preview_page_count_ <= 1 \
+			or (not playback_playing_ and not can_advance_playback_())
+		playback_previous_button_.queue_redraw()
+		playback_next_button_.queue_redraw()
+		playback_button_.queue_redraw()
+		return
 	playback_bar_.editable = follow_current_ and playback_path_.size() > 1
 	var current_index: int = -1
 	if follow_current_ and go_notes_ != null:
@@ -2459,6 +2577,18 @@ func navigate_playback_by_(
 ) -> bool:
 	if user_initiated:
 		set_playback_playing_(false)
+	if note_preview_playback_active_:
+		var target_index: int = clampi(
+			note_preview_page_index_ + direction,
+			0,
+			note_preview_page_count_ - 1
+		)
+		if target_index == note_preview_page_index_:
+			return true
+		request_edit_sensitive_action_(
+			Callable(self, "request_note_preview_page_").bind(target_index)
+		)
+		return true
 	if not follow_current_ or go_notes_ == null or playback_path_.is_empty():
 		return false
 	var current_uid: int = int(go_notes_.get_current_uid())
@@ -2503,6 +2633,9 @@ func on_playback_bar_mouse_exited_() -> void:
 
 
 func update_playback_hover_bubble_(mouse_x: float) -> void:
+	if note_preview_playback_active_:
+		update_note_preview_hover_bubble_(mouse_x)
+		return
 	if playback_path_.is_empty() or playback_bar_.size.x <= 0.0:
 		playback_hover_bubble_.hide()
 		return
@@ -2568,6 +2701,17 @@ func on_playback_timer_timeout_() -> void:
 	if not playback_playing_ or not can_advance_playback_():
 		set_playback_playing_(false)
 		return
+	if note_preview_playback_active_:
+		var previous_index: int = note_preview_page_index_
+		if not navigate_playback_by_(1, false) \
+				or note_preview_page_index_ == previous_index:
+			set_playback_playing_(false)
+			return
+		if can_advance_playback_():
+			schedule_playback_step_()
+		else:
+			set_playback_playing_(false)
+		return
 	var previous_uid: int = int(go_notes_.get_current_uid())
 	if not navigate_playback_by_(1, false) \
 			or int(go_notes_.get_current_uid()) == previous_uid:
@@ -2580,6 +2724,9 @@ func on_playback_timer_timeout_() -> void:
 
 
 func can_advance_playback_() -> bool:
+	if note_preview_playback_active_:
+		return note_preview_page_index_ >= 0 \
+			and note_preview_page_index_ < note_preview_page_count_ - 1
 	if not follow_current_ or go_notes_ == null or playback_path_.is_empty():
 		return false
 	var current_index: int = playback_path_.find(
@@ -2604,7 +2751,20 @@ func on_playback_value_changed_(
 		value: float,
 		user_initiated: bool = true
 ) -> void:
-	if updating_playback_bar_ or not follow_current_:
+	if updating_playback_bar_:
+		return
+	if note_preview_playback_active_:
+		if user_initiated:
+			set_playback_playing_(false)
+		var page_index: int = clampi(
+			roundi(value), 0, note_preview_page_count_ - 1
+		)
+		if page_index != note_preview_page_index_:
+			request_edit_sensitive_action_(
+				Callable(self, "request_note_preview_page_").bind(page_index)
+			)
+		return
+	if not follow_current_:
 		return
 	if user_initiated:
 		cancel_pending_move()
@@ -2634,6 +2794,62 @@ func apply_playback_value_(value: float, user_initiated: bool) -> void:
 		refresh_playback_path_()
 	elif playback_playing_ and not can_advance_playback_():
 		set_playback_playing_(false)
+
+
+func refresh_note_preview_playback_() -> void:
+	note_preview_page_label_.text = "%d/%d" % [
+		note_preview_page_index_ + 1, note_preview_page_count_
+	]
+	updating_playback_bar_ = true
+	playback_bar_.min_value = 0.0
+	playback_bar_.max_value = float(maxi(note_preview_page_count_ - 1, 0))
+	playback_bar_.step = 1.0
+	playback_bar_.set_value_no_signal(float(note_preview_page_index_))
+	updating_playback_bar_ = false
+	update_playback_editable_()
+
+
+func request_note_preview_page_(page_index: int) -> void:
+	note_preview_page_requested.emit(page_index)
+
+
+func update_note_preview_hover_bubble_(mouse_x: float) -> void:
+	if note_preview_page_count_ <= 0 or playback_bar_.size.x <= 0.0:
+		playback_hover_bubble_.hide()
+		return
+	var grabber: Texture2D = playback_bar_.get_theme_icon(&"grabber")
+	var grabber_half_width: float = 0.0 \
+		if grabber == null else grabber.get_width() * 0.5
+	var track_width: float = maxf(
+		playback_bar_.size.x - grabber_half_width * 2.0, 1.0
+	)
+	var track_x: float = clampf(
+		mouse_x - grabber_half_width, 0.0, track_width
+	)
+	var hovered_index: int = clampi(
+		roundi(track_x / track_width * float(note_preview_page_count_ - 1)),
+		0,
+		note_preview_page_count_ - 1
+	)
+	playback_hover_label_.text = "%d / %d" % [
+		hovered_index + 1, note_preview_page_count_
+	]
+	var point_x: float = grabber_half_width
+	if note_preview_page_count_ > 1:
+		point_x += track_width * float(hovered_index) \
+			/ float(note_preview_page_count_ - 1)
+	var bubble_x: float = playback_bar_.position.x + point_x \
+		- playback_hover_bubble_.size.x * 0.5
+	playback_hover_bubble_.position = Vector2(
+		clampf(
+			bubble_x,
+			playback_bar_.position.x,
+			playback_bar_.position.x + playback_bar_.size.x \
+				- playback_hover_bubble_.size.x
+		),
+		playback_bar_.position.y - playback_hover_bubble_.size.y - 8.0
+	)
+	playback_hover_bubble_.show()
 
 
 func request_edit_sensitive_action_(action: Callable) -> void:

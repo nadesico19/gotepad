@@ -287,6 +287,11 @@ var human_play_finished_: bool = false
 var human_play_panel_was_open_: bool = false
 var human_play_toolbar_visibility_: Dictionary = {}
 var human_play_discard_paused_ai_: bool = false
+var note_preview_active_: bool = false
+var note_preview_pages_: Array[Dictionary] = []
+var note_preview_page_index_: int = -1
+var note_preview_refresh_pending_: bool = false
+var note_preview_navigation_in_progress_: bool = false
 
 
 func _enter_tree() -> void:
@@ -302,6 +307,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	set_process(false)
 	get_tree().auto_accept_quit = false
 	export_progress_dialog_.get_ok_button().hide()
 	export_progress_dialog_.close_requested.connect(
@@ -455,6 +461,8 @@ func _ready() -> void:
 	notes_panel_.numbering_preview_changed.connect(
 		board_.set_note_numbering_preview
 	)
+	notes_panel_.preview_requested.connect(on_note_preview_requested_)
+	notes_panel_.preview_close_requested.connect(exit_note_preview_mode_)
 	board_.set_edit_sensitive_action_gate(
 		Callable(self, "request_after_note_edit_resolution_")
 	)
@@ -474,6 +482,7 @@ func _ready() -> void:
 		on_pending_move_cancel_requested_
 	)
 	board_.find_mode_changed.connect(on_find_mode_changed_)
+	board_.analysis_candidate_requested.connect(on_katago_variation_requested_)
 	board_.variation_mode_changed.connect(on_variation_mode_changed_)
 	board_.human_play_cancel_requested.connect(
 		on_human_play_cancel_requested_
@@ -482,6 +491,7 @@ func _ready() -> void:
 	board_.playback_navigation_changed.connect(
 		on_playback_navigation_changed_
 	)
+	board_.note_preview_page_requested.connect(show_note_preview_page_)
 	board_.next_color_changed.connect(on_next_color_changed_)
 	board_.pending_move_changed.connect(on_pending_move_changed_)
 	board_.preset_mode_changed.connect(on_preset_mode_changed_)
@@ -1402,7 +1412,7 @@ func refresh_localized_ui_() -> void:
 			"选择下一步的预置棋子分支（%d）"
 		) % setup_branches_.size()
 	update_next_color_button_(board_.get_next_color())
-	on_preset_mode_changed_(board_.is_preset_mode())
+	refresh_preset_mode_localized_ui_()
 	for localized_node: Node in [
 		board_,
 		board_size_dialog_,
@@ -1526,6 +1536,7 @@ func start_pptx_export_(path: String) -> void:
 		on_pptx_export_finished_(false, tr("无法创建 PPTX 导出快照。"))
 		return
 	export_in_progress_ = true
+	set_process(true)
 	export_target_path_ = path
 	export_progress_bar_.min_value = 0.0
 	export_progress_bar_.max_value = 1.0
@@ -1589,6 +1600,7 @@ func on_pptx_export_finished_(exported: bool, message: String) -> void:
 		DirAccess.remove_absolute(export_temporary_path_)
 	export_notes_ = null
 	export_in_progress_ = false
+	set_process(false)
 	export_target_path_ = ""
 	export_temporary_path_ = ""
 	export_copy_total_ = 0
@@ -1808,6 +1820,138 @@ func on_notes_panel_visibility_changed_(opened: bool) -> void:
 	elif pending_side_panel_ == kPendingPanelKatago:
 		pending_side_panel_ = kPendingPanelNone
 		katago_analysis_panel_.open_panel(go_notes_, board_)
+	call_deferred(&"position_side_panels_")
+
+
+func on_note_preview_requested_(selected_note_index: int) -> void:
+	notes_panel_.request_action_after_edit_resolution(
+		Callable(self, "enter_note_preview_mode_").bind(selected_note_index)
+	)
+
+
+func enter_note_preview_mode_(selected_note_index: int) -> void:
+	if note_preview_active_ or go_notes_ == null:
+		return
+	var node_order_by_uid: Dictionary = {}
+	var next_node_order: Array[int] = [0]
+	var pages: Array[Dictionary] = []
+	collect_note_preview_pages_(
+		0, node_order_by_uid, next_node_order, pages
+	)
+	if pages.is_empty():
+		tool_error_dialog_.title = tr("无法预览")
+		tool_error_dialog_.dialog_text = tr("当前棋谱没有可预览的笔记。")
+		tool_error_dialog_.popup_centered(Vector2i(480, 180))
+		return
+
+	var current_uid: int = board_.get_view_uid()
+	var initial_index: int = find_initial_note_preview_page_(
+		pages, node_order_by_uid, current_uid, selected_note_index
+	)
+	note_preview_active_ = true
+	note_preview_pages_ = pages
+	note_preview_page_index_ = initial_index
+	board_.cancel_pending_move()
+	board_.clear_analysis_candidates()
+	board_toolbar_.hide()
+	notes_panel_.enter_preview_mode()
+	if not board_.enter_note_preview_playback(pages.size(), initial_index):
+		exit_note_preview_mode_()
+		return
+	show_note_preview_page_(initial_index)
+	update_mobile_playback_visibility_()
+	call_deferred(&"position_side_panels_")
+
+
+func collect_note_preview_pages_(
+		uid: int,
+		node_order_by_uid: Dictionary,
+		next_node_order: Array[int],
+		pages: Array[Dictionary]
+) -> void:
+	var node: Dictionary = Dictionary(go_notes_.call(&"get_node_at", uid))
+	if node.is_empty():
+		return
+	var node_order: int = next_node_order[0]
+	next_node_order[0] = node_order + 1
+	node_order_by_uid[uid] = node_order
+	var notes: Array = Array(go_notes_.call(&"get_notes_at", uid))
+	for note_index: int in range(notes.size()):
+		var note: Dictionary = Dictionary(notes[note_index])
+		pages.append({
+			"uid": uid,
+			"note_index": note_index,
+			"node_order": node_order,
+			"title": str(note.get("title", "")),
+			"comment": str(note.get("comment", "")),
+			"sequential_marks": Array(
+				note.get("sequential_marks", [])
+			).duplicate(true),
+			"symbol_marks": Array(
+				note.get("symbol_marks", [])
+			).duplicate(true),
+		})
+	for child_value: Variant in Array(node.get("children", [])):
+		var child: Dictionary = Dictionary(child_value)
+		collect_note_preview_pages_(
+			int(child.get("uid", -1)),
+			node_order_by_uid,
+			next_node_order,
+			pages
+		)
+
+
+func find_initial_note_preview_page_(
+		pages: Array[Dictionary],
+		node_order_by_uid: Dictionary,
+		current_uid: int,
+		selected_note_index: int
+) -> int:
+	for index: int in range(pages.size()):
+		var page: Dictionary = pages[index]
+		if int(page.get("uid", -1)) == current_uid \
+				and int(page.get("note_index", -1)) \
+				== selected_note_index:
+			return index
+	var current_order: int = int(node_order_by_uid.get(current_uid, -1))
+	for index: int in range(pages.size()):
+		if int(pages[index].get("node_order", -1)) > current_order:
+			return index
+	return pages.size() - 1
+
+
+func show_note_preview_page_(page_index: int) -> void:
+	if not note_preview_active_ or note_preview_pages_.is_empty():
+		return
+	page_index = clampi(page_index, 0, note_preview_pages_.size() - 1)
+	note_preview_page_index_ = page_index
+	var page: Dictionary = note_preview_pages_[page_index]
+	var uid: int = int(page.get("uid", -1))
+	var note_index: int = int(page.get("note_index", -1))
+	if uid != int(go_notes_.get_current_uid()):
+		note_preview_navigation_in_progress_ = true
+		var roamed: bool = board_.roam_to_next_branch(uid)
+		note_preview_navigation_in_progress_ = false
+		if not roamed:
+			return
+	board_.set_note_preview_page_index(page_index)
+	notes_panel_.select_preview_note(note_index)
+
+
+func exit_note_preview_mode_() -> void:
+	if not note_preview_active_:
+		return
+	note_preview_active_ = false
+	note_preview_refresh_pending_ = false
+	note_preview_navigation_in_progress_ = false
+	note_preview_pages_.clear()
+	note_preview_page_index_ = -1
+	board_.set_note_numbering_preview(false, -1, -1)
+	board_.exit_note_preview_playback()
+	board_toolbar_.show()
+	notes_panel_.exit_preview_mode()
+	update_mobile_playback_visibility_()
+	call_deferred(&"position_board_toolbar_")
 	call_deferred(&"position_side_panels_")
 
 
@@ -2996,6 +3140,15 @@ func on_preset_mode_changed_(enabled: bool) -> void:
 	update_mobile_playback_visibility_()
 
 
+func refresh_preset_mode_localized_ui_() -> void:
+	var enabled: bool = board_.is_preset_mode()
+	preset_button_.set_pressed_no_signal(enabled)
+	preset_button_.tooltip_text = tr("正在预置棋子（Esc 取消）") \
+		if enabled else tr("预置棋子（Ctrl+H）")
+	update_preset_tool_selection_()
+	update_preset_button_()
+
+
 func update_preset_toolbar_(enabled: bool) -> void:
 	for child: Node in board_toolbar_.get_children():
 		if child is Control:
@@ -3009,6 +3162,12 @@ func update_preset_toolbar_(enabled: bool) -> void:
 	if not enabled:
 		setup_branch_button_.visible = not setup_branches_.is_empty() \
 			and not board_.is_variation_mode()
+		human_play_takeback_button_.hide()
+		human_play_accept_button_.hide()
+		human_play_cancel_button_.hide()
+		if human_play_mode_active_:
+			apply_human_play_toolbar_()
+			return
 	on_pending_move_changed_(board_.has_pending_move())
 	call_deferred(&"position_board_toolbar_")
 
@@ -3058,6 +3217,10 @@ func perform_redo_now_() -> void:
 
 
 func on_go_notes_history_changed_() -> void:
+	if note_preview_active_ and not note_preview_navigation_in_progress_ \
+			and not note_preview_refresh_pending_:
+		note_preview_refresh_pending_ = true
+		call_deferred(&"refresh_note_preview_pages_after_change_")
 	if branch_order_popup_.visible and not branch_popup_command_in_progress_:
 		branch_order_popup_.cancel()
 	update_history_buttons_()
@@ -3065,6 +3228,33 @@ func on_go_notes_history_changed_() -> void:
 	update_reorder_branch_button_()
 	notes_panel_.refresh_current_position()
 	sgf_metadata_panel_.refresh_metadata()
+
+
+func refresh_note_preview_pages_after_change_() -> void:
+	note_preview_refresh_pending_ = false
+	if not note_preview_active_ or go_notes_ == null:
+		return
+	var node_order_by_uid: Dictionary = {}
+	var next_node_order: Array[int] = [0]
+	var pages: Array[Dictionary] = []
+	collect_note_preview_pages_(
+		0, node_order_by_uid, next_node_order, pages
+	)
+	if pages.is_empty():
+		exit_note_preview_mode_()
+		return
+	var page_index: int = find_initial_note_preview_page_(
+		pages,
+		node_order_by_uid,
+		int(go_notes_.get_current_uid()),
+		notes_panel_.get_selected_note_index()
+	)
+	note_preview_pages_ = pages
+	note_preview_page_index_ = page_index
+	var _configured: bool = board_.enter_note_preview_playback(
+		pages.size(), page_index
+	)
+	show_note_preview_page_(page_index)
 
 
 func update_history_buttons_() -> void:
@@ -3171,7 +3361,7 @@ func switch_document_(index: int) -> void:
 	if incoming.initialized:
 		board_size_dialog_.hide()
 	else:
-		board_size_dialog_.show_dialog()
+		show_board_creation_dialog_()
 	update_mobile_playback_visibility_()
 	update_history_buttons_()
 	update_preset_button_()
@@ -3187,6 +3377,8 @@ func switch_document_(index: int) -> void:
 
 
 func leave_transient_modes_() -> void:
+	if note_preview_active_:
+		exit_note_preview_mode_()
 	if territory_mode_active_:
 		exit_territory_scoring_mode_()
 	if human_play_mode_active_:
@@ -3271,7 +3463,7 @@ func on_create_requested_(board_size: int) -> void:
 		update_mobile_playback_visibility_()
 		board_size_dialog_.hide()
 	else:
-		board_size_dialog_.show_dialog()
+		show_board_creation_dialog_()
 
 
 func on_image_create_requested_(
@@ -3282,7 +3474,7 @@ func on_image_create_requested_(
 		board_size_dialog_.show_load_error(
 			tr("无法根据图片创建棋盘。")
 		)
-		board_size_dialog_.show_dialog()
+		show_board_creation_dialog_()
 		return
 
 	var command_fields: PackedStringArray = PackedStringArray(["PRESET"])
@@ -3303,7 +3495,7 @@ func on_image_create_requested_(
 				tr("识别盘面无法作为预置棋子创建：%s") %
 				CommandMessages.localize(go_notes_.get_message())
 			)
-			board_size_dialog_.show_dialog()
+			show_board_creation_dialog_()
 			return
 
 	if active_document_index_ >= 0:
@@ -3342,6 +3534,14 @@ func on_board_creation_cancel_requested_() -> void:
 	switch_document_(
 		clampi(closing_index - 1, 0, documents_.size() - 1)
 	)
+
+
+func show_board_creation_dialog_() -> void:
+	var can_cancel: bool = documents_.size() > 1 \
+		and active_document_index_ >= 0 \
+		and active_document_index_ < documents_.size() \
+		and not documents_[active_document_index_].initialized
+	board_size_dialog_.show_dialog(can_cancel)
 
 
 func on_board_lock_toggled_(locked: bool) -> void:
@@ -3516,9 +3716,18 @@ func position_side_panels_() -> void:
 	var right: float = viewport_size.x - 96.0
 	var left: float = board_toolbar_.position.x \
 		+ board_toolbar_.size.x + kBoardToolbarGap
+	if note_preview_active_:
+		var board_right: float = \
+			board_toolbar_.position.x - kBoardToolbarGap
+		var right_button_gap: float = maxf(
+			new_tab_button_.position.x - right, kBoardToolbarGap
+		)
+		left = board_right + right_button_gap
 	if right - left < 280.0:
 		left = maxf(12.0, right - 280.0)
 	var top: float = maxf(board_toolbar_.position.y, 12.0)
+	if note_preview_active_:
+		top = get_board_side_controls_top_()
 	var panel_rect: Rect2 = Rect2(
 		Vector2(left, top),
 		Vector2(

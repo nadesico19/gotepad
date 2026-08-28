@@ -314,6 +314,10 @@ private:
   [[nodiscard]] int place_stone_(int color, size_t row, size_t column,
                                  uint64_t specified_uid);
 
+  // 判断当前落子是否构成上一手单劫的立即回提。GoCore不保存历史局面，因此这里只使用
+  // 单劫的局部特征：上一手提一子，且上一手新落下的棋为仅剩被提点一气的单独一子。
+  [[nodiscard]] bool is_simple_ko_recapture_(int color, uint16_t position);
+
   [[nodiscard]] int
   preset_stones_(const std::vector<GoCorePresetStone> &preset_stones,
                  uint64_t specified_uid, bool merge_current);
@@ -835,6 +839,29 @@ inline int GoCore::place_stone(int color, size_t row, size_t column) {
   return this->place_stone_(color, row, column, 0);
 }
 
+inline bool GoCore::is_simple_ko_recapture_(int color, uint16_t position) {
+  if (this->current_uid_ == 0)
+    return false;
+
+  const auto last_it = this->recorder_.find(this->current_uid_);
+  if (last_it == this->recorder_.end())
+    return false;
+
+  const auto &last_record = last_it->second;
+  if (last_record.color == color || last_record.captured.size() != 1 ||
+      last_record.captured.front() != position ||
+      this->state_at_flat_(last_record.position) != last_record.color) {
+    return false;
+  }
+
+  const auto last_row = last_record.position / board_width_;
+  const auto last_column = last_record.position % board_width_;
+  const auto liberties = this->liberty_of_stone_(last_row, last_column);
+  return liberties == 1 && this->traversal_visited_.size() == 1 &&
+         this->liberty_positions_.size() == 1 &&
+         this->liberty_positions_.front() == position;
+}
+
 inline int GoCore::place_stone_(int color, size_t row, size_t column,
                                 uint64_t specified_uid) {
   // 基本检查。
@@ -882,18 +909,10 @@ inline int GoCore::place_stone_(int color, size_t row, size_t column,
     }
   }
 
-  // 此核心类中不会进行全局的局面一致性检查，对于打劫仅采用如下逻辑：检查上一个落子记录，
-  // 当本次落子与上次落子异色，并且上次落子提取了单个棋子，则将该提子作为本次落子的禁入点。
-  if (this->current_uid_ != 0) {
-    if (const auto last_it = this->recorder_.find(this->current_uid_);
-        last_it != this->recorder_.end()) {
-      const auto &last_record = last_it->second;
-      if (last_record.color != color && last_record.captured.size() == 1 &&
-          last_record.captured.front() == position) {
-        return -4;
-      }
-    }
-  }
+  // 此核心类不保存历史局面哈希，只禁止满足局部单劫特征的立即回提。仅凭上一手提一子
+  // 不能判定为劫，否则会把回填后提掉多子的倒扑误判为非法。
+  if (this->is_simple_ko_recapture_(color, position))
+    return -4;
 
   // 首先无条件的放置棋子。
   auto old_state = this->set_state_of_position_(color, row, column);

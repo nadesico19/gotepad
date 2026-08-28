@@ -23,6 +23,8 @@ var android_image_board_size_: int = 19
 @onready var size_15_: CheckBox = %Size15
 @onready var size_19_: CheckBox = %Size19
 @onready var create_button_: Button = %CreateButton
+@onready var close_button_: Button = %CloseButton
+@onready var close_balance_: Control = %CloseBalance
 @onready var load_sgf_button_: Button = %LoadSgfButton
 @onready var paste_sgf_button_: Button = %PasteSgfButton
 @onready var sgf_file_dialog_: FileDialog = %SgfFileDialog
@@ -44,6 +46,7 @@ func _ready() -> void:
 	options_.append(size_15_)
 	options_.append(size_19_)
 	create_button_.pressed.connect(on_create_pressed_)
+	close_button_.pressed.connect(on_close_pressed_)
 	size_19_.grab_focus()
 	load_sgf_button_.pressed.connect(on_load_sgf_pressed_)
 	paste_sgf_button_.pressed.connect(on_paste_sgf_pressed_)
@@ -67,9 +70,7 @@ func _ready() -> void:
 	android_image_buttons_.visible = is_android
 	if is_android:
 		android_host_class_ = JavaClassWrapper.wrap(kAndroidHostClass)
-		set_process(android_host_class_ != null)
-	else:
-		set_process(false)
+	set_process(false)
 	camera_button_.disabled = android_host_class_ == null
 	gallery_button_.disabled = android_host_class_ == null
 	refresh_localized_texts()
@@ -120,7 +121,7 @@ func _input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
-func show_dialog() -> void:
+func show_dialog(can_cancel: bool) -> void:
 	# 此场景会在每次新建标签时重复使用。原生文件选择器的可见性信号
 	# 在父控件隐藏期间不保证再次触发，因此打开创建窗口时主动清理旧状态。
 	sgf_file_dialog_.hide()
@@ -128,8 +129,16 @@ func show_dialog() -> void:
 	image_file_dialog_.hide()
 	finish_image_file_dialog_()
 	image_import_dialog_.hide()
+	close_button_.visible = can_cancel
+	close_balance_.visible = can_cancel
 	show()
 	size_19_.grab_focus()
+
+
+func on_close_pressed_() -> void:
+	if not close_button_.visible or close_button_.disabled:
+		return
+	cancel_requested.emit()
 
 func on_create_pressed_() -> void:
 	if sgf_file_dialog_open_ or sgf_file_dialog_.visible \
@@ -195,6 +204,7 @@ func set_creation_controls_disabled_(disabled: bool) -> void:
 	for option in options_:
 		option.disabled = disabled
 	create_button_.disabled = disabled
+	close_button_.disabled = disabled
 	# 文件选择期间仍允许再次点击此按钮，以便将原生对话框提到前台。
 	load_sgf_button_.disabled = false
 	paste_sgf_button_.disabled = disabled
@@ -284,6 +294,7 @@ func start_android_image_request_(use_camera: bool) -> void:
 		show_load_error(tr("无法打开安卓图片来源。"))
 		return
 	android_image_request_active_ = true
+	set_process(true)
 	set_creation_controls_disabled_(true)
 
 
@@ -291,6 +302,7 @@ func handle_android_image_result_(result: String) -> void:
 	if not android_image_request_active_:
 		return
 	android_image_request_active_ = false
+	set_process(false)
 	set_creation_controls_disabled_(false)
 	if result == "cancel":
 		return

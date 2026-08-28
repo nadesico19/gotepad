@@ -64,12 +64,36 @@ theme_override_constants/margin_bottom = 24
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Title" type="Label" parent="Center/Panel/Margin/Content"]
+[node name="TitleRow" type="HBoxContainer" parent="Center/Panel/Margin/Content"]
 layout_mode = 2
+
+[node name="CloseBalance" type="Control" parent="Center/Panel/Margin/Content/TitleRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="Center/Panel/Margin/Content/TitleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.96, 0.88, 0.7, 1)
 theme_override_font_sizes/font_size = 24
 text = "创建棋盘"
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CloseButton" type="Button" parent="Center/Panel/Margin/Content/TitleRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
+theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.25, 0.25, 1)
+theme_override_font_sizes/font_size = 20
+text = "✕"
 
 [node name="Description" type="Label" parent="Center/Panel/Margin/Content"]
 layout_mode = 2

@@ -1114,6 +1114,40 @@ namespace {
         expect_eq(board.state_of_position(10, 9), 0, "snapback: black stone is removed");
         expect_eq(board.state_of_position(10, 11), 0, "snapback: other captured point stays empty");
     }
+
+    void test_snapback_capture_one_then_two(std::ofstream &out) {
+        Board board{19};
+        const std::vector<PresetStone> setup{
+            {White, 10, 10},
+            {White, 9, 11},
+            {White, 11, 11},
+            {White, 9, 12},
+            {White, 11, 12},
+            {White, 10, 13},
+            {Black, 9, 10},
+            {Black, 11, 10},
+            {Black, 10, 9},
+            {Black, 10, 12},
+        };
+        expect_eq(board.preset_stones(setup), 0, "reverse snapback: setup succeeds");
+        dump_board(out, "reverse snapback: initial board", board);
+
+        place_and_dump(board, out, 0, Black, 10, 11,
+                       "reverse snapback: black captures one white");
+        expect_eq(board.state_of_position(10, 10), 0,
+                  "reverse snapback: captured white is removed");
+        expect_eq(board.state_of_position(10, 11), Black,
+                  "reverse snapback: newly placed black remains");
+
+        place_and_dump(board, out, 0, White, 10, 10,
+                       "reverse snapback: white immediately captures two black stones");
+        expect_eq(board.state_of_position(10, 10), White,
+                  "reverse snapback: legal recapture remains");
+        expect_eq(board.state_of_position(10, 11), 0,
+                  "reverse snapback: newly placed black is removed");
+        expect_eq(board.state_of_position(10, 12), 0,
+                  "reverse snapback: connected black is removed");
+    }
 }
 
 int main() {
@@ -1152,6 +1186,7 @@ int main() {
     test_center_chain_capture(out);
     test_simple_ko_rejection(out);
     test_snapback_capture_two_then_one(out);
+    test_snapback_capture_one_then_two(out);
 
     out << "\nAll placement tests passed.\n";
     return 0;
