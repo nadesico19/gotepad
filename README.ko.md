@@ -6,7 +6,7 @@ Gotepad는 바둑 기보 작성, 대국 검토 및 기보 정리를 위한 크�
 
 이 프로젝트는 현재 개발 중입니다.
 
-사용 방법은 [Gotepad 사용자 설명서](docs/user_manual.md)(현재 중국어)를 참조하세요.
+사용 방법은 [Gotepad 사용자 설명서](docs/user_manual.ko.md)를 참조하세요.
 
 ## 릴리스 받기
 

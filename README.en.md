@@ -6,7 +6,7 @@ Gotepad is a cross-platform client for recording Go games, reviewing positions, 
 
 The project is still under development.
 
-For usage instructions, see the [Gotepad User Manual](docs/user_manual.md) (currently in Chinese).
+For usage instructions, see the [Gotepad User Manual](docs/user_manual.en.md).
 
 ## Getting a release
 
