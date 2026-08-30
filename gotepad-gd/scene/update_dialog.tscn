@@ -1,0 +1,125 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://script/update_dialog.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
+bg_color = Color(0.055, 0.05, 0.043, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.62, 0.48, 0.18, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="UpdateDialog" type="Control"]
+visible = false
+z_index = 500
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_script")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0, 0, 0, 0.5)
+
+[node name="Center" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 80.0
+offset_top = 70.0
+offset_right = -80.0
+offset_bottom = -70.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxPanel")
+
+[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Content" type="VBoxContainer" parent="Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="CurrentVersion" type="Label" parent="Center/Panel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "当前版本：0.0.0"
+clip_text = true
+vertical_alignment = 1
+
+[node name="LatestVersion" type="Label" parent="Center/Panel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "最新版本：-"
+clip_text = true
+vertical_alignment = 1
+
+[node name="DownloadSource" type="OptionButton" parent="Center/Panel/Margin/Content/Header"]
+custom_minimum_size = Vector2(104, 40)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+item_count = 2
+selected = 0
+popup/item_0/text = "GitHub"
+popup/item_0/id = 0
+popup/item_1/text = "网盘"
+popup/item_1/id = 1
+
+[node name="Update" type="Button" parent="Center/Panel/Margin/Content/Header"]
+custom_minimum_size = Vector2(72, 40)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "更新"
+
+[node name="Close" type="Button" parent="Center/Panel/Margin/Content/Header"]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.92, 0.92, 0.92, 1)
+theme_override_colors/font_hover_color = Color(1, 0.35, 0.35, 1)
+theme_override_font_sizes/font_size = 24
+text = "✕"
+flat = true
+
+[node name="ReleaseNotes" type="TextEdit" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+focus_mode = 1
+editable = false
+wrap_mode = 1
+scroll_fit_content_width = true
+placeholder_text = "更新说明"
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]
+timeout = 12.0

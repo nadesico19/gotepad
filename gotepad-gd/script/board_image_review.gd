@@ -11,6 +11,8 @@ const kMinimumPointHitRadius: float = 10.0
 const kCornerHandleGap: float = 15.0
 const kStoneMarkerScale: float = 0.8
 const kGridColor: Color = Color(0.25, 0.9, 1.0, 0.72)
+const kLowConfidenceThreshold: float = 0.58
+const kLowConfidenceColor: Color = Color(1.0, 0.16, 0.12, 1.0)
 
 var source_image_: Image
 var source_texture_: ImageTexture
@@ -61,7 +63,7 @@ func get_cells() -> PackedInt32Array:
 func get_low_confidence_count() -> int:
 	var count: int = 0
 	for value: float in confidence_:
-		if value < 0.58:
+		if value < kLowConfidenceThreshold:
 			count += 1
 	return count
 
@@ -148,6 +150,7 @@ func _draw() -> void:
 		return
 	draw_grid_()
 	draw_cells_()
+	draw_low_confidence_points_()
 	for index: int in range(corners_.size()):
 		var local_corner: Vector2 = image_to_local_(corners_[index])
 		var handle_center: Vector2 = corner_handle_position_(index)
@@ -192,9 +195,21 @@ func draw_cells_() -> void:
 			Color(0.05, 0.05, 0.05, 0.95)
 		draw_arc(center, radius, 0.0, TAU, 24,
 			outline, 1.5, true)
-		if index < confidence_.size() and confidence_[index] < 0.58:
-			draw_arc(center, radius + 3.0, 0.0, TAU, 24,
-				Color(1.0, 0.28, 0.12, 0.95), 2.5, true)
+
+
+func draw_low_confidence_points_() -> void:
+	var point_count: int = mini(
+		board_size_ * board_size_, confidence_.size()
+	)
+	var point_radius: float = clampf(stone_radius_() * 0.28, 4.0, 8.0)
+	for index: int in range(point_count):
+		if confidence_[index] >= kLowConfidenceThreshold:
+			continue
+		var row: int = floori(float(index) / float(board_size_))
+		var column: int = index % board_size_
+		draw_circle(
+			local_grid_point_(row, column), point_radius, kLowConfidenceColor
+		)
 
 
 func _gui_input(event: InputEvent) -> void:

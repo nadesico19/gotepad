@@ -27,6 +27,7 @@ const kSequentialMarkLetters: String = \
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 const kCoordinateOffsetCellRatio: float = 0.70
 const kCoordinateFontCellRatio: float = 0.30
+const kCoordinateFontEmbolden: float = 1.2
 const kCoordinateColor: Color = Color(0.08, 0.045, 0.015, 0.92)
 const kCoordinateOutlineColor: Color = Color(1.0, 0.88, 0.62, 0.58)
 const kCoordinateOutlineFontRatio: float = 0.10
@@ -106,6 +107,7 @@ const kStoneSound4: AudioStream = preload(
 @onready var preset_button_: Button = $PresetButton
 @onready var note_preview_page_label_: Label = $NotePreviewPageLabel
 
+var coordinate_font_: FontVariation
 var board_size_: int = 19
 var black_texture_: Texture2D
 var white_texture_: Texture2D
@@ -1913,7 +1915,7 @@ func refresh_territory_overlay_() -> void:
 
 
 func draw_coordinates_(cell_size: float) -> void:
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = coordinate_bold_font_()
 	if font == null:
 		return
 	var font_size: int = maxi(
@@ -1957,6 +1959,18 @@ func draw_coordinates_(cell_size: float) -> void:
 			font_size,
 			outline_size
 		)
+
+
+func coordinate_bold_font_() -> FontVariation:
+	if coordinate_font_ != null:
+		return coordinate_font_
+	var base_font: Font = ThemeDB.fallback_font
+	if base_font == null:
+		return null
+	coordinate_font_ = FontVariation.new()
+	coordinate_font_.base_font = base_font
+	coordinate_font_.variation_embolden = kCoordinateFontEmbolden
+	return coordinate_font_
 
 
 func draw_centered_coordinate_(

@@ -176,6 +176,9 @@ class DocumentState extends RefCounted:
 @onready var save_as_button_: Button = $Interface/SafeArea/SaveAsButton
 @onready var export_button_: Button = $Interface/SafeArea/ExportButton
 @onready var tool_button_: MenuButton = $Interface/SafeArea/ToolButton
+@onready var update_button_: FixedWidthTextButton = \
+	$Interface/SafeArea/UpdateButton
+@onready var update_dialog_: UpdateDialog = $Interface/SafeArea/UpdateDialog
 @onready var mobile_playback_buttons_: VBoxContainer = \
 	$Interface/SafeArea/MobilePlaybackButtons
 @onready var mobile_playback_next_button_: Button = \
@@ -507,6 +510,9 @@ func _ready() -> void:
 	save_button_.pressed.connect(on_save_requested_)
 	save_as_button_.pressed.connect(on_save_as_requested_)
 	export_button_.pressed.connect(on_export_requested_)
+	update_button_.pressed.connect(update_dialog_.check_for_updates)
+	update_dialog_.check_started.connect(on_update_check_started_)
+	update_dialog_.check_finished.connect(on_update_check_finished_)
 	mobile_playback_next_button_.pressed.connect(
 		on_mobile_playback_requested_.bind(1)
 	)
@@ -1357,6 +1363,18 @@ func on_export_requested_() -> void:
 	request_after_note_edit_resolution_(Callable(self, "request_export_"))
 
 
+func on_update_check_started_() -> void:
+	update_button_.disabled = true
+	update_button_.source_text = "正在检测…"
+	update_button_.queue_redraw()
+
+
+func on_update_check_finished_() -> void:
+	update_button_.disabled = false
+	update_button_.source_text = "更新"
+	update_button_.queue_redraw()
+
+
 func on_tool_menu_id_pressed_(item_id: int) -> void:
 	match item_id:
 		kToolKeepMainLine:
@@ -1422,6 +1440,7 @@ func refresh_localized_ui_() -> void:
 		branch_order_popup_,
 		setup_branch_popup_,
 		branch_visualization_,
+		update_dialog_,
 	]:
 		if localized_node.has_method(&"refresh_localized_texts"):
 			localized_node.call(&"refresh_localized_texts")

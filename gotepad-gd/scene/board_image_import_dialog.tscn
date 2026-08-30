@@ -82,11 +82,14 @@ size_flags_vertical = 3
 mouse_filter = 0
 script = ExtResource("2_review")
 
-[node name="Status" type="Label" parent="Margin/Panel/InnerMargin/Content"]
+[node name="Status" type="RichTextLabel" parent="Margin/Panel/InnerMargin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.88, 0.9, 1)
+theme_override_colors/default_color = Color(0.78, 0.88, 0.9, 1)
 text = "正在识别棋盘图片…"
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
 autowrap_mode = 2
 
 [node name="Actions" type="HBoxContainer" parent="Margin/Panel/InnerMargin/Content"]
@@ -125,4 +128,3 @@ text = "✓ 创建"
 unique_name_in_owner = true
 title = "图片识别失败"
 ok_button_text = "确定"
-

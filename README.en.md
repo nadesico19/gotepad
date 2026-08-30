@@ -42,6 +42,7 @@ Prebuilt versions are published on the repository's [GitHub Releases](../../rele
 - Multiple documents and a customizable interface: tabs, new, save, save as, texture selection, move-number display, stone-sound volume, board width, UI scaling, and mobile safe-margin settings.
 - Cross-platform interaction: Windows x64 and Android arm64-v8a are supported. Android adds touch zoom and panning, a large-UI option, landscape-orientation following, and opening SGF files from the system file manager.
 - Chinese, Japanese, Korean, and English interface languages.
+- Update checking: check GitHub Releases for the current platform and stable/test channel, display notes for up to the five newest applicable versions, and open either the GitHub or cloud-drive download page in the system browser.
 - SGF saves use a temporary backup to reduce the risk of damaging the original file if an overwrite fails.
 
 ## Interface preview

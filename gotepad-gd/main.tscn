@@ -33,6 +33,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/territory_scoring.svg" id="36_territory_scoring"]
 [ext_resource type="Script" path="res://script/katago_human_analysis_service.gd" id="37_human_service"]
 [ext_resource type="Texture2D" path="res://assets/ui/katago_human_play.svg" id="38_human_play"]
+[ext_resource type="PackedScene" path="res://scene/update_dialog.tscn" id="39_update_dialog"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
 bg_color = Color(0.22, 0.17, 0.055, 0.82)
@@ -786,6 +787,25 @@ clip_text = true
 script = ExtResource("35_fixed_width_button")
 source_text = "工具"
 flat = false
+
+[node name="UpdateButton" type="Button" parent="Interface/SafeArea"]
+custom_minimum_size = Vector2(72, 36)
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 300.0
+offset_right = -12.0
+offset_bottom = 336.0
+grow_horizontal = 0
+tooltip_text = "检查软件更新"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+clip_text = true
+script = ExtResource("35_fixed_width_button")
+source_text = "更新"
+
+[node name="UpdateDialog" parent="Interface/SafeArea" instance=ExtResource("39_update_dialog")]
 
 [node name="MobilePlaybackButtons" type="VBoxContainer" parent="Interface/SafeArea"]
 visible = false
