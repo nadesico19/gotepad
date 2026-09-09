@@ -27,7 +27,8 @@ const kFieldNodes: Dictionary = {
 }
 
 @onready var panel_: PanelContainer = $Panel
-@onready var form_: VBoxContainer = $Panel/Margin/Content/Scroll/Form
+@onready var form_: VBoxContainer = \
+	$Panel/Margin/Content/Scroll/FormMargin/Form
 @onready var actions_: HBoxContainer = \
 	$Panel/Margin/Content/Header/ActionSlot/Actions
 @onready var accept_button_: Button = \
@@ -43,6 +44,7 @@ var editors_: Dictionary = {}
 var saved_values_: Dictionary = {}
 var updating_: bool = false
 var close_after_edit_resolution_: bool = false
+var mobile_text_edit_long_press_: MobileTextEditLongPressController
 
 
 func _ready() -> void:
@@ -59,6 +61,7 @@ func _ready() -> void:
 			text_edit.text_changed.connect(on_text_changed_)
 			text_edit.focus_exited.connect(on_editor_focus_exited_)
 			text_edit.gui_input.connect(on_editor_gui_input_)
+	configure_mobile_text_edit_long_press_()
 	accept_button_.pressed.connect(on_accept_pressed_)
 	cancel_button_.pressed.connect(on_cancel_pressed_)
 	unsaved_confirmation_.confirmed.connect(on_unsaved_confirmed_)
@@ -109,8 +112,18 @@ func close_panel() -> void:
 
 func close_panel_immediately_() -> void:
 	cancel_edit_()
+	if mobile_text_edit_long_press_ != null:
+		mobile_text_edit_long_press_.reset()
 	panel_.hide()
 	panel_visibility_changed.emit(false)
+
+
+func configure_mobile_text_edit_long_press_() -> void:
+	if OS.get_name() != "Android":
+		return
+	mobile_text_edit_long_press_ = MobileTextEditLongPressController.new()
+	add_child(mobile_text_edit_long_press_)
+	mobile_text_edit_long_press_.configure(editors_.values())
 
 
 func is_panel_open() -> bool:

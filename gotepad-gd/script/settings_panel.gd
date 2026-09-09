@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.11"
+const kGotepadVersion: String = "0.1.12"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -16,6 +16,9 @@ const kBenchmarkStateRunning: int = 1
 const kBenchmarkStateSucceeded: int = 2
 const kBenchmarkStateFailed: int = 3
 const kPanelLeftButtonMargin: float = 18.0
+const kMobileSpinBoxLongPressSeconds: float = 0.5
+const kMobileSpinBoxDragCancelDistance: float = 16.0
+const kMobileSpinBoxButtonScale: float = 1.5
 const kLanguageLocales: Array[String] = [
 	"zh_CN",
 	"ja",
@@ -47,6 +50,8 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoReportIntervalRow",
 	"KatagoAnalysisPvLengthRow",
 	"KatagoExtraBoardCandidatesRow",
+	"KatagoPrimaryCandidateOpacityRow",
+	"KatagoExtraCandidateOpacityRow",
 	"KatagoShowScoreLead",
 	"KatagoGameAnalysisVisitsRow",
 	"KatagoTestRow",
@@ -144,6 +149,10 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow/Moves
 @onready var katago_extra_board_candidates_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoExtraBoardCandidatesRow/Count
+@onready var katago_primary_candidate_opacity_: SpinBox = \
+	$SettingsPanel/Margin/Options/KatagoPrimaryCandidateOpacityRow/Percentage
+@onready var katago_extra_candidate_opacity_: SpinBox = \
+	$SettingsPanel/Margin/Options/KatagoExtraCandidateOpacityRow/Percentage
 @onready var katago_show_score_lead_: CheckBox = \
 	$SettingsPanel/Margin/Options/KatagoShowScoreLead
 @onready var katago_game_analysis_visits_: SpinBox = \
@@ -219,6 +228,8 @@ var opening_katago_max_visits_: int
 var opening_katago_report_interval_seconds_: float
 var opening_katago_analysis_pv_length_: int
 var opening_katago_extra_board_candidates_: int
+var opening_katago_primary_candidate_opacity_: int
+var opening_katago_extra_candidate_opacity_: int
 var opening_katago_show_score_lead_: bool
 var opening_katago_game_analysis_visits_: int
 var updating_options_: bool = false
@@ -240,12 +251,18 @@ var katago_model_importer_: KataGoAndroidModelImporter
 var pending_imported_model_path_: String = ""
 var pending_imported_human_model_path_: String = ""
 var importing_human_model_: bool = false
+var mobile_spinbox_press_token_: int = 0
+var mobile_spinbox_touch_index_: int = -1
+var mobile_spinbox_press_position_: Vector2 = Vector2.ZERO
+var mobile_spinbox_line_edit_: LineEdit
+var mobile_spinbox_: SpinBox
 
 
 func _ready() -> void:
 	populate_options_()
 	refresh_localized_options_()
 	configure_platform_option_visibility_()
+	configure_mobile_spinbox_long_press_()
 	settings_panel_.resized.connect(position_panel_left_buttons_)
 	settings_button_.pressed.connect(on_settings_pressed_)
 	language_option_.item_selected.connect(on_language_selected_)
@@ -291,6 +308,12 @@ func _ready() -> void:
 		on_katago_analysis_option_changed_
 	)
 	katago_extra_board_candidates_.value_changed.connect(
+		on_katago_analysis_option_changed_
+	)
+	katago_primary_candidate_opacity_.value_changed.connect(
+		on_katago_analysis_option_changed_
+	)
+	katago_extra_candidate_opacity_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
 	katago_show_score_lead_.toggled.connect(on_katago_boolean_option_changed_)
@@ -355,6 +378,170 @@ func _ready() -> void:
 	katago_benchmark_window_.hide()
 	set_process(false)
 	call_deferred(&"position_panel_left_buttons_")
+
+
+func configure_mobile_spinbox_long_press_() -> void:
+	if OS.get_name() != "Android":
+		return
+	for node: Node in settings_panel_.find_children("*", "SpinBox", true, false):
+		var spin_box: SpinBox = node as SpinBox
+		if spin_box == null:
+			continue
+		configure_mobile_spinbox_buttons_(spin_box)
+		var line_edit: LineEdit = spin_box.get_line_edit()
+		line_edit.virtual_keyboard_show_on_focus = false
+		line_edit.virtual_keyboard_enabled = false
+		line_edit.focus_exited.connect(reset_mobile_spinbox_editing_.bind(line_edit))
+		line_edit.editing_toggled.connect(on_mobile_spinbox_editing_toggled_.bind(line_edit))
+		line_edit.gui_input.connect(
+			on_mobile_spinbox_gui_input_.bind(spin_box, line_edit)
+		)
+
+
+func configure_mobile_spinbox_buttons_(spin_box: SpinBox) -> void:
+	var icons: Dictionary = {}
+	var button_width: int = maxi(spin_box.get_theme_constant(&"buttons_width"), 0)
+	for icon_name: StringName in [
+		&"up", &"up_hover", &"up_pressed", &"up_disabled",
+		&"down", &"down_hover", &"down_pressed", &"down_disabled", &"updown"
+	]:
+		var texture: Texture2D = spin_box.get_theme_icon(icon_name)
+		if texture == null or texture.get_width() <= 0 or texture.get_height() <= 0:
+			continue
+		icons[icon_name] = texture
+		button_width = maxi(button_width, texture.get_width())
+	spin_box.add_theme_constant_override(
+		&"buttons_width", ceili(float(button_width) * kMobileSpinBoxButtonScale)
+	)
+	# Keep the original textures so repeated layout changes never compound scaling.
+	var update_icons: Callable = update_mobile_spinbox_icons_.bind(spin_box, icons)
+	spin_box.resized.connect(update_icons)
+	update_icons.call_deferred()
+
+
+func update_mobile_spinbox_icons_(spin_box: SpinBox, icons: Dictionary) -> void:
+	var separation: float = float(
+		spin_box.get_theme_constant(&"buttons_vertical_separation")
+	)
+	var button_height: float = floorf((spin_box.size.y - separation) * 0.5)
+	for icon_name: StringName in icons:
+		var original: Texture2D = icons[icon_name]
+		var available_height: float = spin_box.size.y - 4.0 \
+			if icon_name == &"updown" else button_height - 4.0
+		var icon_scale: float = minf(
+			kMobileSpinBoxButtonScale,
+			maxf(available_height, 1.0) / float(original.get_height())
+		)
+		var image: Image = original.get_image()
+		if image == null or image.is_empty():
+			continue
+		image = image.duplicate() as Image
+		image.resize(
+			maxi(roundi(float(original.get_width()) * icon_scale), 1),
+			maxi(roundi(float(original.get_height()) * icon_scale), 1),
+			Image.INTERPOLATE_LANCZOS
+		)
+		spin_box.add_theme_icon_override(icon_name, ImageTexture.create_from_image(image))
+
+
+func on_mobile_spinbox_gui_input_(
+	event: InputEvent, spin_box: SpinBox, line_edit: LineEdit
+) -> void:
+	if event is InputEventScreenTouch:
+		var touch: InputEventScreenTouch = event as InputEventScreenTouch
+		if touch.pressed and not touch.canceled:
+			begin_mobile_spinbox_long_press_(
+				spin_box, line_edit, touch.index, touch.position
+			)
+		elif touch.index == mobile_spinbox_touch_index_:
+			cancel_mobile_spinbox_long_press_()
+	elif event is InputEventScreenDrag:
+		var drag: InputEventScreenDrag = event as InputEventScreenDrag
+		if drag.index == mobile_spinbox_touch_index_ \
+				and drag.position.distance_to(mobile_spinbox_press_position_) \
+				> kMobileSpinBoxDragCancelDistance:
+			cancel_mobile_spinbox_long_press_()
+
+
+func _input(event: InputEvent) -> void:
+	# Observe releases even when a ScrollContainer takes over the gesture.
+	if OS.get_name() != "Android" or mobile_spinbox_touch_index_ < 0:
+		return
+	if event is InputEventScreenTouch:
+		var touch: InputEventScreenTouch = event as InputEventScreenTouch
+		if touch.index == mobile_spinbox_touch_index_:
+			if not touch.pressed or touch.canceled:
+				cancel_mobile_spinbox_long_press_()
+		elif touch.pressed:
+			cancel_mobile_spinbox_long_press_()
+	elif event is InputEventScreenDrag:
+		var drag: InputEventScreenDrag = event as InputEventScreenDrag
+		if drag.index != mobile_spinbox_touch_index_ or mobile_spinbox_line_edit_ == null:
+			return
+		var local_position: Vector2 = mobile_spinbox_line_edit_.get_global_transform_with_canvas().affine_inverse() * drag.position
+		if not Rect2(Vector2.ZERO, mobile_spinbox_line_edit_.size).has_point(local_position) \
+				or local_position.distance_to(mobile_spinbox_press_position_) > kMobileSpinBoxDragCancelDistance:
+			cancel_mobile_spinbox_long_press_()
+
+
+func reset_mobile_spinbox_editing_(line_edit: LineEdit) -> void:
+	line_edit.virtual_keyboard_enabled = false
+	if mobile_spinbox_line_edit_ == line_edit:
+		cancel_mobile_spinbox_long_press_()
+
+
+func on_mobile_spinbox_editing_toggled_(editing: bool, line_edit: LineEdit) -> void:
+	if not editing:
+		reset_mobile_spinbox_editing_(line_edit)
+
+
+func begin_mobile_spinbox_long_press_(
+	spin_box: SpinBox,
+	line_edit: LineEdit,
+	touch_index: int,
+	position: Vector2
+) -> void:
+	if not spin_box.editable or line_edit.virtual_keyboard_enabled:
+		return
+	mobile_spinbox_press_token_ += 1
+	var token: int = mobile_spinbox_press_token_
+	mobile_spinbox_touch_index_ = touch_index
+	mobile_spinbox_press_position_ = position
+	mobile_spinbox_line_edit_ = line_edit
+	mobile_spinbox_ = spin_box
+	get_tree().create_timer(kMobileSpinBoxLongPressSeconds).timeout.connect(
+		on_mobile_spinbox_long_press_timeout_.bind(token, spin_box, line_edit),
+		CONNECT_ONE_SHOT
+	)
+
+
+func cancel_mobile_spinbox_long_press_() -> void:
+	mobile_spinbox_press_token_ += 1
+	mobile_spinbox_touch_index_ = -1
+	mobile_spinbox_line_edit_ = null
+	mobile_spinbox_ = null
+
+
+func on_mobile_spinbox_long_press_timeout_(
+	token: int, spin_box: SpinBox, line_edit: LineEdit
+) -> void:
+	if token != mobile_spinbox_press_token_ \
+			or spin_box != mobile_spinbox_ \
+			or line_edit != mobile_spinbox_line_edit_ \
+			or not spin_box.editable \
+			or not line_edit.is_visible_in_tree():
+		return
+	mobile_spinbox_touch_index_ = -1
+	mobile_spinbox_line_edit_ = null
+	mobile_spinbox_ = null
+	# Focus alone cannot gate the keyboard: LineEdit also opens it on mouse release.
+	# Leave the native keyboard disabled until this explicit editing session.
+	line_edit.unedit()
+	line_edit.grab_focus()
+	line_edit.unedit()
+	line_edit.virtual_keyboard_enabled = true
+	line_edit.edit()
+	line_edit.select_all()
 
 
 func configure_platform_option_visibility_() -> void:
@@ -501,6 +688,10 @@ func open_panel_() -> void:
 		SettingsStore.get_katago_analysis_pv_length()
 	opening_katago_extra_board_candidates_ = \
 		SettingsStore.get_katago_extra_board_candidates()
+	opening_katago_primary_candidate_opacity_ = \
+		SettingsStore.get_katago_primary_candidate_opacity()
+	opening_katago_extra_candidate_opacity_ = \
+		SettingsStore.get_katago_extra_candidate_opacity()
 	opening_katago_show_score_lead_ = \
 		SettingsStore.get_katago_show_score_lead()
 	opening_katago_game_analysis_visits_ = \
@@ -574,6 +765,12 @@ func open_panel_() -> void:
 	katago_extra_board_candidates_.set_value_no_signal(
 		opening_katago_extra_board_candidates_
 	)
+	katago_primary_candidate_opacity_.set_value_no_signal(
+		opening_katago_primary_candidate_opacity_
+	)
+	katago_extra_candidate_opacity_.set_value_no_signal(
+		opening_katago_extra_candidate_opacity_
+	)
 	katago_show_score_lead_.set_pressed_no_signal(
 		opening_katago_show_score_lead_
 	)
@@ -610,6 +807,13 @@ func open_panel_() -> void:
 
 
 func close_panel_() -> void:
+	if OS.get_name() == "Android":
+		cancel_mobile_spinbox_long_press_()
+		for node: Node in settings_panel_.find_children("*", "SpinBox", true, false):
+			var line_edit: LineEdit = (node as SpinBox).get_line_edit()
+			line_edit.unedit()
+			line_edit.release_focus()
+			reset_mobile_spinbox_editing_(line_edit)
 	if not opening_language_.is_empty():
 		SettingsStore.preview_language(opening_language_)
 	cancel_katago_test_()
@@ -805,6 +1009,10 @@ func has_staged_changes_() -> bool:
 			!= opening_katago_analysis_pv_length_ \
 		or selected_katago_extra_board_candidates_() \
 			!= opening_katago_extra_board_candidates_ \
+		or selected_katago_primary_candidate_opacity_() \
+			!= opening_katago_primary_candidate_opacity_ \
+		or selected_katago_extra_candidate_opacity_() \
+			!= opening_katago_extra_candidate_opacity_ \
 		or selected_katago_show_score_lead_() \
 			!= opening_katago_show_score_lead_ \
 		or selected_katago_game_analysis_visits_() \
@@ -948,6 +1156,22 @@ func selected_katago_extra_board_candidates_() -> int:
 	)
 
 
+func selected_katago_primary_candidate_opacity_() -> int:
+	return clampi(
+		roundi(katago_primary_candidate_opacity_.value),
+		SettingsStore.kKatagoCandidateOpacityMinimum,
+		SettingsStore.kKatagoCandidateOpacityMaximum
+	)
+
+
+func selected_katago_extra_candidate_opacity_() -> int:
+	return clampi(
+		roundi(katago_extra_candidate_opacity_.value),
+		SettingsStore.kKatagoCandidateOpacityMinimum,
+		SettingsStore.kKatagoCandidateOpacityMaximum
+	)
+
+
 func selected_katago_show_score_lead_() -> bool:
 	return katago_show_score_lead_.button_pressed
 
@@ -1023,6 +1247,8 @@ func on_confirm_pressed_() -> void:
 		selected_katago_report_interval_seconds_(),
 		selected_katago_analysis_pv_length_(),
 		selected_katago_extra_board_candidates_(),
+		selected_katago_primary_candidate_opacity_(),
+		selected_katago_extra_candidate_opacity_(),
 		selected_katago_show_score_lead_(),
 		selected_katago_game_analysis_visits_(),
 		selected_katago_analysis_config_path_(),
@@ -1068,6 +1294,10 @@ func on_confirm_pressed_() -> void:
 	opening_katago_analysis_pv_length_ = selected_katago_analysis_pv_length_()
 	opening_katago_extra_board_candidates_ = \
 		selected_katago_extra_board_candidates_()
+	opening_katago_primary_candidate_opacity_ = \
+		selected_katago_primary_candidate_opacity_()
+	opening_katago_extra_candidate_opacity_ = \
+		selected_katago_extra_candidate_opacity_()
 	opening_katago_show_score_lead_ = selected_katago_show_score_lead_()
 	opening_katago_game_analysis_visits_ = \
 		selected_katago_game_analysis_visits_()
@@ -1147,6 +1377,12 @@ func on_restore_pressed_() -> void:
 	)
 	katago_extra_board_candidates_.set_value_no_signal(
 		opening_katago_extra_board_candidates_
+	)
+	katago_primary_candidate_opacity_.set_value_no_signal(
+		opening_katago_primary_candidate_opacity_
+	)
+	katago_extra_candidate_opacity_.set_value_no_signal(
+		opening_katago_extra_candidate_opacity_
 	)
 	katago_show_score_lead_.set_pressed_no_signal(
 		opening_katago_show_score_lead_
@@ -2070,6 +2306,8 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_report_interval_seconds_.editable = enabled
 	katago_analysis_pv_length_.editable = enabled
 	katago_extra_board_candidates_.editable = enabled
+	katago_primary_candidate_opacity_.editable = enabled
+	katago_extra_candidate_opacity_.editable = enabled
 	katago_show_score_lead_.disabled = not enabled
 	katago_game_analysis_visits_.editable = enabled
 	katago_test_button_.disabled = not desktop_paths_enabled

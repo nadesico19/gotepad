@@ -1,9 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://script/settings_panel.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
 [ext_resource type="Texture2D" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
 [ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="4_fixed_width_button"]
+[ext_resource type="Texture2D" path="res://assets/ui/settings.svg" id="5_settings_icon"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroupMoveNumbers"]
 
@@ -61,8 +62,11 @@ mouse_filter = 0
 focus_mode = 0
 mouse_default_cursor_shape = 2
 clip_text = true
+icon = ExtResource("5_settings_icon")
+expand_icon = true
+icon_max_width = 26
+icon_alignment = 1
 script = ExtResource("4_fixed_width_button")
-source_text = "设置"
 tooltip_text = "程序设置（Ctrl+O）"
 
 [node name="SettingsPanel" type="PanelContainer" parent="."]
@@ -105,7 +109,7 @@ text = "设置"
 [node name="LanguageLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
-text = "界面语言"
+text = "界面语言（Language）"
 
 [node name="LanguageOption" type="OptionButton" parent="SettingsPanel/Margin/Options"]
 custom_minimum_size = Vector2(0, 36)
@@ -127,8 +131,9 @@ mouse_filter = 2
 [node name="Pixels" type="SpinBox" parent="SettingsPanel/Margin/Options/HorizontalSafeMarginRow"]
 custom_minimum_size = Vector2(136, 36)
 layout_mode = 2
-max_value = 512.0
+max_value = 500.0
 step = 1.0
+custom_arrow_step = 50.0
 suffix = " px"
 
 [node name="BoardWidthPercentageRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
@@ -150,6 +155,7 @@ layout_mode = 2
 min_value = 50.0
 max_value = 100.0
 step = 1.0
+custom_arrow_step = 10.0
 value = 100.0
 suffix = " %"
 
@@ -175,8 +181,6 @@ min_value = 0.7
 max_value = 2.0
 step = 0.1
 value = 1.5
-allow_greater = true
-allow_lesser = true
 suffix = " x"
 
 [node name="BoardLabel" type="Label" parent="SettingsPanel/Margin/Options"]
@@ -296,6 +300,8 @@ custom_minimum_size = Vector2(120, 36)
 layout_mode = 2
 min_value = 1.0
 max_value = 9999.0
+step = 1.0
+custom_arrow_step = 10.0
 value = 20.0
 allow_greater = true
 suffix = " 手"
@@ -321,6 +327,7 @@ layout_mode = 2
 min_value = 0.1
 max_value = 60.0
 step = 0.1
+custom_arrow_step = 1.0
 value = 1.0
 suffix = " 秒"
 
@@ -343,7 +350,7 @@ custom_minimum_size = Vector2(170, 36)
 layout_mode = 2
 tooltip_text = "设置实际落子时的音效音量"
 max_value = 100.0
-step = 1.0
+step = 10.0
 value = 50.0
 
 [node name="Value" type="Label" parent="SettingsPanel/Margin/Options/StoneSoundVolumeRow"]
@@ -482,6 +489,8 @@ custom_minimum_size = Vector2(140, 36)
 layout_mode = 2
 min_value = 1.0
 max_value = 100000.0
+step = 1.0
+custom_arrow_step = 100.0
 value = 500.0
 allow_greater = true
 suffix = " visits"
@@ -506,6 +515,7 @@ layout_mode = 2
 min_value = 0.1
 max_value = 60.0
 step = 0.1
+custom_arrow_step = 1.0
 value = 2.0
 suffix = " 秒"
 
@@ -551,6 +561,52 @@ custom_minimum_size = Vector2(140, 36)
 layout_mode = 2
 max_value = 99.0
 
+[node name="KatagoPrimaryCandidateOpacityRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoPrimaryCandidateOpacityRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "前三候选透明度"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoPrimaryCandidateOpacityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Percentage" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoPrimaryCandidateOpacityRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+max_value = 100.0
+step = 1.0
+custom_arrow_step = 10.0
+value = 70.0
+suffix = " %"
+
+[node name="KatagoExtraCandidateOpacityRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoExtraCandidateOpacityRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+text = "其他候选透明度"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoExtraCandidateOpacityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Percentage" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoExtraCandidateOpacityRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+max_value = 100.0
+step = 1.0
+custom_arrow_step = 10.0
+value = 30.0
+suffix = " %"
+
 [node name="KatagoShowScoreLead" type="CheckBox" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 focus_mode = 0
@@ -577,6 +633,8 @@ custom_minimum_size = Vector2(140, 36)
 layout_mode = 2
 min_value = 1.0
 max_value = 100000.0
+step = 1.0
+custom_arrow_step = 10.0
 value = 1.0
 allow_greater = true
 suffix = " visits"
@@ -655,6 +713,8 @@ custom_minimum_size = Vector2(140, 36)
 layout_mode = 2
 min_value = 1.0
 max_value = 100000.0
+step = 1.0
+custom_arrow_step = 100.0
 value = 500.0
 allow_greater = true
 suffix = " visits"

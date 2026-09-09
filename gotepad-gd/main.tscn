@@ -1061,6 +1061,14 @@ ok_button_text = "保留对局并退出"
 dialog_text = "确定结束当前对局，并将本次对局过程记录到主棋谱吗？"
 cancel_button_text = "返回对局"
 
+[node name="HumanPlayNavigationDialog" type="ConfirmationDialog" parent="Interface/SafeArea"]
+title = "离开人类模仿棋"
+transient = true
+exclusive = true
+ok_button_text = "保留并继续"
+dialog_text = "当前人类模仿棋对局尚未结束。是否将对局过程记录到主棋谱后继续操作？"
+cancel_button_text = "取消"
+
 [node name="HumanPlayErrorDialog" type="AcceptDialog" parent="Interface/SafeArea"]
 title = "无法开始仿人棋模式"
 transient = true

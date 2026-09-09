@@ -50,6 +50,9 @@ var query_turn_uids_: Dictionary = {}
 var batch_pending_turns_: Dictionary = {}
 var document_instance_id_: int = 0
 var cached_request_settings_signature_: String = ""
+var pending_analysis_settings_change_: bool = false
+var pending_analysis_paths_change_: bool = false
+var settings_change_update_scheduled_: bool = false
 var human_play_mode_: bool = false
 var human_play_previous_continuous_: bool = false
 
@@ -763,20 +766,52 @@ func truncate_pv_(pv: Array) -> Array:
 
 
 func on_analysis_settings_changed_() -> void:
+	pending_analysis_settings_change_ = true
+	schedule_analysis_settings_update_()
+
+
+func on_analysis_paths_changed_() -> void:
+	pending_analysis_paths_change_ = true
+	schedule_analysis_settings_update_()
+
+
+func schedule_analysis_settings_update_() -> void:
+	if settings_change_update_scheduled_:
+		return
+	settings_change_update_scheduled_ = true
+	call_deferred(&"apply_pending_analysis_settings_changes_")
+
+
+func apply_pending_analysis_settings_changes_() -> void:
+	settings_change_update_scheduled_ = false
+	var paths_changed: bool = pending_analysis_paths_change_
+	var analysis_settings_changed: bool = pending_analysis_settings_change_
+	pending_analysis_paths_change_ = false
+	pending_analysis_settings_change_ = false
+	if not paths_changed and not analysis_settings_changed:
+		return
 	var signature: String = request_settings_signature_()
-	if signature == cached_request_settings_signature_:
+	var request_settings_changed: bool = analysis_settings_changed \
+		and signature != cached_request_settings_signature_
+	cached_request_settings_signature_ = signature
+	if paths_changed:
+		var resume_continuous: bool = should_resume_continuous_analysis_()
+		stop_all_queries_()
+		if service_ != null:
+			service_.shutdown()
+		finish_preserving_analysis_results_(
+			tr("KataGo引擎设置已更新，现有结果来自修改前的引擎"),
+			resume_continuous
+		)
+		return
+	if not request_settings_changed:
 		refresh_candidates_(latest_move_infos_)
 		refresh_curve_()
 		status_label_.text = tr("分析显示设置已更新")
 		return
-	cached_request_settings_signature_ = signature
-	clear_analysis_cache_(tr("分析设置已更新"))
-
-
-func on_analysis_paths_changed_() -> void:
-	if service_ != null:
-		service_.shutdown()
-	clear_analysis_cache_(tr("KataGo引擎设置已更新"))
+	preserve_analysis_results_after_settings_change_(
+		tr("分析设置已更新，现有结果已保留")
+	)
 
 
 func refresh_localized_texts() -> void:
@@ -787,14 +822,26 @@ func refresh_localized_texts() -> void:
 		analyze_game_button_.text = tr("取消整局分析")
 
 
-func clear_analysis_cache_(message: String) -> void:
+func preserve_analysis_results_after_settings_change_(message: String) -> void:
+	var resume_continuous: bool = should_resume_continuous_analysis_()
 	stop_all_queries_()
-	results_by_uid_.clear()
-	latest_move_infos_.clear()
-	refresh_candidates_([])
+	finish_preserving_analysis_results_(message, resume_continuous)
+
+
+func should_resume_continuous_analysis_() -> bool:
+	return not human_play_mode_ and panel_.visible \
+		and continuous_.button_pressed
+
+
+func finish_preserving_analysis_results_(
+	message: String, resume_continuous: bool
+) -> void:
+	refresh_candidates_(latest_move_infos_)
 	refresh_curve_()
 	status_label_.text = message
 	update_controls_()
+	if resume_continuous:
+		start_current_analysis_(true)
 
 
 func request_settings_signature_() -> String:

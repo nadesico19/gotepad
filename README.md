@@ -35,7 +35,7 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 - SGF 棋谱读写：可以从本地文件、系统剪贴板或系统“打开方式”载入棋谱，支持棋谱信息、预置节点、分支、局面标题、评论、常用棋盘标记和 Gotepad 自定义数据，并在加载异常棋谱时提供防御性校验与提示。
 - 棋局笔记：同一局面可保存多层笔记，支持顺序字母、三角、方形、圆形和叉形标记，并可为阅读及出版设置不同的棋子编号方式；“专注”模式可以按照出版导出的顺序线性浏览整份棋谱的全部笔记，并在浏览过程中直接编辑。
 - 从图片创建棋局：Windows 可选择本地图片，Android 可拍照或从相册选图；程序通过 OpenCV 识别棋盘和黑白棋子，并提供旋转、四角校正、重新识别和逐点人工修正。
-- KataGo 分析：支持单局面及持续分析、候选点与变化图、额外盘面候选数、胜率和目差曲线、快速整局分析、增加计算量和候选劣化提示。Windows 调用用户部署的外部引擎，Android 内置 OpenCL/Eigen 后端和模型，并允许导入外置权重。
+- KataGo 分析：支持单局面及持续分析、候选点与变化图、额外盘面候选数、候选标记透明度、胜率和目差曲线、快速整局分析、增加计算量和候选劣化提示。前三候选和其他候选的透明度可以分别设置。Windows 调用用户部署的外部引擎，Android 内置 OpenCL/Eigen 后端和模型，并允许导入外置权重。
 - KataGo 人类模仿棋：可以选择 AI 执黑或执白、现代或 AlphaGo 前棋风、模仿棋力及每手计算量，并从当前棋谱的任意局面开始对局；临时对局可以悔棋，并可选择保留到原棋谱或放弃。
 - 终局数目：在中国规则下调用 KataGo 判断交叉点归属，允许用户按连通区域修正结果，并汇报双方子空、贴目和胜负目数。
 - PPTX 出版导出：将筛选出的棋盘、编号、标记和笔记排版为可继续编辑的 B5 横版课件，并可选择 SVG 矢量棋盘或兼容性更好的 PNG 棋盘（Android 目前仅支持 SVG）。
@@ -113,6 +113,7 @@ docs/         项目文档
 - [libsgfc++](https://github.com/herzbube/libsgfcplusplus)：SGF 的读取、校验和保存。
 - [miniz](https://github.com/richgel999/miniz)：PPTX 导出所需的 ZIP 归档支持。
 - [LunaSVG](https://github.com/sammycage/lunasvg)：将 PPTX 中的棋盘图转换为兼容性更好的 PNG。
+- [OpenCV](https://github.com/opencv/opencv)：为图片棋盘的网格检测、透视校正和黑白棋子识别提供计算机视觉算法，采用 Apache License 2.0。
 - [Noto CJK](https://github.com/notofonts/noto-cjk)：PPTX 中文排版使用的黑体和宋体，字体文件按 OFL-1.1 随项目提供。
 - [KataGo](https://github.com/lightvector/KataGo)：围棋局面分析引擎；桌面端使用外部程序，Android 端编译为内置分析后端。
 - [Eigen](https://gitlab.com/libeigen/eigen)：Android 内置 KataGo 的 CPU 后端。

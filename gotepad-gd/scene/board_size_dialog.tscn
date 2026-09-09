@@ -1,12 +1,9 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene format=3 uid="uid://cfavepgmumb6j"]
 
-[ext_resource type="Script" path="res://script/board_size_dialog.gd" id="1_dialog_script"]
-[ext_resource type="Texture2D" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
-[ext_resource type="Texture2D" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
+[ext_resource type="Script" uid="uid://btpgem633lq6c" path="res://script/board_size_dialog.gd" id="1_dialog_script"]
+[ext_resource type="Texture2D" uid="uid://dvunk7schwoer" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
+[ext_resource type="Texture2D" uid="uid://kqo7ncsgneex" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
 [ext_resource type="PackedScene" path="res://scene/board_image_import_dialog.tscn" id="4_image_import"]
-
-[sub_resource type="ButtonGroup" id="ButtonGroup_sizes"]
-resource_name = "BoardSizeGroup"
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dialog"]
 bg_color = Color(0.12, 0.105, 0.08, 0.98)
@@ -22,17 +19,19 @@ corner_radius_bottom_left = 10
 shadow_color = Color(0, 0, 0, 0.45)
 shadow_size = 12
 
-[node name="BoardSizeDialog" type="Control"]
+[sub_resource type="ButtonGroup" id="ButtonGroup_sizes"]
+resource_name = "BoardSizeGroup"
+
+[node name="BoardSizeDialog" type="Control" unique_id=2031016261]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 script = ExtResource("1_dialog_script")
 
-[node name="DimBackground" type="ColorRect" parent="."]
+[node name="DimBackground" type="ColorRect" parent="." unique_id=860849016]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -41,7 +40,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.48)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="." unique_id=1877728264]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -49,32 +48,32 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="PanelContainer" parent="Center"]
+[node name="Panel" type="PanelContainer" parent="Center" unique_id=1800103379]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_dialog")
 
-[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+[node name="Margin" type="MarginContainer" parent="Center/Panel" unique_id=394824510]
 layout_mode = 2
 theme_override_constants/margin_left = 22
 theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 22
 theme_override_constants/margin_bottom = 24
 
-[node name="Content" type="VBoxContainer" parent="Center/Panel/Margin"]
+[node name="Content" type="VBoxContainer" parent="Center/Panel/Margin" unique_id=1449683447]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="TitleRow" type="HBoxContainer" parent="Center/Panel/Margin/Content"]
+[node name="TitleRow" type="HBoxContainer" parent="Center/Panel/Margin/Content" unique_id=2091694190]
 layout_mode = 2
 
-[node name="CloseBalance" type="Control" parent="Center/Panel/Margin/Content/TitleRow"]
+[node name="CloseBalance" type="Control" parent="Center/Panel/Margin/Content/TitleRow" unique_id=1176809114]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 mouse_filter = 2
 
-[node name="Title" type="Label" parent="Center/Panel/Margin/Content/TitleRow"]
+[node name="Title" type="Label" parent="Center/Panel/Margin/Content/TitleRow" unique_id=1938828500]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.96, 0.88, 0.7, 1)
@@ -83,151 +82,150 @@ text = "创建棋盘"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="CloseButton" type="Button" parent="Center/Panel/Margin/Content/TitleRow"]
+[node name="CloseButton" type="Button" parent="Center/Panel/Margin/Content/TitleRow" unique_id=1256401623]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
-theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
 theme_override_colors/font_pressed_color = Color(1, 0.25, 0.25, 1)
+theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
 theme_override_font_sizes/font_size = 20
 text = "✕"
 
-[node name="Description" type="Label" parent="Center/Panel/Margin/Content"]
+[node name="Description" type="Label" parent="Center/Panel/Margin/Content" unique_id=396258045]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.82, 0.8, 0.75, 1)
 theme_override_font_sizes/font_size = 15
 text = "请选择棋盘路数"
 horizontal_alignment = 1
 
-[node name="Separator" type="HSeparator" parent="Center/Panel/Margin/Content"]
+[node name="Separator" type="HSeparator" parent="Center/Panel/Margin/Content" unique_id=613804962]
 layout_mode = 2
 
-[node name="Options" type="HBoxContainer" parent="Center/Panel/Margin/Content"]
+[node name="Options" type="HBoxContainer" parent="Center/Panel/Margin/Content" unique_id=391219314]
 layout_mode = 2
-theme_override_constants/h_separation = 30
 alignment = 1
 
-[node name="Size9" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+[node name="Size9" type="CheckBox" parent="Center/Panel/Margin/Content/Options" unique_id=1587051362]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_default_cursor_shape = 2
-button_group = SubResource("ButtonGroup_sizes")
 theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
-theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
-theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
-theme_override_icons/radio_checked = ExtResource("3_radio_checked")
-theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_icons/checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+button_group = SubResource("ButtonGroup_sizes")
 text = "9 路"
 metadata/board_size = 9
 
-[node name="Size11" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+[node name="Size11" type="CheckBox" parent="Center/Panel/Margin/Content/Options" unique_id=1933937246]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_default_cursor_shape = 2
-button_group = SubResource("ButtonGroup_sizes")
 theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
-theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
-theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
-theme_override_icons/radio_checked = ExtResource("3_radio_checked")
-theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_icons/checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+button_group = SubResource("ButtonGroup_sizes")
 text = "11 路"
 metadata/board_size = 11
 
-[node name="Size13" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+[node name="Size13" type="CheckBox" parent="Center/Panel/Margin/Content/Options" unique_id=2060633254]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_default_cursor_shape = 2
-button_group = SubResource("ButtonGroup_sizes")
 theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
-theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
-theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
-theme_override_icons/radio_checked = ExtResource("3_radio_checked")
-theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_icons/checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+button_group = SubResource("ButtonGroup_sizes")
 text = "13 路"
 metadata/board_size = 13
 
-[node name="Size15" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+[node name="Size15" type="CheckBox" parent="Center/Panel/Margin/Content/Options" unique_id=933643782]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_default_cursor_shape = 2
-button_group = SubResource("ButtonGroup_sizes")
 theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
-theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
-theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
-theme_override_icons/radio_checked = ExtResource("3_radio_checked")
-theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_icons/checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
+button_group = SubResource("ButtonGroup_sizes")
 text = "15 路"
 metadata/board_size = 15
 
-[node name="Size19" type="CheckBox" parent="Center/Panel/Margin/Content/Options"]
+[node name="Size19" type="CheckBox" parent="Center/Panel/Margin/Content/Options" unique_id=1887432827]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
+theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_icons/checked = ExtResource("3_radio_checked")
+theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
+theme_override_icons/radio_checked = ExtResource("3_radio_checked")
+theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
 button_pressed = true
 button_group = SubResource("ButtonGroup_sizes")
-theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
-theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
-theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
-theme_override_icons/radio_unchecked = ExtResource("2_radio_unchecked")
-theme_override_icons/radio_checked = ExtResource("3_radio_checked")
-theme_override_icons/unchecked = ExtResource("2_radio_unchecked")
-theme_override_icons/checked = ExtResource("3_radio_checked")
 text = "19 路"
 metadata/board_size = 19
 
-[node name="CreateButton" type="Button" parent="Center/Panel/Margin/Content"]
+[node name="CreateButton" type="Button" parent="Center/Panel/Margin/Content" unique_id=917921066]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
 theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 17
 text = "创建"
 
-[node name="LoadSeparator" type="HSeparator" parent="Center/Panel/Margin/Content"]
+[node name="LoadSeparator" type="HSeparator" parent="Center/Panel/Margin/Content" unique_id=1775132125]
 layout_mode = 2
 
-[node name="AlternativeArea" type="HBoxContainer" parent="Center/Panel/Margin/Content"]
+[node name="AlternativeArea" type="HBoxContainer" parent="Center/Panel/Margin/Content" unique_id=810996217]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="SgfArea" type="VBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea"]
+[node name="SgfArea" type="VBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea" unique_id=980164015]
 custom_minimum_size = Vector2(0, 94)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
-[node name="LoadDescription" type="Label" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea"]
+[node name="LoadDescription" type="Label" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea" unique_id=153455921]
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_colors/font_color = Color(0.82, 0.8, 0.75, 1)
@@ -235,12 +233,12 @@ theme_override_font_sizes/font_size = 15
 text = "从本地 SGF 棋谱创建"
 horizontal_alignment = 1
 
-[node name="SgfButtons" type="HBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea"]
+[node name="SgfButtons" type="HBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea" unique_id=924340746]
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_constants/separation = 12
 
-[node name="LoadSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea/SgfButtons"]
+[node name="LoadSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea/SgfButtons" unique_id=2025469256]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
@@ -248,13 +246,13 @@ size_flags_horizontal = 3
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
 theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 16
 text = "加载"
 
-[node name="PasteSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea/SgfButtons"]
+[node name="PasteSgfButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/SgfArea/SgfButtons" unique_id=1649312359]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
@@ -262,22 +260,22 @@ size_flags_horizontal = 3
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
 theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 16
 text = "粘贴"
 
-[node name="AreaSeparator" type="VSeparator" parent="Center/Panel/Margin/Content/AlternativeArea"]
+[node name="AreaSeparator" type="VSeparator" parent="Center/Panel/Margin/Content/AlternativeArea" unique_id=2117120262]
 layout_mode = 2
 
-[node name="ImageArea" type="VBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea"]
+[node name="ImageArea" type="VBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea" unique_id=1142705221]
 custom_minimum_size = Vector2(0, 94)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
-[node name="ImageDescription" type="Label" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea"]
+[node name="ImageDescription" type="Label" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea" unique_id=572115668]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
@@ -286,7 +284,7 @@ theme_override_font_sizes/font_size = 15
 text = "从图片创建"
 horizontal_alignment = 1
 
-[node name="SelectImageButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea"]
+[node name="SelectImageButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea" unique_id=925178442]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
@@ -296,28 +294,28 @@ theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
 theme_override_font_sizes/font_size = 16
 text = "选择本地图片"
 
-[node name="AndroidImageButtons" type="HBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea"]
+[node name="AndroidImageButtons" type="HBoxContainer" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea" unique_id=1040520148]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_constants/separation = 12
 
-[node name="CameraButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea/AndroidImageButtons"]
+[node name="CameraButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea/AndroidImageButtons" unique_id=194083268]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "拍照"
 
-[node name="GalleryButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea/AndroidImageButtons"]
+[node name="GalleryButton" type="Button" parent="Center/Panel/Margin/Content/AlternativeArea/ImageArea/AndroidImageButtons" unique_id=1888282713]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "相册"
 
-[node name="SgfFileDialog" type="FileDialog" parent="."]
+[node name="SgfFileDialog" type="FileDialog" parent="." unique_id=1613698296]
 unique_name_in_owner = true
 title = "加载 SGF 棋谱"
 transient = true
@@ -330,13 +328,13 @@ access = 2
 filters = PackedStringArray("*.sgf ; SGF 棋谱")
 use_native_dialog = true
 
-[node name="LoadErrorDialog" type="AcceptDialog" parent="."]
+[node name="LoadErrorDialog" type="AcceptDialog" parent="." unique_id=1886116709]
 unique_name_in_owner = true
 title = "加载失败"
-dialog_text = "无法加载 SGF 棋谱。"
 ok_button_text = "确定"
+dialog_text = "无法加载 SGF 棋谱。"
 
-[node name="ImageFileDialog" type="FileDialog" parent="."]
+[node name="ImageFileDialog" type="FileDialog" parent="." unique_id=2109883455]
 unique_name_in_owner = true
 title = "选择棋盘图片"
 transient = true
@@ -349,5 +347,6 @@ access = 2
 filters = PackedStringArray("*.png,*.jpg,*.jpeg,*.webp,*.bmp ; 图片文件")
 use_native_dialog = true
 
-[node name="BoardImageImportDialog" parent="." instance=ExtResource("4_image_import")]
+[node name="BoardImageImportDialog" parent="." unique_id=1811849125 instance=ExtResource("4_image_import")]
 unique_name_in_owner = true
+layout_mode = 1

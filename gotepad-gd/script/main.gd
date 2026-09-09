@@ -236,6 +236,8 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/HumanPlayDiscardDialog
 @onready var human_play_accept_dialog_: ConfirmationDialog = \
 	$Interface/SafeArea/HumanPlayAcceptDialog
+@onready var human_play_navigation_dialog_: ConfirmationDialog = \
+	$Interface/SafeArea/HumanPlayNavigationDialog
 @onready var human_play_error_dialog_: AcceptDialog = \
 	$Interface/SafeArea/HumanPlayErrorDialog
 @onready var preset_button_: Button = $Board/PresetButton
@@ -290,6 +292,9 @@ var human_play_finished_: bool = false
 var human_play_panel_was_open_: bool = false
 var human_play_toolbar_visibility_: Dictionary = {}
 var human_play_discard_paused_ai_: bool = false
+var human_play_navigation_action_: Callable
+var human_play_navigation_paused_ai_: bool = false
+var human_play_navigation_discard_button_: Button
 var note_preview_active_: bool = false
 var note_preview_pages_: Array[Dictionary] = []
 var note_preview_page_index_: int = -1
@@ -401,6 +406,19 @@ func _ready() -> void:
 		on_human_play_discard_canceled_
 	)
 	human_play_accept_dialog_.confirmed.connect(keep_human_play_)
+	human_play_navigation_dialog_.confirmed.connect(
+		on_human_play_navigation_keep_requested_
+	)
+	human_play_navigation_dialog_.canceled.connect(
+		on_human_play_navigation_canceled_
+	)
+	human_play_navigation_dialog_.custom_action.connect(
+		on_human_play_navigation_custom_action_
+	)
+	human_play_navigation_discard_button_ = \
+		human_play_navigation_dialog_.add_button(
+			tr("放弃并继续"), false, &"discard"
+		)
 	katago_human_analysis_service_.result_received.connect(
 		on_human_play_analysis_result_
 	)
@@ -1256,6 +1274,12 @@ func on_new_tab_requested_() -> void:
 
 
 func create_new_tab_() -> void:
+	request_after_human_play_navigation_(
+		Callable(self, "create_new_tab_after_human_play_")
+	)
+
+
+func create_new_tab_after_human_play_() -> void:
 	var document: DocumentState = DocumentState.new()
 	document.notes = GoNotes.new()
 	document.title = unique_document_title_(tr("新建笔记"))
@@ -1406,6 +1430,7 @@ func refresh_localized_ui_() -> void:
 	refresh_tool_menu_()
 	refresh_file_dialog_filters_()
 	configure_human_play_options_()
+	refresh_human_play_navigation_dialog_()
 	var used_titles: Dictionary = {}
 	for document: DocumentState in documents_:
 		if not document.file_path.is_empty():
@@ -2482,14 +2507,78 @@ func on_human_play_accept_requested_() -> void:
 	human_play_accept_dialog_.popup_centered(Vector2i(600, 240))
 
 
-func keep_human_play_() -> void:
+func keep_human_play_() -> bool:
 	if not human_play_mode_active_ or not human_play_query_id_.is_empty():
-		return
+		return false
 	stop_human_play_query_()
 	if not board_.keep_human_play_mode():
 		show_human_play_error_(tr("无法将仿人棋对局保留到主棋谱。"))
-		return
+		return false
 	finish_human_play_mode_()
+	return true
+
+
+func request_after_human_play_navigation_(action: Callable) -> void:
+	if not human_play_mode_active_:
+		if action.is_valid():
+			action.call_deferred()
+		return
+	if human_play_navigation_dialog_.visible:
+		return
+	human_play_navigation_action_ = action
+	human_play_navigation_paused_ai_ = not human_play_query_id_.is_empty()
+	if human_play_navigation_paused_ai_:
+		stop_human_play_query_()
+	human_play_navigation_dialog_.popup_centered(Vector2i(640, 250))
+
+
+func on_human_play_navigation_keep_requested_() -> void:
+	if not keep_human_play_():
+		clear_human_play_navigation_action_()
+		return
+	continue_human_play_navigation_()
+
+
+func on_human_play_navigation_custom_action_(action: StringName) -> void:
+	if action != &"discard":
+		return
+	human_play_navigation_dialog_.hide()
+	if human_play_mode_active_:
+		var _discarded: bool = board_.discard_human_play_mode()
+		finish_human_play_mode_()
+	continue_human_play_navigation_()
+
+
+func on_human_play_navigation_canceled_() -> void:
+	var resume_ai: bool = human_play_navigation_paused_ai_ \
+		and human_play_mode_active_
+	clear_human_play_navigation_action_()
+	refresh_document_tabs_()
+	if resume_ai:
+		call_deferred(&"request_human_play_ai_move_")
+
+
+func continue_human_play_navigation_() -> void:
+	var action: Callable = human_play_navigation_action_
+	clear_human_play_navigation_action_()
+	if action.is_valid():
+		action.call_deferred()
+
+
+func clear_human_play_navigation_action_() -> void:
+	human_play_navigation_action_ = Callable()
+	human_play_navigation_paused_ai_ = false
+
+
+func refresh_human_play_navigation_dialog_() -> void:
+	human_play_navigation_dialog_.title = tr("离开人类模仿棋")
+	human_play_navigation_dialog_.dialog_text = tr(
+		"当前人类模仿棋对局尚未结束。是否将对局过程记录到主棋谱后继续操作？"
+	)
+	human_play_navigation_dialog_.ok_button_text = tr("保留并继续")
+	human_play_navigation_dialog_.cancel_button_text = tr("取消")
+	if human_play_navigation_discard_button_ != null:
+		human_play_navigation_discard_button_.text = tr("放弃并继续")
 
 
 func on_human_play_cancel_requested_() -> void:
@@ -3298,6 +3387,15 @@ func update_preset_button_() -> void:
 
 func on_document_tab_selected_(index: int) -> void:
 	request_after_note_edit_resolution_(
+		Callable(self, "request_document_switch_").bind(index)
+	)
+
+
+func request_document_switch_(index: int) -> void:
+	if index == active_document_index_:
+		document_tab_bar_.set_selected(index)
+		return
+	request_after_human_play_navigation_(
 		Callable(self, "switch_document_").bind(index)
 	)
 

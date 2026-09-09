@@ -1,3 +1,21 @@
+# 0.1.12
+
+- 增加盘面候选标记的胜率文字大小；前三候选和其他候选可以分别设置透明度。
+- 修改分析模式相关设置时，尽量避免影响已有的分析数据和持续分析开关。
+- 安卓版的数值和文本编辑控件启用长按后编辑，减少输入法的误弹出，并增加数值调整箭头的大小。
+- 完善人类模仿棋在切换或新建其他棋谱时的退出机制。
+- 优化首次使用软件时调整界面语言的指引。
+- 优化数值设置选项的调整步进。
+
+Translation：
+
+- Increased the win-rate text size of on-board candidate markers; opacity can now be configured separately for the top three and additional candidates.
+- Changes to analysis-mode settings now preserve existing analysis data and the continuous-analysis toggle whenever possible.
+- On Android, numeric and text input controls now require a long press to edit, reducing accidental keyboard pop-ups, and the numeric adjustment arrows have been enlarged.
+- Improved how human-like play exits when switching to or creating another game record.
+- Improved the guidance for changing the interface language when using the application for the first time.
+- Improved the adjustment step sizes of numeric settings.
+
 # 0.1.11
 
 - 增加检测软件更新的功能。

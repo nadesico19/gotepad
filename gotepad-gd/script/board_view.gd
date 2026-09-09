@@ -419,6 +419,7 @@ func cancel_pending_move() -> void:
 	pending_move_column_ = 0
 	pending_move_color_ = 0
 	pending_move_origin_uid_ = -1
+	has_hover_position_ = false
 	if is_node_ready() and pending_stone_ != null:
 		pending_stone_.hide()
 	pending_move_changed.emit(false)
@@ -1267,7 +1268,8 @@ func _input(event: InputEvent) -> void:
 		var mouse_event: InputEventMouseMotion = \
 			event as InputEventMouseMotion
 		hover_screen_position_ = mouse_event.position
-		has_hover_position_ = true
+		has_hover_position_ = not OS.has_feature("mobile") \
+			and is_screen_position_on_board_(mouse_event.position)
 		refresh_hover_stone_()
 		return
 	if event is not InputEventKey:

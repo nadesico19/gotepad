@@ -103,134 +103,140 @@ size_flags_vertical = 3
 horizontal_scroll_mode = 0
 theme_override_constants/scrollbar_h_separation = 12
 
-[node name="Form" type="VBoxContainer" parent="Panel/Margin/Content/Scroll"]
+[node name="FormMargin" type="MarginContainer" parent="Panel/Margin/Content/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_right = 2
+
+[node name="Form" type="VBoxContainer" parent="Panel/Margin/Content/Scroll/FormMargin"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="GameNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="GameNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "棋局名称"
-[node name="GameName" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="GameName" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="EventLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="EventLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "赛事名称"
-[node name="Event" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Event" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="RoundLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="RoundLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "轮次"
-[node name="Round" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Round" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="DateLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="DateLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "日期"
-[node name="Date" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Date" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 placeholder_text = "例如 2026-07-31"
 
-[node name="PlaceLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="PlaceLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "地点"
-[node name="Place" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Place" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="BlackNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="BlackNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "黑方姓名"
-[node name="BlackName" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="BlackName" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="BlackRankLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="BlackRankLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "黑方段位"
-[node name="BlackRank" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="BlackRank" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="WhiteNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="WhiteNameLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "白方姓名"
-[node name="WhiteName" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="WhiteName" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="WhiteRankLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="WhiteRankLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "白方段位"
-[node name="WhiteRank" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="WhiteRank" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="ResultLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="ResultLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "结果"
-[node name="Result" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Result" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 placeholder_text = "例如 B+R / W+2.5 / 0"
 
-[node name="RulesLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="RulesLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "规则"
-[node name="Rules" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Rules" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="KomiLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="KomiLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "贴目"
-[node name="Komi" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Komi" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 placeholder_text = "例如 6.5"
 
-[node name="HandicapLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="HandicapLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "让子数"
-[node name="Handicap" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Handicap" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 placeholder_text = "非负整数"
 
-[node name="TimeLimitLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="TimeLimitLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "基本用时（秒）"
-[node name="TimeLimit" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="TimeLimit" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 placeholder_text = "非负数"
 
-[node name="OvertimeLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="OvertimeLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "读秒信息"
-[node name="Overtime" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Overtime" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="OpeningLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="OpeningLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "布局名称"
-[node name="Opening" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Opening" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="AnnotatorLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="AnnotatorLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "解说者 / 记录者"
-[node name="Annotator" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Annotator" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="SourceLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="SourceLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "棋谱来源"
-[node name="Source" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Source" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="CopyrightLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="CopyrightLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "版权信息"
-[node name="Copyright" type="LineEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="Copyright" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="GameCommentLabel" type="Label" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="GameCommentLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 text = "棋局总评"
-[node name="GameComment" type="TextEdit" parent="Panel/Margin/Content/Scroll/Form"]
+[node name="GameComment" type="TextEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
 wrap_mode = 1

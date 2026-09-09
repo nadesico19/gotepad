@@ -78,6 +78,7 @@ var text_was_dirty_: bool = false
 var resolving_edit_: bool = false
 var discard_and_continue_button_: Button
 var preview_mode_: bool = false
+var mobile_text_edit_long_press_: MobileTextEditLongPressController
 
 
 func _ready() -> void:
@@ -94,6 +95,7 @@ func _ready() -> void:
 	)
 	title_edit_.gui_input.connect(on_text_editor_gui_input_)
 	comment_edit_.gui_input.connect(on_text_editor_gui_input_)
+	configure_mobile_text_edit_long_press_()
 	comment_accept_.pressed.connect(on_comment_accept_pressed_)
 	comment_cancel_.pressed.connect(on_comment_cancel_pressed_)
 	preview_button_.pressed.connect(on_preview_pressed_)
@@ -181,12 +183,22 @@ func request_action_after_edit_resolution(action: Callable) -> void:
 
 func close_panel_immediately_() -> void:
 	cancel_comment_edit_()
+	if mobile_text_edit_long_press_ != null:
+		mobile_text_edit_long_press_.reset()
 	panel_.hide()
 	numbering_preview_changed.emit(false, -1, -1)
 	var empty_sequential: Array[Dictionary] = []
 	var empty_symbols: Array[Dictionary] = []
 	displayed_marks_changed.emit(empty_sequential, empty_symbols)
 	panel_visibility_changed.emit(false)
+
+
+func configure_mobile_text_edit_long_press_() -> void:
+	if OS.get_name() != "Android":
+		return
+	mobile_text_edit_long_press_ = MobileTextEditLongPressController.new()
+	add_child(mobile_text_edit_long_press_)
+	mobile_text_edit_long_press_.configure([title_edit_, comment_edit_])
 
 
 func is_panel_open() -> bool:

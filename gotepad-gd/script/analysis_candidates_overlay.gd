@@ -2,12 +2,12 @@ class_name AnalysisCandidatesOverlay
 extends Node2D
 
 const kCandidateColors: Array[Color] = [
-	Color(0.035, 0.30, 0.12, 0.68),
-	Color(0.30, 0.68, 0.34, 0.64),
-	Color(0.95, 0.73, 0.10, 0.66),
+	Color(0.035, 0.30, 0.12),
+	Color(0.30, 0.68, 0.34),
+	Color(0.95, 0.73, 0.10),
 ]
 const kPrimaryCandidateCount: int = 3
-const kExtraCandidateColor: Color = Color(0.975, 0.865, 0.55, 0.20)
+const kExtraCandidateColor: Color = Color(0.975, 0.865, 0.55)
 const kExtraCandidateText: Color = Color(0.10, 0.075, 0.02, 1.0)
 const kLightText: Color = Color(1.0, 1.0, 0.96, 0.98)
 const kDarkText: Color = Color(0.10, 0.075, 0.02, 0.98)
@@ -49,12 +49,13 @@ func _draw() -> void:
 	if font == null:
 		return
 	var radius: float = cell_size_ * 0.39
-	var font_size: int = maxi(roundi(cell_size_ * 0.23), 1)
+	var font_size: int = maxi(roundi(cell_size_ * 0.32), 1)
 	for index in range(candidates_.size()):
 		var candidate: Dictionary = candidates_[index]
 		var center: Vector2 = candidate_position_(candidate)
 		var candidate_color: Color = kCandidateColors[index] \
 			if index < kPrimaryCandidateCount else kExtraCandidateColor
+		candidate_color.a = candidate_opacity_(index)
 		draw_circle(center, radius, candidate_color, true, -1.0, true)
 		draw_arc(
 			center, radius, 0.0, TAU, 32,
@@ -73,7 +74,7 @@ func _draw() -> void:
 			else kExtraCandidateText
 		draw_centered_text_(
 			font,
-			"%.1f%%" % (float(candidate.get("winrate", 0.0)) * 100.0),
+			"%.1f" % (float(candidate.get("winrate", 0.0)) * 100.0),
 			center,
 			font_size,
 			text_color
@@ -88,11 +89,18 @@ func _draw() -> void:
 		)
 		draw_centered_text_(
 			font,
-			"-%.1f%%" % (float(played_move_loss_.get("loss", 0.0)) * 100.0),
+			"-%.1f" % (float(played_move_loss_.get("loss", 0.0)) * 100.0),
 			center,
 			font_size,
 			kLossText
 		)
+
+
+func candidate_opacity_(index: int) -> float:
+	var percentage: int = SettingsStore.get_katago_primary_candidate_opacity() \
+		if index < kPrimaryCandidateCount \
+		else SettingsStore.get_katago_extra_candidate_opacity()
+	return clampf(float(percentage) / 100.0, 0.0, 1.0)
 
 
 func candidate_position_(candidate: Dictionary) -> Vector2:
@@ -120,22 +128,32 @@ func draw_centered_text_(
 		font_size: int,
 		color: Color
 ) -> void:
+	var actual_font_size: int = font_size
 	var text_size: Vector2 = font.get_string_size(
-		text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size
+		text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, actual_font_size
 	)
+	var max_text_width: float = cell_size_ * 0.70
+	if text_size.x > max_text_width and text_size.x > 0.0:
+		actual_font_size = maxi(floori(
+			float(actual_font_size) * max_text_width / text_size.x
+		), 1)
+		text_size = font.get_string_size(
+			text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, actual_font_size
+		)
 	var baseline: Vector2 = Vector2(
 		center.x - text_size.x * 0.5,
 		center.y + (
-			font.get_ascent(font_size) - font.get_descent(font_size)
+			font.get_ascent(actual_font_size) \
+				- font.get_descent(actual_font_size)
 		) * 0.5
 	)
 	draw_string_outline(
 		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
-		font_size, 1, Color(
+		actual_font_size, 1, Color(
 			0.0, 0.0, 0.0, 0.42 * clampf(color.a / 0.98, 0.0, 1.0)
 		)
 	)
 	draw_string(
 		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
-		font_size, color
+		actual_font_size, color
 	)

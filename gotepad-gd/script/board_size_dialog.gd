@@ -89,6 +89,8 @@ func _process(_delta: float) -> void:
 func refresh_localized_texts() -> void:
 	if not is_node_ready():
 		return
+	sgf_file_dialog_.title = tr("加载 SGF 棋谱")
+	sgf_file_dialog_.ok_button_text = tr("加载")
 	sgf_file_dialog_.filters = PackedStringArray([
 		"*.sgf ; %s" % tr("SGF 棋谱"),
 	])
