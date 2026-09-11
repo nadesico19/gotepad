@@ -34,6 +34,9 @@
 [ext_resource type="Script" path="res://script/katago_human_analysis_service.gd" id="37_human_service"]
 [ext_resource type="Texture2D" path="res://assets/ui/katago_human_play.svg" id="38_human_play"]
 [ext_resource type="PackedScene" path="res://scene/update_dialog.tscn" id="39_update_dialog"]
+[ext_resource type="Texture2D" path="res://assets/ui/eraser_horizontal.svg" id="40_eraser"]
+[ext_resource type="Texture2D" path="res://assets/ui/accept.svg" id="41_accept"]
+[ext_resource type="Texture2D" path="res://assets/ui/cancel.svg" id="42_cancel"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
 bg_color = Color(0.22, 0.17, 0.055, 0.82)
@@ -356,13 +359,16 @@ expand_icon = true
 
 [node name="ActiveMark" type="Label" parent="Interface/SafeArea/BoardToolBar/PresetBlackButton"]
 layout_mode = 1
-anchors_preset = 2
+anchors_preset = 3
+anchor_left = 1.0
 anchor_top = 1.0
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 2.0
+offset_left = -35.0
 offset_top = -32.0
-offset_right = 35.0
+offset_right = -2.0
 offset_bottom = -2.0
+grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
@@ -388,13 +394,16 @@ expand_icon = true
 [node name="ActiveMark" type="Label" parent="Interface/SafeArea/BoardToolBar/PresetWhiteButton"]
 visible = false
 layout_mode = 1
-anchors_preset = 2
+anchors_preset = 3
+anchor_left = 1.0
 anchor_top = 1.0
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 2.0
+offset_left = -35.0
 offset_top = -32.0
-offset_right = 35.0
+offset_right = -2.0
 offset_bottom = -2.0
+grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
@@ -412,12 +421,11 @@ layout_mode = 2
 tooltip_text = "接受预置棋子"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
-theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
-theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
-theme_override_font_sizes/font_size = 32
-text = "✓"
+icon = ExtResource("41_accept")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="PresetCancelButton" type="Button" parent="Interface/SafeArea/BoardToolBar" unique_id=1872815718]
 visible = false
@@ -426,12 +434,11 @@ layout_mode = 2
 tooltip_text = "取消预置棋子"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
-theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
-theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 32
-text = "✕"
+icon = ExtResource("42_cancel")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="PresetEraseButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
 visible = false
@@ -441,15 +448,33 @@ tooltip_text = "清除交叉点上的预置棋子"
 focus_mode = 0
 mouse_default_cursor_shape = 2
 toggle_mode = true
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(1, 0.82, 0.32, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_hover_pressed_color = Color(1, 0.88, 0.48, 1)
-theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
-theme_override_constants/outline_size = 1
-theme_override_font_sizes/font_size = 32
-text = "⌫"
+icon = ExtResource("40_eraser")
 flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="ActiveMark" type="Label" parent="Interface/SafeArea/BoardToolBar/PresetEraseButton"]
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -35.0
+offset_top = -32.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
+theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 24
+text = "✓"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="BranchVisualizationButton" type="Button" parent="Interface/SafeArea/BoardToolBar" unique_id=1140945239]
 custom_minimum_size = Vector2(56, 56)
@@ -527,11 +552,10 @@ layout_mode = 2
 tooltip_text = "悔棋两手"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 34
-text = "↩"
+icon = ExtResource("12_undo")
 flat = true
+icon_alignment = 1
+expand_icon = true
 
 [node name="HumanPlayAcceptButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
 visible = false
@@ -540,10 +564,11 @@ layout_mode = 2
 tooltip_text = "保留对局并退出"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
-theme_override_font_sizes/font_size = 32
-text = "✓"
+icon = ExtResource("41_accept")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="HumanPlayCancelButton" type="Button" parent="Interface/SafeArea/BoardToolBar"]
 visible = false
@@ -552,10 +577,11 @@ layout_mode = 2
 tooltip_text = "放弃对局并退出"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
-theme_override_font_sizes/font_size = 32
-text = "✕"
+icon = ExtResource("42_cancel")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="NotesPanel" parent="Interface/SafeArea" unique_id=441855980 instance=ExtResource("26_notes_panel")]
 
@@ -583,14 +609,12 @@ layout_mode = 2
 tooltip_text = "接受所属判定并数目"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
-theme_override_colors/font_disabled_color = Color(0.25, 0.92, 0.38, 0.3)
-theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
-theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
-theme_override_font_sizes/font_size = 32
-text = "✓"
+icon = ExtResource("41_accept")
 flat = true
 disabled = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="CancelButton" type="Button" parent="Interface/SafeArea/TerritoryToolBar"]
 custom_minimum_size = Vector2(72, 56)
@@ -598,12 +622,11 @@ layout_mode = 2
 tooltip_text = "退出终局数目模式"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
-theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
-theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 32
-text = "✕"
+icon = ExtResource("42_cancel")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="TerritoryLogPanel" type="PanelContainer" parent="Interface/SafeArea"]
 visible = false
@@ -628,7 +651,7 @@ placeholder_text = "KataGo所属判定"
 
 [node name="PendingMoveAcceptButton" type="Button" parent="Interface/SafeArea/VariationToolBar"]
 visible = false
-custom_minimum_size = Vector2(86, 77)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "确认落子"
 focus_mode = 0
@@ -638,13 +661,13 @@ theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
 theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
 theme_override_colors/font_outline_color = Color(0.25, 0.92, 0.38, 1)
 theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 38
+theme_override_font_sizes/font_size = 32
 text = "✓"
 flat = true
 
 [node name="PendingMoveCancelButton" type="Button" parent="Interface/SafeArea/VariationToolBar"]
 visible = false
-custom_minimum_size = Vector2(86, 77)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "取消待确认落子"
 focus_mode = 0
@@ -654,7 +677,7 @@ theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
 theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
 theme_override_colors/font_outline_color = Color(0.96, 0.24, 0.24, 1)
 theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 38
+theme_override_font_sizes/font_size = 32
 text = "✕"
 flat = true
 
@@ -664,15 +687,11 @@ layout_mode = 2
 tooltip_text = "悔棋"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_disabled_color = Color(1, 1, 1, 0.32)
-theme_override_colors/font_pressed_color = Color(0.88, 0.88, 0.88, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
-theme_override_constants/outline_size = 1
-theme_override_font_sizes/font_size = 34
-text = "↩"
+icon = ExtResource("40_eraser")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="KeepBranchButton" type="Button" parent="Interface/SafeArea/VariationToolBar" unique_id=819888075]
 custom_minimum_size = Vector2(72, 64)
@@ -680,12 +699,11 @@ layout_mode = 2
 tooltip_text = "保留当前变化并退出"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
-theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
-theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
-theme_override_font_sizes/font_size = 32
-text = "✓"
+icon = ExtResource("41_accept")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="ExitButton" type="Button" parent="Interface/SafeArea/VariationToolBar" unique_id=1379083947]
 custom_minimum_size = Vector2(72, 64)
@@ -693,12 +711,11 @@ layout_mode = 2
 tooltip_text = "丢弃当前变化并退出（Esc）"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
-theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
-theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 32
-text = "✕"
+icon = ExtResource("42_cancel")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="SettingsUI" parent="Interface/SafeArea" unique_id=2146883696 instance=ExtResource("10_settings_panel")]
 
@@ -1019,8 +1036,10 @@ size_flags_horizontal = 3
 min_value = 1.0
 max_value = 100000.0
 step = 1.0
+custom_arrow_step = 100.0
 value = 500.0
 suffix = " visits"
+update_on_text_changed = true
 
 [node name="Actions" type="HBoxContainer" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content"]
 layout_mode = 2
@@ -1075,6 +1094,12 @@ transient = true
 exclusive = true
 ok_button_text = "确定"
 
+[node name="HumanPlayResignSuggestionDialog" type="AcceptDialog" parent="Interface/SafeArea"]
+title = "AI提示认输"
+transient = true
+exclusive = true
+ok_button_text = "确定"
+
 [node name="ProgressBar" type="ProgressBar" parent="Interface/SafeArea/ExportProgressDialog"]
 layout_mode = 0
 offset_left = 32.0
@@ -1083,7 +1108,7 @@ offset_right = 488.0
 offset_bottom = 120.0
 show_percentage = false
 
-[node name="BoardSizeDialog" parent="Interface/SafeArea" unique_id=2106825246 instance=ExtResource("8_board_size_dialog")]
+[node name="BoardSizeDialog" parent="Interface" unique_id=2106825246 instance=ExtResource("8_board_size_dialog")]
 
 [node name="SetupBranchPopup" parent="Interface/SafeArea" unique_id=305216044 instance=ExtResource("21_setup_branch_popup")]
 
@@ -1201,31 +1226,54 @@ custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "擦除标记"
 focus_mode = 0
-theme_override_colors/font_color = Color(0.96, 0.3, 0.3, 1)
-theme_override_colors/font_pressed_color = Color(1, 0.46, 0.38, 1)
-theme_override_colors/font_outline_color = Color(0.08, 0.025, 0.02, 1)
-theme_override_font_sizes/font_size = 34
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
-text = "🗑"
+icon = ExtResource("40_eraser")
 flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="ActiveMark" type="Label" parent="NoteMarkLayer/SafeArea/NoteMarkToolBar/Erase"]
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -35.0
+offset_top = -32.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
+theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 24
+text = "✓"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="Accept" type="Button" parent="NoteMarkLayer/SafeArea/NoteMarkToolBar" unique_id=733207045]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "接受标记修改"
 focus_mode = 0
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
-theme_override_font_sizes/font_size = 32
-text = "✓"
+icon = ExtResource("41_accept")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56
 
 [node name="Cancel" type="Button" parent="NoteMarkLayer/SafeArea/NoteMarkToolBar" unique_id=985128362]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "放弃标记修改（Esc）"
 focus_mode = 0
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
-theme_override_font_sizes/font_size = 32
-text = "✕"
+icon = ExtResource("42_cancel")
 flat = true
+icon_alignment = 1
+expand_icon = true
+icon_max_width = 56

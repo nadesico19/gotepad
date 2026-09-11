@@ -65,11 +65,14 @@ func draw_symbol_(
 		mark_width: float
 ) -> void:
 	var radius: float = cell_size_ * 0.27
-	if symbol != "SQ":
-		radius *= 1.12
 	match symbol:
 		"TR":
-			draw_triangle_(center, radius, outline_width, mark_width)
+			draw_triangle_(
+				center + Vector2(0.0, -1.0),
+				radius,
+				outline_width,
+				mark_width
+			)
 		"SQ":
 			draw_square_(center, radius, outline_width, mark_width)
 		"CR":
@@ -81,10 +84,11 @@ func draw_symbol_(
 func draw_triangle_(
 		center: Vector2, radius: float, outline_width: float, mark_width: float
 ) -> void:
+	var half_base: float = radius
 	var triangle: PackedVector2Array = PackedVector2Array([
 		center + Vector2(0.0, -radius),
-		center + Vector2(radius * 0.87, radius * 0.5),
-		center + Vector2(-radius * 0.87, radius * 0.5),
+		center + Vector2(half_base, radius),
+		center + Vector2(-half_base, radius),
 		center + Vector2(0.0, -radius)
 	])
 	draw_polyline(triangle, kMarkOutlineColor, outline_width, true)
@@ -113,13 +117,28 @@ func draw_circle_mark_(
 func draw_cross_(
 		center: Vector2, radius: float, outline_width: float, mark_width: float
 ) -> void:
-	var diagonal: Vector2 = Vector2.ONE * radius * 0.78
+	var diagonal: Vector2 = Vector2.ONE * radius
 	var from_1: Vector2 = center - diagonal
 	var to_1: Vector2 = center + diagonal
 	var from_2: Vector2 = center + Vector2(-diagonal.x, diagonal.y)
 	var to_2: Vector2 = center + Vector2(diagonal.x, -diagonal.y)
-	draw_line(from_1, to_1, kMarkOutlineColor, outline_width, true)
-	draw_line(from_2, to_2, kMarkOutlineColor, outline_width, true)
+	var cap_length: float = maxf((outline_width - mark_width) * 0.5, 0.0)
+	var direction_1: Vector2 = (to_1 - from_1).normalized()
+	var direction_2: Vector2 = (to_2 - from_2).normalized()
+	draw_line(
+		from_1 - direction_1 * cap_length,
+		to_1 + direction_1 * cap_length,
+		kMarkOutlineColor,
+		outline_width,
+		true
+	)
+	draw_line(
+		from_2 - direction_2 * cap_length,
+		to_2 + direction_2 * cap_length,
+		kMarkOutlineColor,
+		outline_width,
+		true
+	)
 	draw_line(from_1, to_1, kMarkColor, mark_width, true)
 	draw_line(from_2, to_2, kMarkColor, mark_width, true)
 

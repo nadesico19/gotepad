@@ -17,6 +17,7 @@ var image_file_dialog_open_: bool = false
 var android_host_class_: Variant
 var android_image_request_active_: bool = false
 var android_image_board_size_: int = 19
+@onready var center_: CenterContainer = $Center
 @onready var size_9_: CheckBox = %Size9
 @onready var size_11_: CheckBox = %Size11
 @onready var size_13_: CheckBox = %Size13
@@ -135,6 +136,12 @@ func show_dialog(can_cancel: bool) -> void:
 	close_balance_.visible = can_cancel
 	show()
 	size_19_.grab_focus()
+
+
+func set_horizontal_safe_margin(margin: float) -> void:
+	var safe_margin: float = maxf(margin, 0.0)
+	center_.offset_left = safe_margin
+	center_.offset_right = -safe_margin
 
 
 func on_close_pressed_() -> void:

@@ -566,12 +566,15 @@ func set_analysis_candidates(
 		if intersection == Vector2i.ZERO:
 			continue
 		var candidate_winrate: float = float(info.get("winrate", 0.0))
+		var candidate_score_lead: float = float(info.get("scoreLead", 0.0))
 		if next_color_ == kWhite:
 			candidate_winrate = 1.0 - candidate_winrate
+			candidate_score_lead = -candidate_score_lead
 		candidates.append({
 			"row": intersection.y,
 			"column": intersection.x,
 			"winrate": candidate_winrate,
+			"score_lead": candidate_score_lead,
 			"is_played_next": is_playback_next_candidate_(
 				playback_next_move, intersection
 			),
@@ -1921,7 +1924,7 @@ func draw_coordinates_(cell_size: float) -> void:
 	if font == null:
 		return
 	var font_size: int = maxi(
-		roundi(cell_size * kCoordinateFontCellRatio), 1
+		roundi(cell_size * kCoordinateFontCellRatio) + 2, 1
 	)
 	var outline_size: int = maxi(
 		roundi(float(font_size) * kCoordinateOutlineFontRatio), 1

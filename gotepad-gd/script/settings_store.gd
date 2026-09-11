@@ -14,7 +14,7 @@ signal large_ui_changed(enabled: bool, multiplier: float)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 28
+const kSchemaVersion: int = 29
 const kLanguageSimplifiedChinese: String = "zh_CN"
 const kLanguageJapanese: String = "ja"
 const kLanguageKorean: String = "ko"
@@ -57,6 +57,7 @@ const kDefaultKatagoModelPath: String = ""
 const kDefaultKatagoHumanModelPath: String = ""
 const kDefaultKatagoMaxVisits: int = 500
 const kDefaultKatagoHumanMaxVisits: int = 500
+const kDefaultKatagoHumanResignSuggestion: bool = false
 const kDefaultKatagoReportIntervalSeconds: float = 2.0
 const kDefaultKatagoAnalysisPvLength: int = 10
 const kDefaultKatagoExtraBoardCandidates: int = 0
@@ -66,6 +67,7 @@ const kKatagoCandidateOpacityMaximum: int = 100
 const kDefaultKatagoPrimaryCandidateOpacity: int = 70
 const kDefaultKatagoExtraCandidateOpacity: int = 30
 const kDefaultKatagoShowScoreLead: bool = true
+const kDefaultKatagoShowScoreLeadOnBoard: bool = false
 const kDefaultKatagoGameAnalysisVisits: int = 1
 const kManagedKatagoConfigPath: String = \
 	"user://katago/analysis.cfg"
@@ -113,6 +115,8 @@ var katago_model_path_: String = kDefaultKatagoModelPath
 var katago_human_model_path_: String = kDefaultKatagoHumanModelPath
 var katago_max_visits_: int = kDefaultKatagoMaxVisits
 var katago_human_max_visits_: int = kDefaultKatagoHumanMaxVisits
+var katago_human_resign_suggestion_: bool = \
+	kDefaultKatagoHumanResignSuggestion
 var katago_report_interval_seconds_: float = \
 	kDefaultKatagoReportIntervalSeconds
 var katago_analysis_pv_length_: int = kDefaultKatagoAnalysisPvLength
@@ -121,6 +125,7 @@ var katago_primary_candidate_opacity_: int = \
 	kDefaultKatagoPrimaryCandidateOpacity
 var katago_extra_candidate_opacity_: int = kDefaultKatagoExtraCandidateOpacity
 var katago_show_score_lead_: bool = kDefaultKatagoShowScoreLead
+var katago_show_score_lead_on_board_: bool = kDefaultKatagoShowScoreLeadOnBoard
 var katago_game_analysis_visits_: int = kDefaultKatagoGameAnalysisVisits
 var katago_analysis_config_path_: String = ""
 var saved_window_state_available_: bool = false
@@ -266,6 +271,10 @@ func get_katago_human_max_visits() -> int:
 	return katago_human_max_visits_
 
 
+func get_katago_human_resign_suggestion() -> bool:
+	return katago_human_resign_suggestion_
+
+
 func get_katago_report_interval_seconds() -> float:
 	return katago_report_interval_seconds_
 
@@ -288,6 +297,10 @@ func get_katago_extra_candidate_opacity() -> int:
 
 func get_katago_show_score_lead() -> bool:
 	return katago_show_score_lead_
+
+
+func get_katago_show_score_lead_on_board() -> bool:
+	return katago_show_score_lead_on_board_
 
 
 func get_katago_game_analysis_visits() -> int:
@@ -448,10 +461,12 @@ func set_settings(
 		katago_primary_candidate_opacity: int,
 		katago_extra_candidate_opacity: int,
 		katago_show_score_lead: bool,
+		katago_show_score_lead_on_board: bool,
 		katago_game_analysis_visits: int,
 		katago_analysis_config_path: String,
 		katago_human_model_path: String,
-		katago_human_max_visits: int
+		katago_human_max_visits: int,
+		katago_human_resign_suggestion: bool
 ) -> Error:
 	if not is_finite(large_ui_multiplier) \
 			or large_ui_multiplier < kLargeUiMultiplierMinimum \
@@ -478,6 +493,8 @@ func set_settings(
 	var previous_katago_human_model_path: String = katago_human_model_path_
 	var previous_katago_max_visits: int = katago_max_visits_
 	var previous_katago_human_max_visits: int = katago_human_max_visits_
+	var previous_katago_human_resign_suggestion: bool = \
+		katago_human_resign_suggestion_
 	var previous_katago_report_interval: float = \
 		katago_report_interval_seconds_
 	var previous_katago_analysis_pv_length: int = \
@@ -489,6 +506,8 @@ func set_settings(
 	var previous_katago_extra_candidate_opacity: int = \
 		katago_extra_candidate_opacity_
 	var previous_katago_show_score_lead: bool = katago_show_score_lead_
+	var previous_katago_show_score_lead_on_board: bool = \
+		katago_show_score_lead_on_board_
 	var previous_katago_game_analysis_visits: int = \
 		katago_game_analysis_visits_
 	var previous_katago_analysis_config_path: String = \
@@ -528,6 +547,7 @@ func set_settings(
 	katago_human_model_path_ = katago_human_model_path.strip_edges()
 	katago_max_visits_ = maxi(katago_max_visits, 1)
 	katago_human_max_visits_ = maxi(katago_human_max_visits, 1)
+	katago_human_resign_suggestion_ = katago_human_resign_suggestion
 	katago_report_interval_seconds_ = clampf(
 		katago_report_interval_seconds, 0.1, 60.0
 	)
@@ -546,6 +566,8 @@ func set_settings(
 		kKatagoCandidateOpacityMaximum
 	)
 	katago_show_score_lead_ = katago_show_score_lead
+	katago_show_score_lead_on_board_ = \
+		katago_show_score_lead and katago_show_score_lead_on_board
 	katago_game_analysis_visits_ = maxi(katago_game_analysis_visits, 1)
 	katago_analysis_config_path_ = get_managed_katago_analysis_config_path() \
 		if OS.get_name() == "Android" \
@@ -575,6 +597,8 @@ func set_settings(
 		katago_human_model_path_ = previous_katago_human_model_path
 		katago_max_visits_ = previous_katago_max_visits
 		katago_human_max_visits_ = previous_katago_human_max_visits
+		katago_human_resign_suggestion_ = \
+			previous_katago_human_resign_suggestion
 		katago_report_interval_seconds_ = previous_katago_report_interval
 		katago_analysis_pv_length_ = previous_katago_analysis_pv_length
 		katago_extra_board_candidates_ = \
@@ -584,6 +608,8 @@ func set_settings(
 		katago_extra_candidate_opacity_ = \
 			previous_katago_extra_candidate_opacity
 		katago_show_score_lead_ = previous_katago_show_score_lead
+		katago_show_score_lead_on_board_ = \
+			previous_katago_show_score_lead_on_board
 		katago_game_analysis_visits_ = previous_katago_game_analysis_visits
 		katago_analysis_config_path_ = previous_katago_analysis_config_path
 		return error
@@ -631,6 +657,8 @@ func set_settings(
 			or katago_extra_candidate_opacity_ \
 				!= previous_katago_extra_candidate_opacity \
 			or katago_show_score_lead_ != previous_katago_show_score_lead \
+			or katago_show_score_lead_on_board_ \
+				!= previous_katago_show_score_lead_on_board \
 			or katago_game_analysis_visits_ \
 				!= previous_katago_game_analysis_visits:
 		katago_analysis_settings_changed.emit()
@@ -827,6 +855,11 @@ func load_config_() -> void:
 		"max_visits",
 		kDefaultKatagoHumanMaxVisits
 	)), 1)
+	katago_human_resign_suggestion_ = bool(config.get_value(
+		"katago_human",
+		"resign_suggestion",
+		kDefaultKatagoHumanResignSuggestion
+	))
 	katago_report_interval_seconds_ = clampf(float(config.get_value(
 		"katago",
 		"report_interval_seconds",
@@ -857,6 +890,13 @@ func load_config_() -> void:
 		"show_score_lead",
 		kDefaultKatagoShowScoreLead
 	))
+	katago_show_score_lead_on_board_ = katago_show_score_lead_ and bool(
+		config.get_value(
+			"katago",
+			"show_score_lead_on_board",
+			kDefaultKatagoShowScoreLeadOnBoard
+		)
+	)
 	katago_game_analysis_visits_ = maxi(int(config.get_value(
 		"katago",
 		"game_analysis_visits",
@@ -957,6 +997,11 @@ func save_config_() -> Error:
 		"katago_human", "max_visits", katago_human_max_visits_
 	)
 	config.set_value(
+		"katago_human",
+		"resign_suggestion",
+		katago_human_resign_suggestion_
+	)
+	config.set_value(
 		"katago", "report_interval_seconds", katago_report_interval_seconds_
 	)
 	config.set_value(
@@ -972,6 +1017,9 @@ func save_config_() -> Error:
 		"katago", "extra_candidate_opacity", katago_extra_candidate_opacity_
 	)
 	config.set_value("katago", "show_score_lead", katago_show_score_lead_)
+	config.set_value(
+		"katago", "show_score_lead_on_board", katago_show_score_lead_on_board_
+	)
 	config.set_value(
 		"katago", "game_analysis_visits", katago_game_analysis_visits_
 	)
@@ -1003,12 +1051,14 @@ func reset_settings_() -> void:
 	katago_human_model_path_ = kDefaultKatagoHumanModelPath
 	katago_max_visits_ = kDefaultKatagoMaxVisits
 	katago_human_max_visits_ = kDefaultKatagoHumanMaxVisits
+	katago_human_resign_suggestion_ = kDefaultKatagoHumanResignSuggestion
 	katago_report_interval_seconds_ = kDefaultKatagoReportIntervalSeconds
 	katago_analysis_pv_length_ = kDefaultKatagoAnalysisPvLength
 	katago_extra_board_candidates_ = kDefaultKatagoExtraBoardCandidates
 	katago_primary_candidate_opacity_ = kDefaultKatagoPrimaryCandidateOpacity
 	katago_extra_candidate_opacity_ = kDefaultKatagoExtraCandidateOpacity
 	katago_show_score_lead_ = kDefaultKatagoShowScoreLead
+	katago_show_score_lead_on_board_ = kDefaultKatagoShowScoreLeadOnBoard
 	katago_game_analysis_visits_ = kDefaultKatagoGameAnalysisVisits
 	katago_analysis_config_path_ = get_managed_katago_analysis_config_path()
 

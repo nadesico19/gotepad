@@ -95,6 +95,7 @@ custom_minimum_size = Vector2(158, 40)
 layout_mode = 2
 max_value = 1000000000.0
 step = 1.0
+custom_arrow_step = 100.0
 value = 0.0
 suffix = " maxplayouts"
 update_on_text_changed = true

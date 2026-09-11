@@ -33,6 +33,16 @@ const kPptxTemplatePath: String = \
 const kPptxCopyBytesPerFrame: int = 1024 * 1024
 const kAndroidHostClass: StringName = &"com.godot.game.GodotApp"
 const kAndroidOpenIntentPollSeconds: float = 0.25
+const kHumanMoveUtilityLambda: float = 0.5
+const kHuman9dMoveUtilityLambda: float = 0.08
+const kHuman9dProfiles: Array[String] = ["rank_9d", "preaz_9d"]
+const kHumanResignThreshold: float = -0.99
+const kHumanResignConsecutiveTurns: int = 20
+const kHumanResignMinScoreDifference: float = 40.0
+const kHuman9dResignThreshold: float = -0.98
+const kHuman9dResignConsecutiveTurns: int = 10
+const kHuman9dResignMinScoreDifference: float = 20.0
+const kHumanResignMinMovesPerBoardArea: float = 0.4
 
 
 class DocumentState extends RefCounted:
@@ -71,11 +81,13 @@ class DocumentState extends RefCounted:
 	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Cross
 @onready var note_erase_button_: Button = \
 	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Erase
+@onready var note_erase_active_mark_: Label = \
+	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Erase/ActiveMark
 @onready var note_mark_accept_button_: Button = \
 	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Accept
 @onready var note_mark_cancel_button_: Button = \
 	$NoteMarkLayer/SafeArea/NoteMarkToolBar/Cancel
-@onready var board_size_dialog_: BoardSizeDialog = $Interface/SafeArea/BoardSizeDialog
+@onready var board_size_dialog_: BoardSizeDialog = $Interface/BoardSizeDialog
 @onready var board_toolbar_: AdaptiveToolbar = $Interface/SafeArea/BoardToolBar
 @onready var variation_toolbar_: VBoxContainer = \
 	$Interface/SafeArea/VariationToolBar
@@ -139,7 +151,7 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/TerritoryLogPanel
 @onready var territory_log_output_: TextEdit = \
 	$Interface/SafeArea/TerritoryLogPanel/Margin/Output
-@onready var settings_ui_: Control = $Interface/SafeArea/SettingsUI
+@onready var settings_ui_: SettingsPanel = $Interface/SafeArea/SettingsUI
 @onready var undo_unavailable_mark_: TextureRect = \
 	$Interface/SafeArea/BoardToolBar/UndoButton/UnavailableMark
 @onready var redo_unavailable_mark_: TextureRect = \
@@ -162,6 +174,8 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/BoardToolBar/PresetCancelButton
 @onready var preset_erase_button_: Button = \
 	$Interface/SafeArea/BoardToolBar/PresetEraseButton
+@onready var preset_erase_active_mark_: Label = \
+	$Interface/SafeArea/BoardToolBar/PresetEraseButton/ActiveMark
 @onready var setup_branch_button_: Button = \
 	$Interface/SafeArea/BoardToolBar/SetupBranchButton
 @onready var setup_branch_count_: Label = \
@@ -226,6 +240,8 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options/Rank
 @onready var human_play_visits_input_: SpinBox = \
 	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Options/Visits
+@onready var katago_max_playouts_input_: SpinBox = \
+	$Interface/SafeArea/KatagoAnalysisPanel/Panel/Margin/Content/Controls/Primary/MaxPlayouts
 @onready var human_play_start_button_: Button = \
 	$Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Actions/Start
 @onready var human_play_options_cancel_button_: Button = \
@@ -240,6 +256,8 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/HumanPlayNavigationDialog
 @onready var human_play_error_dialog_: AcceptDialog = \
 	$Interface/SafeArea/HumanPlayErrorDialog
+@onready var human_play_resign_suggestion_dialog_: AcceptDialog = \
+	$Interface/SafeArea/HumanPlayResignSuggestionDialog
 @onready var preset_button_: Button = $Board/PresetButton
 @onready var preset_unavailable_mark_: TextureRect = \
 	$Board/PresetButton/UnavailableMark
@@ -295,11 +313,17 @@ var human_play_discard_paused_ai_: bool = false
 var human_play_navigation_action_: Callable
 var human_play_navigation_paused_ai_: bool = false
 var human_play_navigation_discard_button_: Button
+var human_play_initial_move_count_: int = 0
+var human_play_initial_katago_move_count_: int = 0
+var human_play_initial_black_advantage_: float = 0.0
+var human_play_resign_counts_: Dictionary = {kBlack: 0, kWhite: 0}
+var human_play_pending_resign_color_: int = 0
 var note_preview_active_: bool = false
 var note_preview_pages_: Array[Dictionary] = []
 var note_preview_page_index_: int = -1
 var note_preview_refresh_pending_: bool = false
 var note_preview_navigation_in_progress_: bool = false
+var update_available_: bool = false
 
 
 func _enter_tree() -> void:
@@ -367,6 +391,8 @@ func _ready() -> void:
 	)
 	katago_analysis_button_.pressed.connect(on_katago_analysis_requested_)
 	katago_analysis_panel_.bind_service(katago_analysis_service_)
+	settings_ui_.configure_android_spinbox(human_play_visits_input_)
+	settings_ui_.configure_android_spinbox(katago_max_playouts_input_)
 	settings_ui_.call(
 		&"set_android_katago_benchmark_prepare_callback",
 		Callable(self, &"prepare_android_katago_benchmark_")
@@ -398,6 +424,9 @@ func _ready() -> void:
 	)
 	human_play_options_dialog_.close_requested.connect(
 		Callable(human_play_options_dialog_, "hide")
+	)
+	human_play_options_dialog_.visibility_changed.connect(
+		on_human_play_options_visibility_changed_
 	)
 	human_play_pass_dialog_.confirmed.connect(on_human_play_pass_accepted_)
 	human_play_pass_dialog_.canceled.connect(on_human_play_pass_rejected_)
@@ -634,6 +663,7 @@ func _ready() -> void:
 	on_board_layout_changed_()
 	call_deferred(&"open_startup_sgf_files_")
 	call_deferred(&"poll_android_open_intents_")
+	call_deferred(&"check_for_updates_on_startup_")
 
 
 func configure_android_open_intents_() -> void:
@@ -898,6 +928,7 @@ func apply_horizontal_safe_margin_(requested_margin: int) -> void:
 	]:
 		safe_area.offset_left = applied_margin
 		safe_area.offset_right = -applied_margin
+	board_size_dialog_.set_horizontal_safe_margin(applied_margin)
 	camera_.set(&"horizontal_safe_margin", applied_margin)
 	camera_.call(&"update_zoom_")
 	call_deferred(&"on_board_layout_changed_")
@@ -1393,10 +1424,35 @@ func on_update_check_started_() -> void:
 	update_button_.queue_redraw()
 
 
-func on_update_check_finished_() -> void:
+func on_update_check_finished_(
+	update_available: bool, succeeded: bool
+) -> void:
 	update_button_.disabled = false
 	update_button_.source_text = "更新"
+	if succeeded:
+		update_available_ = update_available
+	update_update_button_color_()
 	update_button_.queue_redraw()
+
+
+func check_for_updates_on_startup_() -> void:
+	update_dialog_.check_for_updates(false)
+
+
+func update_update_button_color_() -> void:
+	var color_names: Array[StringName] = [
+		&"font_color",
+		&"font_hover_color",
+		&"font_pressed_color",
+		&"font_hover_pressed_color",
+	]
+	for color_name: StringName in color_names:
+		if update_available_:
+			update_button_.add_theme_color_override(
+				color_name, DocumentTabBar.kActiveTitleColor
+			)
+		else:
+			update_button_.remove_theme_color_override(color_name)
 
 
 func on_tool_menu_id_pressed_(item_id: int) -> void:
@@ -2055,6 +2111,8 @@ func on_katago_analysis_requested_() -> void:
 
 func on_katago_analysis_panel_visibility_changed_(opened: bool) -> void:
 	katago_analysis_button_.set_pressed_no_signal(opened)
+	if not opened:
+		settings_ui_.reset_android_spinbox(katago_max_playouts_input_)
 	if human_play_mode_active_ and not territory_mode_active_:
 		human_play_panel_was_open_ = opened
 	if opened:
@@ -2155,8 +2213,12 @@ func on_human_katago_runtime_settings_changed_() -> void:
 	katago_human_analysis_service_.shutdown()
 
 
+func on_human_play_options_visibility_changed_() -> void:
+	if not human_play_options_dialog_.visible:
+		settings_ui_.reset_android_spinbox(human_play_visits_input_)
+
+
 func on_human_play_start_requested_() -> void:
-	human_play_options_dialog_.hide()
 	var selected_ai_id: int = human_play_ai_color_option_.get_selected_id()
 	human_play_ai_color_ = kBlack if selected_ai_id == kBlack else kWhite
 	var rank_text: String = human_play_rank_option_.get_item_text(
@@ -2168,11 +2230,22 @@ func on_human_play_start_requested_() -> void:
 	human_play_max_visits_ = maxi(
 		roundi(human_play_visits_input_.value), 1
 	)
+	human_play_options_dialog_.hide()
 	start_human_play_mode_()
 
 
 func start_human_play_mode_() -> void:
 	human_play_panel_was_open_ = katago_analysis_panel_.is_panel_open()
+	human_play_initial_move_count_ = current_playback_move_count_()
+	var initial_context: Dictionary = current_human_play_query_context_()
+	human_play_initial_katago_move_count_ = Array(
+		initial_context.get("moves", [])
+	).size()
+	human_play_initial_black_advantage_ = 0.0
+	if not initial_context.is_empty():
+		human_play_initial_black_advantage_ = \
+			KataGoQueryBuilder.initial_black_advantage(initial_context)
+	reset_human_play_resign_tracking_()
 	if notes_panel_.is_panel_open():
 		notes_panel_.close_panel()
 	if sgf_metadata_panel_.is_panel_open():
@@ -2265,6 +2338,7 @@ func on_human_play_analysis_result_(result: Dictionary) -> void:
 	if bool(result.get("isDuringSearch", false)):
 		return
 	human_play_query_id_ = ""
+	update_human_play_resign_suggestions_(root_info)
 	var selected: Dictionary = select_human_policy_move_(result)
 	if selected.is_empty():
 		on_human_play_service_error_(tr("无法取得Human SL落子策略。"))
@@ -2293,6 +2367,7 @@ func on_human_play_analysis_result_(result: Dictionary) -> void:
 			board_.get_view_uid(), move_info
 		)
 	set_human_play_waiting_for_human_()
+	show_pending_human_play_resign_suggestion_()
 
 
 func select_human_policy_move_(result: Dictionary) -> Dictionary:
@@ -2317,6 +2392,9 @@ func select_evaluated_human_move_(result: Dictionary) -> Dictionary:
 	var choices: Array[Dictionary] = []
 	var total_weight: float = 0.0
 	var notes: GoNotes = board_.get_go_notes()
+	var utility_lambda: float = kHuman9dMoveUtilityLambda \
+		if human_play_profile_ in kHuman9dProfiles \
+		else kHumanMoveUtilityLambda
 	for value: Variant in move_infos:
 		var info: Dictionary = Dictionary(value)
 		var move: String = str(info.get("move", "")).strip_edges().to_upper()
@@ -2338,9 +2416,11 @@ func select_evaluated_human_move_(result: Dictionary) -> Dictionary:
 		var utility: float = float(info.get("utility", 0.0))
 		var ai_utility: float = utility \
 			if human_play_ai_color_ == kBlack else -utility
-		# 官方建议以 humanPrior * exp(utility / 0.5) 混合人类棋风与
-		# 主模型判断。限制指数范围以抵御异常返回值。
-		var weight: float = human_prior * exp(clampf(ai_utility / 0.5, -20.0, 20.0))
+		# 9d 使用官方强化示例的 0.08；其他档位继续使用通用的 0.5。
+		# 限制指数范围以抵御异常返回值。
+		var weight: float = human_prior * exp(clampf(
+			ai_utility / utility_lambda, -20.0, 20.0
+		))
 		if weight <= 0.0 or not is_finite(weight):
 			continue
 		choices.append({
@@ -2435,6 +2515,130 @@ func board_coordinate_to_gtp_(row: int, column: int) -> String:
 	]
 
 
+func current_playback_move_count_() -> int:
+	var path: PackedInt64Array = board_.get_playback_path()
+	var current_index: int = path.find(board_.get_view_uid())
+	var move_count: int = 0
+	for index: int in range(1, current_index + 1):
+		var node: Dictionary = Dictionary(
+			board_.get_go_notes().call(&"get_node_at", int(path[index]))
+		)
+		if int(node.get("color", 0)) in [kBlack, kWhite]:
+			move_count += 1
+	return move_count
+
+
+func current_human_play_query_context_() -> Dictionary:
+	var path: PackedInt64Array = board_.get_playback_path()
+	var current_index: int = path.find(board_.get_view_uid())
+	if current_index < 0:
+		return {}
+	return KataGoQueryBuilder.build_context(
+		board_.get_go_notes(), path, current_index
+	)
+
+
+func update_human_play_resign_suggestions_(root_info: Dictionary) -> void:
+	if not SettingsStore.get_katago_human_resign_suggestion():
+		reset_human_play_resign_tracking_()
+		return
+	var suggested_color: int = 0
+	for color: int in [kBlack, kWhite]:
+		if update_human_play_resign_count_(root_info, color) \
+				and suggested_color == 0:
+			suggested_color = color
+	if suggested_color != 0:
+		# 任一方触发提示后，黑白双方都从空窗口重新累计。
+		clear_human_play_resign_windows_()
+		if human_play_pending_resign_color_ == 0:
+			human_play_pending_resign_color_ = suggested_color
+
+
+func update_human_play_resign_count_(
+		root_info: Dictionary, color: int
+) -> bool:
+	if not root_info.has("winrate") or not root_info.has("scoreLead"):
+		return false
+	var black_winrate: float = float(root_info.get("winrate", 0.5))
+	var black_score_lead: float = float(root_info.get("scoreLead", 0.0))
+	if not is_finite(black_winrate) or not is_finite(black_score_lead):
+		return false
+	var color_factor: float = 1.0 if color == kBlack else -1.0
+	var player_win_loss: float = (2.0 * black_winrate - 1.0) * color_factor
+	var player_score_lead: float = black_score_lead * color_factor
+	var is_9d: bool = human_play_profile_ in kHuman9dProfiles
+	var threshold: float = kHuman9dResignThreshold \
+		if is_9d else kHumanResignThreshold
+	var min_score_difference: float = kHuman9dResignMinScoreDifference \
+		if is_9d else kHumanResignMinScoreDifference
+	var min_move_count: float = float(
+		board_.get_board_size() * board_.get_board_size()
+	) * kHumanResignMinMovesPerBoardArea
+	var current_move_count: int = \
+		human_play_initial_move_count_ + human_play_turns_.size()
+	var current_katago_move_count: int = \
+		human_play_initial_katago_move_count_ + human_play_turns_.size()
+	var white_handicap_resign_score: float = \
+		human_play_white_handicap_resign_score_(current_katago_move_count)
+	# 与 KataGo genmove 一致，最低手数之前也持续记录胜负评价；最低手数
+	# 只限制何时允许提示，目差也只检查当前局面，不属于连续窗口。
+	if player_win_loss >= threshold:
+		human_play_resign_counts_[color] = 0
+		return false
+	human_play_resign_counts_[color] = \
+		int(human_play_resign_counts_.get(color, 0)) + 1
+	var required_turns: int = kHuman9dResignConsecutiveTurns \
+		if is_9d else kHumanResignConsecutiveTurns
+	if current_move_count < min_move_count \
+			or (color == kWhite \
+			and player_score_lead > white_handicap_resign_score) \
+			or player_score_lead > -min_score_difference \
+			or int(human_play_resign_counts_[color]) < required_turns:
+		return false
+	return true
+
+
+func human_play_white_handicap_resign_score_(move_count: int) -> float:
+	var board_area: float = float(
+		board_.get_board_size() * board_.get_board_size()
+	)
+	if human_play_initial_black_advantage_ <= 0.9:
+		return board_area
+	var catch_up_start: float = 1.0 + floorf(board_area / 5.0)
+	var turns_to_catch_up: float = maxf(
+		0.60 * board_area - catch_up_start, 1.0
+	)
+	var turns_spent: float = clampf(
+		float(move_count) - catch_up_start, 0.0, turns_to_catch_up
+	)
+	var remaining_ratio: float = \
+		(turns_to_catch_up - turns_spent) / turns_to_catch_up
+	return -human_play_initial_black_advantage_ * remaining_ratio \
+		- 5.0 - human_play_initial_black_advantage_ * 0.15
+
+
+func clear_human_play_resign_windows_() -> void:
+	human_play_resign_counts_[kBlack] = 0
+	human_play_resign_counts_[kWhite] = 0
+
+
+func reset_human_play_resign_tracking_() -> void:
+	clear_human_play_resign_windows_()
+	human_play_pending_resign_color_ = 0
+
+
+func show_pending_human_play_resign_suggestion_() -> void:
+	if human_play_pending_resign_color_ == 0 or not human_play_mode_active_:
+		return
+	var color_name: String = tr("黑方") \
+		if human_play_pending_resign_color_ == kBlack else tr("白方")
+	human_play_pending_resign_color_ = 0
+	human_play_resign_suggestion_dialog_.dialog_text = tr(
+		"AI认为%s可以认输。程序不会自动结束对局，是否继续由您决定。"
+	) % color_name
+	human_play_resign_suggestion_dialog_.popup_centered(Vector2i(620, 220))
+
+
 func set_human_play_waiting_for_human_() -> void:
 	if not human_play_mode_active_ or human_play_finished_:
 		return
@@ -2458,10 +2662,12 @@ func on_human_play_pass_accepted_() -> void:
 	set_human_play_status_(tr(
 		"双方已停一手，可进行终局数目或保存棋局。"
 	))
+	show_pending_human_play_resign_suggestion_()
 
 
 func on_human_play_pass_rejected_() -> void:
 	set_human_play_waiting_for_human_()
+	show_pending_human_play_resign_suggestion_()
 
 
 func set_human_play_status_(message: String) -> void:
@@ -2489,6 +2695,7 @@ func on_human_play_takeback_requested_() -> void:
 		show_human_play_error_(tr("无法悔棋到上一次人类行棋前。"))
 		return
 	human_play_turns_.resize(human_index)
+	reset_human_play_resign_tracking_()
 	set_human_play_waiting_for_human_()
 	katago_analysis_panel_.on_board_position_changed(board_.get_view_uid())
 
@@ -2618,6 +2825,9 @@ func finish_human_play_mode_() -> void:
 	human_play_query_uid_ = -1
 	human_play_finished_ = false
 	human_play_discard_paused_ai_ = false
+	human_play_initial_move_count_ = 0
+	reset_human_play_resign_tracking_()
+	human_play_resign_suggestion_dialog_.hide()
 	restore_human_play_toolbar_()
 	if human_play_panel_was_open_:
 		call_deferred(
@@ -2946,7 +3156,8 @@ func update_mobile_playback_visibility_() -> void:
 	var document_initialized: bool = active_document_index_ >= 0 \
 		and active_document_index_ < documents_.size() \
 		and documents_[active_document_index_].initialized
-	mobile_playback_buttons_.visible = OS.has_feature("android") \
+	mobile_playback_buttons_.visible = (OS.has_feature("android") \
+		or OS.has_feature("windows")) \
 		and document_initialized and not board_.is_preset_mode() \
 		and not territory_mode_active_ and not human_play_mode_active_
 
@@ -3006,12 +3217,7 @@ func set_note_symbol_selection_(symbol: String) -> void:
 		var selected: bool = key == symbol
 		button.set_pressed_no_signal(selected)
 		if key.is_empty():
-			button.add_theme_font_size_override(
-				&"font_size", 40 if selected else 34
-			)
-			button.add_theme_constant_override(
-				&"outline_size", 3 if selected else 0
-			)
+			note_erase_active_mark_.visible = selected
 		else:
 			button.queue_redraw()
 
@@ -3232,6 +3438,7 @@ func update_preset_tool_selection_() -> void:
 	preset_black_active_mark_.visible = black_active
 	preset_white_active_mark_.visible = white_active
 	preset_erase_button_.set_pressed_no_signal(erasing)
+	preset_erase_active_mark_.visible = erasing
 
 
 func on_preset_mode_changed_(enabled: bool) -> void:
@@ -3717,6 +3924,7 @@ func restore_human_play_toolbar_() -> void:
 	human_play_accept_button_.hide()
 	human_play_cancel_button_.hide()
 	update_history_buttons_()
+	preset_button_.show()
 	update_preset_button_()
 	update_next_color_button_(board_.get_next_color())
 	on_pending_move_changed_(board_.has_pending_move())

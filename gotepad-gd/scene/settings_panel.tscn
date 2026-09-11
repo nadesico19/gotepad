@@ -607,11 +607,22 @@ custom_arrow_step = 10.0
 value = 30.0
 suffix = " %"
 
-[node name="KatagoShowScoreLead" type="CheckBox" parent="SettingsPanel/Margin/Options"]
+[node name="KatagoScoreLeadRow" type="VBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ShowScoreLead" type="CheckBox" parent="SettingsPanel/Margin/Options/KatagoScoreLeadRow"]
 layout_mode = 2
 focus_mode = 0
 mouse_default_cursor_shape = 2
 text = "显示目差"
+
+[node name="ShowOnBoard" type="CheckBox" parent="SettingsPanel/Margin/Options/KatagoScoreLeadRow"]
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+disabled = true
+text = "盘面候选显示目差"
 
 [node name="KatagoGameAnalysisVisitsRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
@@ -718,6 +729,12 @@ custom_arrow_step = 100.0
 value = 500.0
 allow_greater = true
 suffix = " visits"
+
+[node name="KatagoHumanResignSuggestion" type="CheckBox" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "AI提示认输"
+tooltip_text = "AI判断任一方达到认输条件时弹出提示，不会自动结束对局"
 
 [node name="KatagoHumanTestRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2

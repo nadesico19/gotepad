@@ -148,6 +148,61 @@ static func build_human_query(
 	return query
 
 
+# 与 KataGo gtp.cpp 的 initialBlackAdvantage 保持一致，用于让子局认输保护。
+static func initial_black_advantage(context: Dictionary) -> float:
+	var initial_stones: Array = Array(context.get("initialStones", []))
+	var initial_black_stones: int = 0
+	for value: Variant in initial_stones:
+		var stone: Array = Array(value)
+		if stone.size() < 1:
+			continue
+		var color: String = str(stone[0]).to_upper()
+		if color == "W":
+			return 7.0 - float(context.get("komi", 7.5))
+		if color == "B":
+			initial_black_stones += 1
+	var starting_black_moves: int = count_starting_handicap_moves_(
+		Array(context.get("moves", []))
+	)
+	var handicap_stones: int = initial_black_stones + starting_black_moves
+	var komi: float = float(context.get("komi", 7.5))
+	if handicap_stones <= 1:
+		return 7.0 - komi
+	var rules: String = str(context.get("rules", "chinese"))
+	var stone_value: float = 14.0 if rules in [
+		"japanese", "korean", "ancient-territory"
+	] else 15.0
+	var white_handicap_bonus: float = 0.0
+	if rules in ["chinese", "chinese-ogs", "chinese-kgs"]:
+		white_handicap_bonus = float(handicap_stones)
+	elif rules in ["aga", "aga-button", "bga"]:
+		white_handicap_bonus = float(handicap_stones - 1)
+	return stone_value * float(handicap_stones - 1) \
+		+ 7.0 - komi - white_handicap_bonus
+
+
+static func count_starting_handicap_moves_(moves: Array) -> int:
+	var count: int = 0
+	for index: int in range(moves.size()):
+		var move: Array = Array(moves[index])
+		if move.size() < 2:
+			continue
+		var color: String = str(move[0]).to_upper()
+		var coordinate: String = str(move[1]).to_lower()
+		if color != "B":
+			if index + 1 < moves.size():
+				var next_move: Array = Array(moves[index + 1])
+				if next_move.size() < 1 \
+						or str(next_move[0]).to_upper() != "B":
+					return 0
+			if coordinate == "pass":
+				continue
+			break
+		if coordinate != "pass":
+			count += 1
+	return count
+
+
 static func find_last_setup_index_(
 		go_notes: GoNotes, path: PackedInt64Array, last_index: int
 ) -> int:

@@ -2,7 +2,7 @@ class_name UpdateDialog
 extends Control
 
 signal check_started
-signal check_finished
+signal check_finished(update_available: bool, succeeded: bool)
 
 const kReleasesApiUrl: String = \
 	"https://api.github.com/repos/nadesico19/gotepad/releases?per_page=100"
@@ -51,6 +51,7 @@ var platform_name_: String = ""
 var latest_candidate_: Dictionary = {}
 var release_by_version_: Dictionary = {}
 var history_candidates_: Array = []
+var show_result_when_finished_: bool = true
 
 
 func _ready() -> void:
@@ -61,7 +62,7 @@ func _ready() -> void:
 	refresh_localized_texts()
 
 
-func check_for_updates() -> void:
+func check_for_updates(show_result: bool = true) -> void:
 	if request_pending_:
 		return
 	current_version_ = str(ProjectSettings.get_setting(
@@ -75,6 +76,7 @@ func check_for_updates() -> void:
 	latest_candidate_.clear()
 	release_by_version_.clear()
 	history_candidates_.clear()
+	show_result_when_finished_ = show_result
 	check_started.emit()
 	request_api_(kReleasesApiUrl)
 
@@ -312,8 +314,9 @@ func finish_success_() -> void:
 	request_pending_ = false
 	request_stage_ = RequestStage.NONE
 	refresh_localized_texts()
-	check_finished.emit()
-	show_dialog_()
+	check_finished.emit(not latest_candidate_.is_empty(), true)
+	if show_result_when_finished_:
+		show_dialog_()
 
 
 func release_applies_(
@@ -453,8 +456,9 @@ func finish_with_error_(message: String) -> void:
 	latest_version_ = tr("无法获取")
 	release_notes_.text = message
 	refresh_localized_texts()
-	check_finished.emit()
-	show_dialog_()
+	check_finished.emit(false, false)
+	if show_result_when_finished_:
+		show_dialog_()
 
 
 func show_dialog_() -> void:

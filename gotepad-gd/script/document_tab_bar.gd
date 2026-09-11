@@ -10,6 +10,7 @@ const kMaximumTabWidth: float = 280.0
 const kTitlePadding: float = 20.0
 const kCloseButtonWidth: float = 28.0
 const kTitleFontSizeReduction: int = 2
+const kActiveTitleColor: Color = Color(1.0, 0.88, 0.56)
 
 var titles_: PackedStringArray = PackedStringArray()
 var buttons_: Array[Button] = []
@@ -74,10 +75,10 @@ func add_tab_button_() -> void:
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.add_theme_color_override(&"font_color", Color(0.9, 0.9, 0.86))
 	button.add_theme_color_override(
-		&"font_hover_color", Color(1.0, 0.88, 0.56)
+		&"font_hover_color", kActiveTitleColor
 	)
 	button.add_theme_color_override(
-		&"font_pressed_color", Color(1.0, 0.88, 0.56)
+		&"font_pressed_color", kActiveTitleColor
 	)
 	button.add_theme_font_size_override(&"font_size", tab_title_font_size_())
 	var index: int = buttons_.size()

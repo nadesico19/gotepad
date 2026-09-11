@@ -50,6 +50,10 @@ func _draw() -> void:
 		return
 	var radius: float = cell_size_ * 0.39
 	var font_size: int = maxi(roundi(cell_size_ * 0.32), 1)
+	var show_score_lead: bool = \
+		SettingsStore.get_katago_show_score_lead_on_board()
+	var split_winrate_font_size: int = maxi(roundi(cell_size_ * 0.25), 1)
+	var split_score_font_size: int = maxi(roundi(cell_size_ * 0.22), 1)
 	for index in range(candidates_.size()):
 		var candidate: Dictionary = candidates_[index]
 		var center: Vector2 = candidate_position_(candidate)
@@ -72,13 +76,19 @@ func _draw() -> void:
 		var text_color: Color = kLightText if index == 0 \
 			else kDarkText if index < kPrimaryCandidateCount \
 			else kExtraCandidateText
-		draw_centered_text_(
-			font,
-			"%.1f" % (float(candidate.get("winrate", 0.0)) * 100.0),
-			center,
-			font_size,
-			text_color
-		)
+		if show_score_lead:
+			draw_split_candidate_text_(
+				font, candidate, center,
+				split_winrate_font_size, split_score_font_size, text_color
+			)
+		else:
+			draw_centered_text_(
+				font,
+				"%.1f" % (float(candidate.get("winrate", 0.0)) * 100.0),
+				center,
+				font_size,
+				text_color
+			)
 	if not played_move_loss_.is_empty():
 		var center: Vector2 = candidate_position_(played_move_loss_)
 		draw_circle(center, radius, kLossColor, true, -1.0, true)
@@ -101,6 +111,40 @@ func candidate_opacity_(index: int) -> float:
 		if index < kPrimaryCandidateCount \
 		else SettingsStore.get_katago_extra_candidate_opacity()
 	return clampf(float(percentage) / 100.0, 0.0, 1.0)
+
+
+func draw_split_candidate_text_(
+		font: Font,
+		candidate: Dictionary,
+		center: Vector2,
+		winrate_font_size: int,
+		score_font_size: int,
+		color: Color
+) -> void:
+	var vertical_offset: float = cell_size_ * 0.16
+	draw_centered_text_(
+		font,
+		"%.1f" % (float(candidate.get("winrate", 0.0)) * 100.0),
+		center - Vector2(0.0, vertical_offset),
+		winrate_font_size,
+		color
+	)
+	var separator_color: Color = color
+	separator_color.a *= 0.72
+	draw_line(
+		center - Vector2(cell_size_ * 0.25, 0.0),
+		center + Vector2(cell_size_ * 0.25, 0.0),
+		separator_color,
+		maxf(cell_size_ * 0.025, 1.0),
+		true
+	)
+	draw_centered_text_(
+		font,
+		"%+.1f" % float(candidate.get("score_lead", 0.0)),
+		center + Vector2(0.0, vertical_offset),
+		score_font_size,
+		color
+	)
 
 
 func candidate_position_(candidate: Dictionary) -> Vector2:

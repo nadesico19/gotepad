@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.12"
+const kGotepadVersion: String = "0.1.13"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -52,7 +52,7 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoExtraBoardCandidatesRow",
 	"KatagoPrimaryCandidateOpacityRow",
 	"KatagoExtraCandidateOpacityRow",
-	"KatagoShowScoreLead",
+	"KatagoScoreLeadRow",
 	"KatagoGameAnalysisVisitsRow",
 	"KatagoTestRow",
 	"KatagoStatus",
@@ -61,6 +61,7 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoHumanModelLabel",
 	"KatagoHumanModelRow",
 	"KatagoHumanMaxVisitsRow",
+	"KatagoHumanResignSuggestion",
 	"KatagoHumanTestRow",
 	"KatagoHumanStatus",
 ]
@@ -154,7 +155,9 @@ const kStoneWhitePaths: Array[String] = [
 @onready var katago_extra_candidate_opacity_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoExtraCandidateOpacityRow/Percentage
 @onready var katago_show_score_lead_: CheckBox = \
-	$SettingsPanel/Margin/Options/KatagoShowScoreLead
+	$SettingsPanel/Margin/Options/KatagoScoreLeadRow/ShowScoreLead
+@onready var katago_show_score_lead_on_board_: CheckBox = \
+	$SettingsPanel/Margin/Options/KatagoScoreLeadRow/ShowOnBoard
 @onready var katago_game_analysis_visits_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow/Visits
 @onready var katago_test_button_: Button = \
@@ -169,6 +172,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoHumanModelRow/Browse
 @onready var katago_human_max_visits_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoHumanMaxVisitsRow/Visits
+@onready var katago_human_resign_suggestion_: CheckBox = \
+	$SettingsPanel/Margin/Options/KatagoHumanResignSuggestion
 @onready var katago_human_benchmark_button_: Button = \
 	$SettingsPanel/Margin/Options/KatagoHumanTestRow/Benchmark
 @onready var katago_human_status_: Label = \
@@ -223,6 +228,7 @@ var opening_katago_executable_path_: String
 var opening_katago_model_path_: String
 var opening_katago_human_model_path_: String
 var opening_katago_human_max_visits_: int
+var opening_katago_human_resign_suggestion_: bool
 var opening_katago_analysis_config_path_: String
 var opening_katago_max_visits_: int
 var opening_katago_report_interval_seconds_: float
@@ -231,6 +237,7 @@ var opening_katago_extra_board_candidates_: int
 var opening_katago_primary_candidate_opacity_: int
 var opening_katago_extra_candidate_opacity_: int
 var opening_katago_show_score_lead_: bool
+var opening_katago_show_score_lead_on_board_: bool
 var opening_katago_game_analysis_visits_: int
 var updating_options_: bool = false
 var katago_test_process_: Dictionary = {}
@@ -256,6 +263,7 @@ var mobile_spinbox_touch_index_: int = -1
 var mobile_spinbox_press_position_: Vector2 = Vector2.ZERO
 var mobile_spinbox_line_edit_: LineEdit
 var mobile_spinbox_: SpinBox
+var configured_mobile_spinboxes_: Dictionary = {}
 
 
 func _ready() -> void:
@@ -299,6 +307,9 @@ func _ready() -> void:
 	katago_human_max_visits_.value_changed.connect(
 		on_katago_human_max_visits_changed_
 	)
+	katago_human_resign_suggestion_.toggled.connect(
+		on_katago_boolean_option_changed_
+	)
 	katago_analysis_config_path_.text_changed.connect(on_katago_path_changed_)
 	katago_max_visits_.value_changed.connect(on_katago_max_visits_changed_)
 	katago_report_interval_seconds_.value_changed.connect(
@@ -316,7 +327,10 @@ func _ready() -> void:
 	katago_extra_candidate_opacity_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
-	katago_show_score_lead_.toggled.connect(on_katago_boolean_option_changed_)
+	katago_show_score_lead_.toggled.connect(on_katago_show_score_lead_toggled_)
+	katago_show_score_lead_on_board_.toggled.connect(
+		on_katago_boolean_option_changed_
+	)
 	katago_game_analysis_visits_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
@@ -385,17 +399,34 @@ func configure_mobile_spinbox_long_press_() -> void:
 		return
 	for node: Node in settings_panel_.find_children("*", "SpinBox", true, false):
 		var spin_box: SpinBox = node as SpinBox
-		if spin_box == null:
-			continue
-		configure_mobile_spinbox_buttons_(spin_box)
-		var line_edit: LineEdit = spin_box.get_line_edit()
-		line_edit.virtual_keyboard_show_on_focus = false
-		line_edit.virtual_keyboard_enabled = false
-		line_edit.focus_exited.connect(reset_mobile_spinbox_editing_.bind(line_edit))
-		line_edit.editing_toggled.connect(on_mobile_spinbox_editing_toggled_.bind(line_edit))
-		line_edit.gui_input.connect(
-			on_mobile_spinbox_gui_input_.bind(spin_box, line_edit)
-		)
+		configure_android_spinbox(spin_box)
+
+
+func configure_android_spinbox(spin_box: SpinBox) -> void:
+	if OS.get_name() != "Android" or spin_box == null:
+		return
+	var instance_id: int = spin_box.get_instance_id()
+	if configured_mobile_spinboxes_.has(instance_id):
+		return
+	configured_mobile_spinboxes_[instance_id] = true
+	configure_mobile_spinbox_buttons_(spin_box)
+	var line_edit: LineEdit = spin_box.get_line_edit()
+	line_edit.virtual_keyboard_show_on_focus = false
+	line_edit.virtual_keyboard_enabled = false
+	line_edit.focus_exited.connect(reset_mobile_spinbox_editing_.bind(line_edit))
+	line_edit.editing_toggled.connect(on_mobile_spinbox_editing_toggled_.bind(line_edit))
+	line_edit.gui_input.connect(
+		on_mobile_spinbox_gui_input_.bind(spin_box, line_edit)
+	)
+
+
+func reset_android_spinbox(spin_box: SpinBox) -> void:
+	if OS.get_name() != "Android" or spin_box == null:
+		return
+	var line_edit: LineEdit = spin_box.get_line_edit()
+	line_edit.unedit()
+	line_edit.release_focus()
+	reset_mobile_spinbox_editing_(line_edit)
 
 
 func configure_mobile_spinbox_buttons_(spin_box: SpinBox) -> void:
@@ -679,6 +710,8 @@ func open_panel_() -> void:
 		SettingsStore.get_katago_human_model_path()
 	opening_katago_human_max_visits_ = \
 		SettingsStore.get_katago_human_max_visits()
+	opening_katago_human_resign_suggestion_ = \
+		SettingsStore.get_katago_human_resign_suggestion()
 	opening_katago_analysis_config_path_ = \
 		SettingsStore.get_katago_analysis_config_path()
 	opening_katago_max_visits_ = SettingsStore.get_katago_max_visits()
@@ -694,6 +727,8 @@ func open_panel_() -> void:
 		SettingsStore.get_katago_extra_candidate_opacity()
 	opening_katago_show_score_lead_ = \
 		SettingsStore.get_katago_show_score_lead()
+	opening_katago_show_score_lead_on_board_ = \
+		SettingsStore.get_katago_show_score_lead_on_board()
 	opening_katago_game_analysis_visits_ = \
 		SettingsStore.get_katago_game_analysis_visits()
 	var local_katago_available: bool = not OS.has_feature("mobile")
@@ -753,6 +788,9 @@ func open_panel_() -> void:
 	katago_human_max_visits_.set_value_no_signal(
 		opening_katago_human_max_visits_
 	)
+	katago_human_resign_suggestion_.set_pressed_no_signal(
+		opening_katago_human_resign_suggestion_
+	)
 	katago_analysis_config_path_.text = "" if config_path_invalid \
 		else opening_katago_analysis_config_path_
 	katago_max_visits_.set_value_no_signal(opening_katago_max_visits_)
@@ -774,6 +812,10 @@ func open_panel_() -> void:
 	katago_show_score_lead_.set_pressed_no_signal(
 		opening_katago_show_score_lead_
 	)
+	katago_show_score_lead_on_board_.set_pressed_no_signal(
+		opening_katago_show_score_lead_on_board_
+	)
+	update_katago_show_score_lead_on_board_enabled_(true)
 	katago_game_analysis_visits_.set_value_no_signal(
 		opening_katago_game_analysis_visits_
 	)
@@ -933,6 +975,18 @@ func on_katago_boolean_option_changed_(_value: bool) -> void:
 	on_option_selected_(0)
 
 
+func on_katago_show_score_lead_toggled_(_pressed: bool) -> void:
+	update_katago_show_score_lead_on_board_enabled_(true)
+	on_option_selected_(0)
+
+
+func update_katago_show_score_lead_on_board_enabled_(enabled: bool) -> void:
+	if not katago_show_score_lead_.button_pressed:
+		katago_show_score_lead_on_board_.set_pressed_no_signal(false)
+	katago_show_score_lead_on_board_.disabled = \
+		not enabled or not katago_show_score_lead_.button_pressed
+
+
 func on_katago_path_changed_(_value: String) -> void:
 	if updating_options_:
 		return
@@ -999,6 +1053,8 @@ func has_staged_changes_() -> bool:
 			!= opening_katago_human_model_path_ \
 		or selected_katago_human_max_visits_() \
 			!= opening_katago_human_max_visits_ \
+		or selected_katago_human_resign_suggestion_() \
+			!= opening_katago_human_resign_suggestion_ \
 		or selected_katago_analysis_config_path_() \
 			!= opening_katago_analysis_config_path_ \
 		or selected_katago_max_visits_() != opening_katago_max_visits_ \
@@ -1015,6 +1071,8 @@ func has_staged_changes_() -> bool:
 			!= opening_katago_extra_candidate_opacity_ \
 		or selected_katago_show_score_lead_() \
 			!= opening_katago_show_score_lead_ \
+		or selected_katago_show_score_lead_on_board_() \
+			!= opening_katago_show_score_lead_on_board_ \
 		or selected_katago_game_analysis_visits_() \
 			!= opening_katago_game_analysis_visits_ \
 		or not is_equal_approx(
@@ -1140,6 +1198,10 @@ func selected_katago_human_max_visits_() -> int:
 	return maxi(roundi(katago_human_max_visits_.value), 1)
 
 
+func selected_katago_human_resign_suggestion_() -> bool:
+	return katago_human_resign_suggestion_.button_pressed
+
+
 func selected_katago_report_interval_seconds_() -> float:
 	return clampf(katago_report_interval_seconds_.value, 0.1, 60.0)
 
@@ -1174,6 +1236,10 @@ func selected_katago_extra_candidate_opacity_() -> int:
 
 func selected_katago_show_score_lead_() -> bool:
 	return katago_show_score_lead_.button_pressed
+
+
+func selected_katago_show_score_lead_on_board_() -> bool:
+	return katago_show_score_lead_on_board_.button_pressed
 
 
 func selected_katago_game_analysis_visits_() -> int:
@@ -1250,10 +1316,12 @@ func on_confirm_pressed_() -> void:
 		selected_katago_primary_candidate_opacity_(),
 		selected_katago_extra_candidate_opacity_(),
 		selected_katago_show_score_lead_(),
+		selected_katago_show_score_lead_on_board_(),
 		selected_katago_game_analysis_visits_(),
 		selected_katago_analysis_config_path_(),
 		selected_katago_human_model_path_(),
-		selected_katago_human_max_visits_()
+		selected_katago_human_max_visits_(),
+		selected_katago_human_resign_suggestion_()
 	)
 	if error != OK:
 		error_label_.text = tr("保存设置失败：%s") % error_string(error)
@@ -1283,6 +1351,8 @@ func on_confirm_pressed_() -> void:
 	pending_imported_model_path_ = ""
 	opening_katago_human_model_path_ = selected_katago_human_model_path_()
 	opening_katago_human_max_visits_ = selected_katago_human_max_visits_()
+	opening_katago_human_resign_suggestion_ = \
+		selected_katago_human_resign_suggestion_()
 	if previous_human_model_path != opening_katago_human_model_path_:
 		remove_managed_model_file_(previous_human_model_path)
 	pending_imported_human_model_path_ = ""
@@ -1299,6 +1369,8 @@ func on_confirm_pressed_() -> void:
 	opening_katago_extra_candidate_opacity_ = \
 		selected_katago_extra_candidate_opacity_()
 	opening_katago_show_score_lead_ = selected_katago_show_score_lead_()
+	opening_katago_show_score_lead_on_board_ = \
+		selected_katago_show_score_lead_on_board_()
 	opening_katago_game_analysis_visits_ = \
 		selected_katago_game_analysis_visits_()
 	pending_katago_benchmark_threads_ = 0
@@ -1363,6 +1435,9 @@ func on_restore_pressed_() -> void:
 	katago_human_max_visits_.set_value_no_signal(
 		opening_katago_human_max_visits_
 	)
+	katago_human_resign_suggestion_.set_pressed_no_signal(
+		opening_katago_human_resign_suggestion_
+	)
 	katago_analysis_config_path_.text = opening_katago_analysis_config_path_ \
 		if OS.has_feature("mobile") \
 			or SettingsStore.is_katago_analysis_config_path_valid(
@@ -1387,6 +1462,10 @@ func on_restore_pressed_() -> void:
 	katago_show_score_lead_.set_pressed_no_signal(
 		opening_katago_show_score_lead_
 	)
+	katago_show_score_lead_on_board_.set_pressed_no_signal(
+		opening_katago_show_score_lead_on_board_
+	)
+	update_katago_show_score_lead_on_board_enabled_(true)
 	katago_game_analysis_visits_.set_value_no_signal(
 		opening_katago_game_analysis_visits_
 	)
@@ -2294,6 +2373,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_model_path_.editable = desktop_paths_enabled
 	katago_human_model_path_.editable = desktop_paths_enabled
 	katago_human_max_visits_.editable = enabled
+	katago_human_resign_suggestion_.disabled = not enabled
 	katago_analysis_config_path_.editable = desktop_paths_enabled
 	katago_executable_browse_.disabled = not desktop_paths_enabled
 	katago_model_browse_.disabled = \
@@ -2309,6 +2389,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_primary_candidate_opacity_.editable = enabled
 	katago_extra_candidate_opacity_.editable = enabled
 	katago_show_score_lead_.disabled = not enabled
+	update_katago_show_score_lead_on_board_enabled_(enabled)
 	katago_game_analysis_visits_.editable = enabled
 	katago_test_button_.disabled = not desktop_paths_enabled
 	katago_benchmark_button_.disabled = not enabled

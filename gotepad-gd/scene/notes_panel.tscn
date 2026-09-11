@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://script/notes_panel.gd" id="1_script"]
 [ext_resource type="Script" path="res://script/note_symbol_button.gd" id="2_symbol_button"]
+[ext_resource type="Texture2D" path="res://assets/ui/eraser_horizontal.svg" id="3_eraser"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
 bg_color = Color(0.075, 0.075, 0.085, 0.5)
@@ -200,9 +201,9 @@ custom_minimum_size = Vector2(42, 42)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "擦除符号标记"
-theme_override_colors/font_color = Color(0.96, 0.3, 0.3, 1)
-theme_override_font_sizes/font_size = 20
-text = "🗑"
+icon = ExtResource("3_eraser")
+icon_alignment = 1
+expand_icon = true
 
 [node name="NumberingRow" type="HBoxContainer" parent="Panel/Margin/Content"]
 layout_mode = 2
