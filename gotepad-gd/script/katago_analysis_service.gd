@@ -8,6 +8,7 @@ signal query_error(query_id: String, message: String)
 signal service_warning(message: String)
 signal running_changed(running: bool)
 signal transport_starting
+signal recovery_started
 
 var transport_: KataGoTransport
 var query_serial_: int = 0
@@ -30,6 +31,7 @@ func set_transport(transport: KataGoTransport) -> void:
 	transport_.log_received.connect(on_transport_log_)
 	transport_.transport_error.connect(on_transport_error_)
 	transport_.transport_stopped.connect(on_transport_stopped_)
+	transport_.recovery_started.connect(on_transport_recovery_started_)
 
 
 func next_query_id(prefix: String) -> String:
@@ -61,6 +63,27 @@ func ensure_running() -> bool:
 		return false
 	running_changed.emit(true)
 	return true
+
+
+func prepare_for_user_analysis() -> bool:
+	if transport_ == null:
+		service_error.emit(tr("KataGo分析传输层尚未初始化。"))
+		return false
+	if transport_.has_method("prepare_for_user_analysis"):
+		return bool(transport_.call("prepare_for_user_analysis"))
+	return true
+
+
+func restart_active_queries() -> bool:
+	if transport_ == null or not transport_.has_method("restart_active_queries"):
+		return false
+	return bool(transport_.call("restart_active_queries"))
+
+
+func set_user_analysis_recovery_enabled(enabled: bool) -> void:
+	if transport_ != null \
+			and transport_.has_method("set_user_analysis_recovery_enabled"):
+		transport_.call("set_user_analysis_recovery_enabled", enabled)
 
 
 func terminate_query(query_id: String) -> bool:
@@ -113,6 +136,10 @@ func on_transport_error_(message: String) -> void:
 
 func on_transport_stopped_() -> void:
 	running_changed.emit(false)
+
+
+func on_transport_recovery_started_() -> void:
+	recovery_started.emit()
 
 
 func _exit_tree() -> void:

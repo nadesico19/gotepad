@@ -205,6 +205,13 @@ dialog_text = "DIALOG_CUT_BRANCH_MESSAGE"
 ok_button_text = "剪切"
 cancel_button_text = "取消"
 
+[node name="VariationOverwriteConfirmation" type="ConfirmationDialog" parent="."]
+title = "确认覆盖变化图记录"
+exclusive = true
+dialog_text = "确定要删除当前局面之后的全部已有记录，并在此处落子吗？"
+ok_button_text = "覆盖并落子"
+cancel_button_text = "取消"
+
 [node name="FindResultDialog" type="AcceptDialog" parent="."]
 title = "找子"
 exclusive = true

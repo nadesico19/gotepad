@@ -12,6 +12,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.util.Log;
 
 /** Runs the OpenCL KataGo backend outside the Godot process. */
@@ -20,6 +21,7 @@ public final class KataGoOpenCLService extends Service {
 	private static final long POLL_INTERVAL_MS = 40L;
 	private static final long FAILED_PROCESS_EXIT_DELAY_MS = 250L;
 	private static final long STOPPED_PROCESS_EXIT_DELAY_MS = 100L;
+	private static final long FORCED_PROCESS_EXIT_DELAY_MS = 1000L;
 
 	private final Handler handler = new Handler(Looper.getMainLooper());
 	private final Messenger incoming = new Messenger(
@@ -80,6 +82,7 @@ public final class KataGoOpenCLService extends Service {
 	public void onDestroy() {
 		polling = false;
 		handler.removeCallbacks(pollNative);
+		scheduleForcedProcessExit();
 		if (nativeLibraryLoaded) {
 			nativeStop();
 		}
@@ -110,6 +113,7 @@ public final class KataGoOpenCLService extends Service {
 				}
 				polling = false;
 				handler.removeCallbacks(pollNative);
+				scheduleForcedProcessExit();
 				if (nativeLibraryLoaded) {
 					nativeStop();
 				}
@@ -163,6 +167,16 @@ public final class KataGoOpenCLService extends Service {
 			stopSelf();
 			android.os.Process.killProcess(android.os.Process.myPid());
 		}, delayMs);
+	}
+
+	private void scheduleForcedProcessExit() {
+		final int processId = android.os.Process.myPid();
+		Thread exitThread = new Thread(() -> {
+			SystemClock.sleep(FORCED_PROCESS_EXIT_DELAY_MS);
+			android.os.Process.killProcess(processId);
+		}, "KataGoOpenCLForcedExit");
+		exitThread.setDaemon(true);
+		exitThread.start();
 	}
 
 	private void sendState(int state) {

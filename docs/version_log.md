@@ -1,3 +1,21 @@
+# 0.1.14
+
+- 解决安卓版中如果KataGo后台被系统回收，只能重启软件才能恢复的问题。
+- Windows端的分支预览视图支持鼠标左键移动视口，适应触控板不支持右键拖拽的情况。
+- 数目功能改用独立计算量参数，默认500 visits。
+- 变化图模式中，允许在中间节点直接另选位置落子，自动删除原有后续节点。
+- Windows端双击打开SGF时，在当前已运行的Gotepad内新建标签页，而非新建Gotepad窗口。
+- 修复安卓端从系统内打开SGF跳转Gotepad时，已有标签被新SGF覆盖的问题。
+
+Translation：
+
+- Fixed an issue on Android where KataGo could only be restored by restarting the application after its backend was reclaimed by the system.
+- The branch preview on Windows can now be panned with the left mouse button, accommodating touchpads that do not support right-button dragging.
+- Endgame scoring now uses a separate computation-effort setting, defaulting to 500 visits.
+- In variation mode, you can play a different move from an intermediate node, replacing its existing continuation after confirmation.
+- On Windows, double-clicking an SGF now opens it in a new tab in the running Gotepad instance instead of creating another Gotepad window.
+- Fixed an issue on Android where opening an SGF from the system could overwrite an existing tab in Gotepad.
+
 # 0.1.13
 
 - 修复仿人棋退出后预置按钮消失的问题。
@@ -5,6 +23,14 @@
 - 人类模仿棋增加认输提示。
 - 软件启动时自动检测更新。
 - 优化UI细节。
+
+Translation：
+
+- Fixed an issue where preset-stone buttons disappeared after exiting human-like play.
+- On-board candidate markers can now display score lead.
+- Added resignation suggestions to human-like play.
+- The application now checks for updates automatically at startup.
+- Improved UI details.
 
 # 0.1.12
 

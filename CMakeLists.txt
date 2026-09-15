@@ -170,11 +170,13 @@ target_link_goban_dependencies(test_pptx)
 add_library(go_gdext SHARED
     src/go_gdext.cpp
     src/go_board_image_recognizer.cpp
+    src/windows_single_instance_bridge.cpp
     src/go_notes_sgf.cpp
     src/go_notes_sgf_save.cpp
     src/go_notes_pptx.cpp
     src/go_core.hpp
-    src/go_notes.hpp)
+    src/go_notes.hpp
+    src/windows_single_instance_bridge.hpp)
 target_link_libraries(go_gdext PRIVATE godot::cpp goban_miniz lunasvg::lunasvg)
 if (WIN32 OR ANDROID)
   target_link_libraries(go_gdext PRIVATE opencv_core opencv_imgproc)

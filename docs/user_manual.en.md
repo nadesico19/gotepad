@@ -2,7 +2,7 @@
 
 [简体中文](user_manual.md) | [English](user_manual.en.md) | [日本語](user_manual.ja.md) | [한국어](user_manual.ko.md)
 
-This manual applies to Gotepad 0.1.13. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
+This manual applies to Gotepad 0.1.14. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
 
 ## Contents
 
@@ -46,7 +46,7 @@ After opening the new interface, you can click "Load" and select the local `.sgf
 
 After loading successfully, board will roam to the last position of the first branch and be locked by default to avoid mistakenly move or undo when browsing game record. If the same SGF file is currently open, the program will not create tags again, but will activate the existing tags.
 
-Windows distributions support receiving a `.sgf` file path in the startup parameters. Select Gotepad as the "open method" of SGF in the file explorer, or pass the SGF path to `Gotepad.exe` in the command line. The program will load game record directly after startup; when multiple SGFs are passed in at one time, labels will be created separately.
+Windows distributions support receiving a `.sgf` file path in the startup parameters. Select Gotepad as the application used to open SGF files in File Explorer, or pass the SGF path to `Gotepad.exe` on the command line. The program loads the game record directly after startup; when multiple SGFs are passed at once, each opens in its own tab. If Gotepad is already running, double-clicking another SGF or invoking `Gotepad.exe` with an SGF path forwards the file to the first window. If that file is already open, Gotepad switches to its existing tab. Starting `Gotepad.exe` without an SGF path keeps a separate new window, which can be used to compare game records side by side.
 
 When there is an board tag, you can click `✕` in the upper right corner of the new interface or press `Esc` to close and return to the current game; if there is currently no board, the close button will not be displayed, and an board must be created or loaded.
 
@@ -170,7 +170,7 @@ In the next step, when there are setup stone branches that cannot be expressed b
 Click the icon or press `Ctrl+W` to open the game record tree view. The view will include branch key nodes, nodes with notes, and leaf nodes of each branch. The progress will be displayed when a large game record is generated for the first time; the generated thumbnails will be cached by game record and UID.
 
 -Scroll wheel to zoom the view.
-- Hold down the right mouse button and drag the canvas.
+- On desktop, hold the right mouse button to drag the canvas, or start a left-button drag from an empty area that does not hit a board thumbnail or button. The latter supports touchpads that cannot right-drag.
 - On Android touch screen devices, pinch with two fingers to zoom in and out of the view, and slide with two fingers to move the canvas; dragging with one finger from an empty area that does not hit the board thumbnail or button can also move the canvas.
 - Left click on the thumbnail to select position.
 - Click the green `✓` in the upper left corner of the check box, or double-click the selected thumbnail to navigate to the position and exit the view.
@@ -199,7 +199,7 @@ Click the variation icon or press `Ctrl+T`, and the program will copy the curren
 
 - The original next hand color will be inherited when entering, and then the default color will alternate between black and white.
 - You can use the play bar, `<`, `>`, or scroll the mouse wheel on board and the play bar to browse the change process that has been downloaded; the wheel goes back upwards and forwards downwards, consistent with the normal game mode.
-- When browsing to the middle position, you cannot continue to move. You must first go back to the end of variation.
+- You can also play from a position in the middle of a variation. Playing at the position of the next recorded move takes you directly to that move. If you play elsewhere, the program asks whether to delete all existing moves after the current position and play your move instead; canceling leaves the existing record unchanged.
 - Allowed at the end or midway undo, you can use the right mouse button or the `↩` button on the right and will ask for confirmation.
 - Green `✓` means adding the new move to the main game record one by one and then exiting.
 - Red `✕` or `Esc` means discard changes and exit.
@@ -335,6 +335,8 @@ After opening the KataGo panel:
 - "Increase the amount of calculation" reanalyzes the current position according to the `maxplayouts` specified in the input box on the right. The value must be greater than 0; you can still pause the interface refresh or stop the analysis during operation.
 - After checking "Continuous Analysis", roaming to the new position will automatically re-analyze; at this time, the play, pause and stop buttons are taken over by the continuous mode.
 
+On Android, Gotepad monitors result progress for current-position, continuous, and entire-playback-path analysis. Monitoring pauses while the app is in the background and restarts its timer when the app returns to the foreground. If KataGo produces no result for an extended period, Gotepad automatically restarts the OpenCL analysis service and restores unfinished requests. If the engine still does not respond after automatic recovery, the current analysis stops and asks you to start it again.
+
 The candidate table shows the location, current player's win rate, score lead, and variation entry. The top three candidates are marked on the board in translucent dark green, light green, and yellow. "Additional board candidates" can display 0 to 99 more candidates in a lighter yellow. "Top-three candidate opacity" and "Other candidate opacity" independently control the opacity of these two groups of board markers. After enabling "Show score lead", you can also enable "Show score lead on board candidates" on the next line. Each candidate marker then shows the current player's win rate above and score lead below, separated by a horizontal line. Disabling "Show score lead" also clears and disables "Show score lead on board candidates". If a candidate coincides with the actual next move on the current game-record path, it receives a thin black outline; this also applies to additional candidates. When the entire playback path has been analyzed, if the actual next move is not among the top three and its resulting win rate is at least 10 percentage points below the first choice, a pale red circle shows the negative win-rate difference at that move. Click "Enter" in the table to load a candidate sequence into the variation view. When the board is locked, you can also click a board candidate marker directly to enter its variation, then choose whether to keep or discard it.
 
 ### Analyze the Entire Playback Path
@@ -359,7 +361,7 @@ When the AI chooses to pass, the program asks whether you also want to pass; the
 
 ![endgame scoring](../gotepad-gd/assets/ui/territory_scoring.svg)
 
-endgame scoring currently only supports Chinese rules. All dame points should be completed before use, and then click the endgame scoring icon at the end of the toolbar on the right side of board. The program will call KataGo to determine the black and white of each intersection, and cover board with translucent region markers; green `✓`, red `✕`. The independent log panel on the right will display engine startup information and real-time determination progress line by line like a command line.
+Endgame scoring currently supports only Chinese rules. Fill all dame points before clicking the endgame scoring icon at the end of the toolbar on the right side of the board. The program uses the "Final scoring effort" setting to ask KataGo which side owns each intersection. This setting defaults to 500 visits and is independent of ordinary analysis effort and human-like play visits. The result appears as translucent region markers on the board; the separate log panel beside the green `✓` and red `✕` buttons displays engine startup messages and real-time progress line by line.
 
 KataGo's life and death and region determination may be wrong. When an error is found, clicking on the corresponding intersection will switch the entire area connected to it in four directions to the other side; after confirming all the marks, click the green `✓`, and the program will remove the stone that is judged to be dead, perform regional divisions on the remaining empty points, and list the total black and white, komi, and winning and losing numbers according to the Chinese rules of "stone + empty points". Red `✕` or `Esc` will exit directly without modifying game record. The endgame scoring results are only for auxiliary verification. Complex life and death, seki and unfinished dame points should still be reviewed by the user.
 
@@ -389,6 +391,7 @@ Click the gear button in the upper-right corner or press `Ctrl+O`. After modifyi
 ### KataGo
 
 - Analysis calculation amount: `maxVisits` currently analyzed by position, default 500.
+- Final scoring effort: `maxVisits` for endgame ownership analysis, default 500; it does not change with ordinary analysis effort.
 - Analysis refresh interval: the interval for receiving phased results, the default is 2 seconds.
 - Candidate variationmove number: The maximum number of candidate PVs displayed is move number, and the default is 10.
 - Number of additional board candidates: The number of board candidates displayed in addition to the top three candidates, ranging from 0 to 99, with the default value being 0.

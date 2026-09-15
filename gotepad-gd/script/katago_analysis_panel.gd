@@ -9,6 +9,10 @@ const kStateAnalyzing: int = 1
 const kStatePaused: int = 2
 const kStateStopping: int = 3
 const kStateContinuous: int = 4
+const kWatchdogFirstResultTimeoutSeconds: float = 180.0
+const kWatchdogMinimumProgressTimeoutSeconds: float = 60.0
+const kWatchdogReportIntervalMultiplier: float = 4.0
+const kWatchdogMaxRestartAttempts: int = 1
 @onready var panel_: PanelContainer = $Panel
 @onready var play_button_: Button = $Panel/Margin/Content/Controls/Primary/Play
 @onready var pause_button_: Button = $Panel/Margin/Content/Controls/Primary/Pause
@@ -55,6 +59,13 @@ var pending_analysis_paths_change_: bool = false
 var settings_change_update_scheduled_: bool = false
 var human_play_mode_: bool = false
 var human_play_previous_continuous_: bool = false
+var watchdog_active_: bool = false
+var watchdog_waiting_for_first_result_: bool = false
+var watchdog_elapsed_seconds_: float = 0.0
+var watchdog_restart_attempts_: int = 0
+var watchdog_restart_scheduled_: bool = false
+var watchdog_visits_by_result_: Dictionary = {}
+var application_paused_: bool = false
 
 
 func _ready() -> void:
@@ -76,6 +87,26 @@ func _ready() -> void:
 	update_controls_()
 
 
+func _process(delta: float) -> void:
+	if not watchdog_active_ or application_paused_ \
+			or watchdog_restart_scheduled_:
+		return
+	watchdog_elapsed_seconds_ += delta
+	if watchdog_elapsed_seconds_ < watchdog_timeout_seconds_():
+		return
+	watchdog_restart_scheduled_ = true
+	call_deferred(&"handle_watchdog_timeout_")
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED:
+		application_paused_ = true
+	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		application_paused_ = false
+		if watchdog_active_:
+			watchdog_elapsed_seconds_ = 0.0
+
+
 func bind_service(service: KataGoAnalysisService) -> void:
 	if service_ == service:
 		return
@@ -84,6 +115,7 @@ func bind_service(service: KataGoAnalysisService) -> void:
 	service_.service_error.connect(on_service_error_)
 	service_.query_error.connect(on_query_error_)
 	service_.service_warning.connect(on_service_warning_)
+	service_.recovery_started.connect(on_service_recovery_started_)
 
 
 func open_panel(go_notes: GoNotes, board: GoBoardView) -> void:
@@ -233,6 +265,7 @@ func on_board_position_changed(uid: int) -> void:
 
 	elif state_ != kStateIdle:
 		terminate_current_query_()
+		disarm_watchdog_()
 		state_ = kStateStopping
 		update_controls_()
 
@@ -256,7 +289,8 @@ func on_play_pressed_() -> void:
 			paused_result_.clear()
 		update_controls_()
 		return
-	start_current_analysis_(false)
+	if prepare_for_user_analysis_():
+		start_current_analysis_(false)
 
 
 func on_pause_pressed_() -> void:
@@ -271,6 +305,7 @@ func on_stop_pressed_() -> void:
 	if current_query_id_.is_empty():
 		return
 	terminate_current_query_()
+	disarm_watchdog_()
 	state_ = kStateStopping
 	status_label_.text = tr("正在停止分析…")
 	update_controls_()
@@ -281,16 +316,22 @@ func on_increase_pressed_() -> void:
 	if requested_playouts <= 0:
 		invalid_max_playouts_dialog_.popup_centered()
 		return
-	start_current_analysis_(false, requested_playouts)
+	if prepare_for_user_analysis_():
+		start_current_analysis_(false, requested_playouts)
 
 
 func on_continuous_toggled_(enabled: bool) -> void:
 	if enabled:
 		stop_batch_query_()
 		state_ = kStateContinuous
-		start_current_analysis_(true)
+		if prepare_for_user_analysis_():
+			start_current_analysis_(true)
+		else:
+			continuous_.set_pressed_no_signal(false)
+			state_ = kStateIdle
 	else:
 		terminate_current_query_()
+		disarm_watchdog_()
 		query_turn_uids_.erase(current_query_id_)
 		current_query_id_ = ""
 		current_max_playouts_ = 0
@@ -336,6 +377,7 @@ func start_current_analysis_(continuous: bool, max_playouts: int = 0) -> void:
 		state_ = kStateIdle
 		update_controls_()
 		return
+	arm_watchdog_()
 	state_ = kStateContinuous if continuous else kStateAnalyzing
 	status_label_.text = tr("正在分析当前局面…") \
 		if current_max_playouts_ <= 0 \
@@ -352,6 +394,8 @@ func on_analyze_game_pressed_() -> void:
 	if service_ == null or go_notes_ == null or board_ == null:
 		return
 	if not current_query_id_.is_empty() or state_ == kStateContinuous:
+		return
+	if not prepare_for_user_analysis_():
 		return
 	var contexts: Array[Dictionary] = KataGoQueryBuilder.build_path_contexts(
 		go_notes_, board_.get_playback_path()
@@ -383,7 +427,6 @@ func on_analyze_game_pressed_() -> void:
 			SettingsStore.get_katago_report_interval_seconds(),
 			2
 		)
-		query.erase("reportDuringSearchEvery")
 		if not service_.submit_query(query):
 			stop_batch_query_()
 			return
@@ -394,14 +437,17 @@ func on_analyze_game_pressed_() -> void:
 	analyze_game_button_.text = tr("取消整局分析")
 	status_label_.text = tr("正在分析整条播放路径：0/%d") % \
 		batch_pending_turns_.size()
+	arm_watchdog_()
 	update_controls_()
 
 
 func on_analysis_result_(result: Dictionary) -> void:
 	var query_id: String = str(result.get("id", ""))
 	if query_id == current_query_id_:
+		note_watchdog_progress_(result)
 		handle_current_result_(result)
 	elif batch_member_ids_.has(query_id):
+		note_watchdog_progress_(result)
 		handle_batch_result_(result)
 
 
@@ -421,6 +467,7 @@ func handle_current_result_(result: Dictionary) -> void:
 		state_ = kStateIdle
 	elif state_ == kStatePaused:
 		status_label_.text = tr("分析已完成，点击播放按钮显示最终结果")
+	disarm_watchdog_()
 	update_controls_()
 
 
@@ -451,6 +498,8 @@ func handle_batch_result_(result: Dictionary) -> void:
 	var query_id: String = str(result.get("id", ""))
 	var turn: int = int(result.get("turnNumber", -1))
 	var result_key: String = batch_result_key_(query_id, turn)
+	if bool(result.get("isDuringSearch", false)):
+		return
 	if bool(result.get("noResults", false)):
 		batch_pending_turns_.erase(result_key)
 	elif not bool(result.get("isDuringSearch", false)):
@@ -477,6 +526,7 @@ func handle_batch_result_(result: Dictionary) -> void:
 	batch_query_id_ = ""
 	analyze_game_button_.text = tr("分析整条播放路径")
 	status_label_.text = tr("整局分析完成")
+	disarm_watchdog_()
 	update_controls_()
 
 
@@ -701,6 +751,7 @@ func stop_batch_query_() -> void:
 	batch_member_ids_.clear()
 	batch_query_id_ = ""
 	batch_pending_turns_.clear()
+	disarm_watchdog_()
 	analyze_game_button_.text = tr("分析整条播放路径")
 	status_label_.text = tr("整局分析已取消")
 	update_controls_()
@@ -714,9 +765,11 @@ func stop_all_queries_() -> void:
 	current_max_playouts_ = 0
 	paused_result_.clear()
 	state_ = kStateIdle
+	disarm_watchdog_()
 
 
 func on_service_error_(message: String) -> void:
+	disarm_watchdog_()
 	status_label_.text = compact_status_message_(message)
 	continuous_.set_pressed_no_signal(false)
 	state_ = kStateIdle
@@ -742,7 +795,96 @@ func on_query_error_(query_id: String, message: String) -> void:
 	else:
 		return
 	status_label_.text = compact_status_message_(message)
+	if current_query_id_.is_empty() and batch_query_id_.is_empty():
+		disarm_watchdog_()
 	update_controls_()
+
+
+func prepare_for_user_analysis_() -> bool:
+	return service_ != null and service_.prepare_for_user_analysis()
+
+
+func arm_watchdog_() -> void:
+	if OS.get_name() != "Android":
+		return
+	if service_ != null:
+		service_.set_user_analysis_recovery_enabled(true)
+	watchdog_active_ = true
+	watchdog_waiting_for_first_result_ = true
+	watchdog_elapsed_seconds_ = 0.0
+	watchdog_restart_attempts_ = 0
+	watchdog_restart_scheduled_ = false
+	watchdog_visits_by_result_.clear()
+
+
+func note_watchdog_progress_(result: Dictionary) -> void:
+	if not watchdog_active_:
+		return
+	var query_id: String = str(result.get("id", ""))
+	var turn: int = int(result.get("turnNumber", -1))
+	var progress_key: String = "%s:%d" % [query_id, turn]
+	var visits: int = int(Dictionary(result.get("rootInfo", {})).get(
+		"visits", -1
+	))
+	var final_result: bool = not bool(result.get("isDuringSearch", false))
+	if not final_result and watchdog_visits_by_result_.has(progress_key) \
+			and visits <= int(watchdog_visits_by_result_[progress_key]):
+		return
+	watchdog_visits_by_result_[progress_key] = visits
+	watchdog_waiting_for_first_result_ = false
+	watchdog_elapsed_seconds_ = 0.0
+
+
+func on_service_recovery_started_() -> void:
+	if not watchdog_active_:
+		return
+	watchdog_waiting_for_first_result_ = true
+	watchdog_elapsed_seconds_ = 0.0
+	watchdog_visits_by_result_.clear()
+	status_label_.text = tr("KataGo分析服务正在自动重启并恢复分析…")
+
+
+func disarm_watchdog_() -> void:
+	if service_ != null:
+		service_.set_user_analysis_recovery_enabled(false)
+	watchdog_active_ = false
+	watchdog_waiting_for_first_result_ = false
+	watchdog_elapsed_seconds_ = 0.0
+	watchdog_restart_attempts_ = 0
+	watchdog_restart_scheduled_ = false
+	watchdog_visits_by_result_.clear()
+
+
+func watchdog_timeout_seconds_() -> float:
+	if watchdog_waiting_for_first_result_:
+		return kWatchdogFirstResultTimeoutSeconds
+	return maxf(
+		kWatchdogMinimumProgressTimeoutSeconds,
+		SettingsStore.get_katago_report_interval_seconds() \
+			* kWatchdogReportIntervalMultiplier
+	)
+
+
+func handle_watchdog_timeout_() -> void:
+	watchdog_restart_scheduled_ = false
+	if not watchdog_active_ or application_paused_:
+		return
+	if current_query_id_.is_empty() and batch_query_id_.is_empty():
+		disarm_watchdog_()
+		return
+	if watchdog_restart_attempts_ >= kWatchdogMaxRestartAttempts:
+		if service_ != null:
+			service_.shutdown()
+		on_service_error_(tr(
+			"KataGo分析服务长时间未响应，请重新开始分析。"
+		))
+		return
+	watchdog_restart_attempts_ += 1
+	watchdog_waiting_for_first_result_ = true
+	watchdog_elapsed_seconds_ = 0.0
+	status_label_.text = tr("KataGo分析服务正在自动重启并恢复分析…")
+	if service_ == null or not service_.restart_active_queries():
+		on_service_error_(tr("无法自动重启KataGo分析服务。"))
 
 
 func on_service_warning_(message: String) -> void:

@@ -95,6 +95,8 @@ const kStoneSound4: AudioStream = preload(
 @onready var takeback_confirmation_: ConfirmationDialog = $TakebackConfirmation
 @onready var cut_branch_confirmation_: ConfirmationDialog = \
 	$CutBranchConfirmation
+@onready var variation_overwrite_confirmation_: ConfirmationDialog = \
+	$VariationOverwriteConfirmation
 @onready var find_result_dialog_: AcceptDialog = $FindResultDialog
 @onready var preset_edit_error_dialog_: AcceptDialog = $PresetEditErrorDialog
 @onready var playback_bar_: HSlider = $PlaybackBar
@@ -148,6 +150,7 @@ var pending_move_origin_uid_: int = -1
 var find_direction_: int = kFindDisabled
 var cut_branch_mode_: bool = false
 var pending_cut_branch_uid_: int = -1
+var pending_variation_overwrite_: Dictionary = {}
 var variation_mode_: bool = false
 var variation_original_notes_: GoNotes
 var variation_original_follow_current_: bool = true
@@ -177,6 +180,12 @@ func _ready() -> void:
 	takeback_confirmation_.confirmed.connect(on_takeback_confirmed_)
 	cut_branch_confirmation_.confirmed.connect(on_cut_branch_confirmed_)
 	cut_branch_confirmation_.canceled.connect(on_cut_branch_canceled_)
+	variation_overwrite_confirmation_.confirmed.connect(
+		on_variation_overwrite_confirmed_
+	)
+	variation_overwrite_confirmation_.canceled.connect(
+		on_variation_overwrite_canceled_
+	)
 	playback_bar_.value_changed.connect(on_playback_value_changed_)
 	playback_bar_.gui_input.connect(on_playback_bar_gui_input_)
 	playback_bar_.mouse_exited.connect(on_playback_bar_mouse_exited_)
@@ -806,6 +815,8 @@ func gtp_coordinate_to_intersection_(coordinate: String) -> Vector2i:
 func exit_variation_mode() -> bool:
 	if not variation_mode_ or variation_original_notes_ == null:
 		return false
+	pending_variation_overwrite_.clear()
+	variation_overwrite_confirmation_.hide()
 	var original_notes: GoNotes = variation_original_notes_
 	var original_follow: bool = variation_original_follow_current_
 	var original_view_uid: int = variation_original_view_uid_
@@ -1177,6 +1188,9 @@ func set_interactions_locked(locked: bool) -> void:
 		return
 	if locked and takeback_confirmation_.visible:
 		takeback_confirmation_.hide()
+	if locked and variation_overwrite_confirmation_.visible:
+		pending_variation_overwrite_.clear()
+		variation_overwrite_confirmation_.hide()
 	update_playback_editable_()
 	refresh_hover_stone_()
 
@@ -1336,7 +1350,8 @@ func _input(event: InputEvent) -> void:
 		_:
 			return
 
-	if takeback_confirmation_.visible or cut_branch_confirmation_.visible:
+	if takeback_confirmation_.visible or cut_branch_confirmation_.visible \
+			or variation_overwrite_confirmation_.visible:
 		return
 	var focus_owner: Control = get_viewport().gui_get_focus_owner()
 	if focus_owner is OptionButton or focus_owner is LineEdit \
@@ -1352,7 +1367,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if (not follow_current_ and not note_preview_playback_active_) \
 			or go_notes_ == null \
 			or takeback_confirmation_.visible \
-			or cut_branch_confirmation_.visible:
+			or cut_branch_confirmation_.visible \
+			or variation_overwrite_confirmation_.visible:
 		return
 	if event is not InputEventMouseButton:
 		return
@@ -1408,8 +1424,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if interactions_locked_:
-			return
-		if variation_mode_ and not is_variation_terminal_position_():
 			return
 		var preset_color: int = 0 \
 				if preset_mode_ and preset_erase_mode_ else -1
@@ -1519,7 +1533,8 @@ func refresh_hover_stone_() -> void:
 		return
 	if interactions_locked_:
 		return
-	if variation_mode_ and not is_variation_terminal_position_():
+	if human_play_mode_ and variation_mode_ \
+			and not is_variation_terminal_position_():
 		return
 	if preset_mode_ and preset_erase_mode_:
 		return
@@ -2203,9 +2218,10 @@ func execute_roaming_to_(target_uid: int) -> bool:
 
 
 func execute_roaming_to_now_(target_uid: int, outcome: Dictionary) -> void:
-	var play_move_sound: bool = is_direct_move_child_(
-		int(go_notes_.get_current_uid()), target_uid
-	)
+	var play_move_sound: bool = not note_preview_playback_active_ \
+		and is_direct_move_child_(
+			int(go_notes_.get_current_uid()), target_uid
+		)
 	var command: String = "ROAMING,%d;" % target_uid
 	var result: int = int(go_notes_.execute_command(command))
 	outcome.completed = true
@@ -2250,8 +2266,6 @@ func place_stone_at_screen_position_(
 ) -> void:
 	if interactions_locked_:
 		return
-	if variation_mode_ and not is_variation_terminal_position_():
-		return
 	var inverse_canvas_transform := get_global_transform_with_canvas().affine_inverse()
 	var local_position: Vector2 = inverse_canvas_transform * screen_position
 	var cell_size: float = cell_size_()
@@ -2292,6 +2306,10 @@ func place_stone_at_screen_position_(
 		refresh_hover_stone_()
 		get_viewport().set_input_as_handled()
 		return
+	if variation_mode_ and not is_variation_terminal_position_():
+		request_variation_middle_move_(command_color, row, column)
+		get_viewport().set_input_as_handled()
+		return
 	if SettingsStore.get_move_confirmation_enabled():
 		request_stage_pending_move_(command_color, row, column)
 		get_viewport().set_input_as_handled()
@@ -2299,6 +2317,115 @@ func place_stone_at_screen_position_(
 
 	if execute_place_stone_(command_color, row, column):
 		get_viewport().set_input_as_handled()
+
+
+func request_variation_middle_move_(color: int, row: int, column: int) -> void:
+	if human_play_mode_ or go_notes_ == null or not bool(
+		go_notes_.call(&"can_place_stone", color, row, column)
+	):
+		return
+	cancel_pending_move()
+	if variation_next_move_matches_(row, column):
+		var _placed_or_roamed: bool = execute_place_stone_(color, row, column)
+		return
+	request_edit_sensitive_action_(
+		Callable(self, "show_variation_overwrite_confirmation_").bind(
+			go_notes_, int(go_notes_.get_current_uid()), color, row, column
+		)
+	)
+
+
+func variation_next_move_matches_(row: int, column: int) -> bool:
+	var next_uid: int = playback_next_uid_()
+	if next_uid < 0:
+		return false
+	var next_node: Dictionary = Dictionary(
+		go_notes_.call(&"get_node_at", next_uid)
+	)
+	return int(next_node.get("row", 0)) == row \
+		and int(next_node.get("column", 0)) == column
+
+
+func show_variation_overwrite_confirmation_(
+		notes: GoNotes, origin_uid: int, color: int, row: int, column: int
+) -> void:
+	if not variation_mode_ or human_play_mode_ or interactions_locked_ \
+			or go_notes_ != notes \
+			or int(go_notes_.get_current_uid()) != origin_uid \
+			or not bool(go_notes_.call(&"can_place_stone", color, row, column)):
+		return
+	if variation_next_move_matches_(row, column):
+		var _placed_or_roamed: bool = execute_place_stone_(color, row, column)
+		return
+	pending_variation_overwrite_ = {
+		"notes": notes, "origin_uid": origin_uid,
+		"color": color, "row": row, "column": column
+	}
+	set_playback_playing_(false)
+	variation_overwrite_confirmation_.popup_centered(Vector2i(480, 180))
+
+
+func on_variation_overwrite_confirmed_() -> void:
+	var pending: Dictionary = pending_variation_overwrite_.duplicate()
+	pending_variation_overwrite_.clear()
+	if pending.is_empty() or not variation_mode_ or human_play_mode_ \
+			or interactions_locked_ or go_notes_ != pending.get("notes") \
+			or int(go_notes_.get_current_uid()) != int(pending.get("origin_uid", -1)):
+		return
+	var color: int = int(pending.get("color", 0))
+	var row: int = int(pending.get("row", 0))
+	var column: int = int(pending.get("column", 0))
+	if not bool(go_notes_.call(&"can_place_stone", color, row, column)):
+		return
+	if variation_next_move_matches_(row, column):
+		var _placed_or_roamed: bool = execute_place_stone_(color, row, column)
+		return
+	replace_variation_followups_(color, row, column)
+
+
+func on_variation_overwrite_canceled_() -> void:
+	pending_variation_overwrite_.clear()
+
+
+func replace_variation_followups_(color: int, row: int, column: int) -> void:
+	var origin_uid: int = int(go_notes_.get_current_uid())
+	var origin_node: Dictionary = Dictionary(
+		go_notes_.call(&"get_node_at", origin_uid)
+	)
+	var children: Array = Array(origin_node.get("children", []))
+	var child_uids: Array[int] = []
+	for child_value: Variant in children:
+		if child_value is not Dictionary:
+			return
+		var child_uid: int = int(Dictionary(child_value).get("uid", -1))
+		if child_uid < 0:
+			return
+		child_uids.append(child_uid)
+	var cut_count: int = 0
+	for child_uid: int in child_uids:
+		var result: int = int(go_notes_.execute_command(
+			"CUTBRANCH,%d;" % child_uid
+		))
+		if result != 0:
+			var message: String = CommandMessages.localize(go_notes_.get_message())
+			rollback_variation_cuts_(cut_count)
+			push_warning(message)
+			return
+		cut_count += 1
+	if int(go_notes_.get_current_uid()) != origin_uid:
+		rollback_variation_cuts_(cut_count)
+		return
+	var outcome: Dictionary = {"completed": false, "success": true}
+	execute_place_stone_now_(color, row, column, outcome)
+	if not bool(outcome.get("success", false)):
+		rollback_variation_cuts_(cut_count)
+
+
+func rollback_variation_cuts_(cut_count: int) -> void:
+	for _index: int in range(cut_count):
+		if int(go_notes_.undo()) != 0:
+			push_warning(CommandMessages.localize(go_notes_.get_message()))
+			return
 
 
 func request_stage_pending_move_(color: int, row: int, column: int) -> void:

@@ -5,6 +5,7 @@ signal line_received(line: String)
 signal log_received(line: String)
 signal transport_error(message: String)
 signal transport_stopped
+signal recovery_started
 
 
 func start_transport() -> bool:

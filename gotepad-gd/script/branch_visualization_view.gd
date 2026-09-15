@@ -73,6 +73,7 @@ var zoom_: float = 1.0
 var pan_: Vector2 = Vector2.ZERO
 var selected_uid_: int = -1
 var dragging_: bool = false
+var mouse_drag_button_mask_: int = 0
 var last_drag_position_: Vector2 = Vector2.ZERO
 var active_touch_indices_: Dictionary = {}
 var touch_pan_index_: int = -1
@@ -104,6 +105,8 @@ func rebuild(go_notes: GoNotes) -> void:
 	selected_uid_ = -1
 	zoom_ = 1.0
 	pan_ = Vector2.ZERO
+	dragging_ = false
+	mouse_drag_button_mask_ = 0
 	active_touch_indices_.clear()
 	touch_pan_index_ = -1
 	suppress_emulated_mouse_until_ = 0
@@ -125,6 +128,8 @@ func rebuild(go_notes: GoNotes) -> void:
 
 func cancel_generation() -> void:
 	generation_token_ += 1
+	dragging_ = false
+	mouse_drag_button_mask_ = 0
 	active_touch_indices_.clear()
 	touch_pan_index_ = -1
 	loading_overlay_.hide()
@@ -1070,14 +1075,34 @@ func _handle_mouse_button_(event: InputEventMouseButton) -> void:
 		_zoom_at_(event.position, 1.0 / kZoomStep)
 		accept_event()
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		dragging_ = event.pressed
-		last_drag_position_ = event.position
+		if event.pressed:
+			dragging_ = true
+			mouse_drag_button_mask_ = MOUSE_BUTTON_MASK_RIGHT
+			last_drag_position_ = event.position
+		elif mouse_drag_button_mask_ == MOUSE_BUTTON_MASK_RIGHT:
+			dragging_ = false
+			mouse_drag_button_mask_ = 0
 		accept_event()
-	elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+	elif event.button_index == MOUSE_BUTTON_LEFT:
+		if not event.pressed:
+			if dragging_ \
+					and mouse_drag_button_mask_ == MOUSE_BUTTON_MASK_LEFT:
+				dragging_ = false
+				mouse_drag_button_mask_ = 0
+				accept_event()
+			return
 		if _try_selection_action_at_(event.position):
 			accept_event()
 			return
 		var clicked_uid: int = _uid_at_screen_position_(event.position)
+		if clicked_uid < 0:
+			selected_uid_ = -1
+			dragging_ = true
+			mouse_drag_button_mask_ = MOUSE_BUTTON_MASK_LEFT
+			last_drag_position_ = event.position
+			queue_redraw()
+			accept_event()
+			return
 		if event.double_click and clicked_uid >= 0 \
 				and clicked_uid == selected_uid_:
 			_roam_to_selected_()
@@ -1088,7 +1113,8 @@ func _handle_mouse_button_(event: InputEventMouseButton) -> void:
 
 
 func _handle_mouse_motion_(event: InputEventMouseMotion) -> void:
-	if not dragging_ or (event.button_mask & MOUSE_BUTTON_MASK_RIGHT) == 0:
+	if not dragging_ \
+			or (event.button_mask & mouse_drag_button_mask_) == 0:
 		return
 	pan_ += event.position - last_drag_position_
 	last_drag_position_ = event.position

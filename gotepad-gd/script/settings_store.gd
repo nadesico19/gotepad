@@ -56,6 +56,7 @@ const kDefaultKatagoExecutablePath: String = ""
 const kDefaultKatagoModelPath: String = ""
 const kDefaultKatagoHumanModelPath: String = ""
 const kDefaultKatagoMaxVisits: int = 500
+const kDefaultKatagoTerritoryVisits: int = 500
 const kDefaultKatagoHumanMaxVisits: int = 500
 const kDefaultKatagoHumanResignSuggestion: bool = false
 const kDefaultKatagoReportIntervalSeconds: float = 2.0
@@ -114,6 +115,7 @@ var katago_executable_path_: String = kDefaultKatagoExecutablePath
 var katago_model_path_: String = kDefaultKatagoModelPath
 var katago_human_model_path_: String = kDefaultKatagoHumanModelPath
 var katago_max_visits_: int = kDefaultKatagoMaxVisits
+var katago_territory_visits_: int = kDefaultKatagoTerritoryVisits
 var katago_human_max_visits_: int = kDefaultKatagoHumanMaxVisits
 var katago_human_resign_suggestion_: bool = \
 	kDefaultKatagoHumanResignSuggestion
@@ -265,6 +267,10 @@ func get_android_external_katago_human_model_path() -> String:
 
 func get_katago_max_visits() -> int:
 	return katago_max_visits_
+
+
+func get_katago_territory_visits() -> int:
+	return katago_territory_visits_
 
 
 func get_katago_human_max_visits() -> int:
@@ -455,6 +461,7 @@ func set_settings(
 		katago_executable_path: String,
 		katago_model_path: String,
 		katago_max_visits: int,
+		katago_territory_visits: int,
 		katago_report_interval_seconds: float,
 		katago_analysis_pv_length: int,
 		katago_extra_board_candidates: int,
@@ -492,6 +499,7 @@ func set_settings(
 	var previous_katago_model_path: String = katago_model_path_
 	var previous_katago_human_model_path: String = katago_human_model_path_
 	var previous_katago_max_visits: int = katago_max_visits_
+	var previous_katago_territory_visits: int = katago_territory_visits_
 	var previous_katago_human_max_visits: int = katago_human_max_visits_
 	var previous_katago_human_resign_suggestion: bool = \
 		katago_human_resign_suggestion_
@@ -546,6 +554,7 @@ func set_settings(
 	katago_model_path_ = katago_model_path.strip_edges()
 	katago_human_model_path_ = katago_human_model_path.strip_edges()
 	katago_max_visits_ = maxi(katago_max_visits, 1)
+	katago_territory_visits_ = maxi(katago_territory_visits, 1)
 	katago_human_max_visits_ = maxi(katago_human_max_visits, 1)
 	katago_human_resign_suggestion_ = katago_human_resign_suggestion
 	katago_report_interval_seconds_ = clampf(
@@ -596,6 +605,7 @@ func set_settings(
 		katago_model_path_ = previous_katago_model_path
 		katago_human_model_path_ = previous_katago_human_model_path
 		katago_max_visits_ = previous_katago_max_visits
+		katago_territory_visits_ = previous_katago_territory_visits
 		katago_human_max_visits_ = previous_katago_human_max_visits
 		katago_human_resign_suggestion_ = \
 			previous_katago_human_resign_suggestion
@@ -850,6 +860,11 @@ func load_config_() -> void:
 		"max_visits",
 		kDefaultKatagoMaxVisits
 	)), 1)
+	katago_territory_visits_ = maxi(int(config.get_value(
+		"katago",
+		"territory_visits",
+		kDefaultKatagoTerritoryVisits
+	)), 1)
 	katago_human_max_visits_ = maxi(int(config.get_value(
 		"katago_human",
 		"max_visits",
@@ -993,6 +1008,7 @@ func save_config_() -> Error:
 		"katago_human", "model_path", katago_human_model_path_
 	)
 	config.set_value("katago", "max_visits", katago_max_visits_)
+	config.set_value("katago", "territory_visits", katago_territory_visits_)
 	config.set_value(
 		"katago_human", "max_visits", katago_human_max_visits_
 	)
@@ -1050,6 +1066,7 @@ func reset_settings_() -> void:
 	katago_model_path_ = kDefaultKatagoModelPath
 	katago_human_model_path_ = kDefaultKatagoHumanModelPath
 	katago_max_visits_ = kDefaultKatagoMaxVisits
+	katago_territory_visits_ = kDefaultKatagoTerritoryVisits
 	katago_human_max_visits_ = kDefaultKatagoHumanMaxVisits
 	katago_human_resign_suggestion_ = kDefaultKatagoHumanResignSuggestion
 	katago_report_interval_seconds_ = kDefaultKatagoReportIntervalSeconds

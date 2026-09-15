@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.13"
+const kGotepadVersion: String = "0.1.14"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -47,6 +47,7 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoConfigLabel",
 	"KatagoConfigRow",
 	"KatagoMaxVisitsRow",
+	"KatagoTerritoryVisitsRow",
 	"KatagoReportIntervalRow",
 	"KatagoAnalysisPvLengthRow",
 	"KatagoExtraBoardCandidatesRow",
@@ -144,6 +145,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoConfigRow/Browse
 @onready var katago_max_visits_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoMaxVisitsRow/Visits
+@onready var katago_territory_visits_: SpinBox = \
+	$SettingsPanel/Margin/Options/KatagoTerritoryVisitsRow/Visits
 @onready var katago_report_interval_seconds_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoReportIntervalRow/Seconds
 @onready var katago_analysis_pv_length_: SpinBox = \
@@ -231,6 +234,7 @@ var opening_katago_human_max_visits_: int
 var opening_katago_human_resign_suggestion_: bool
 var opening_katago_analysis_config_path_: String
 var opening_katago_max_visits_: int
+var opening_katago_territory_visits_: int
 var opening_katago_report_interval_seconds_: float
 var opening_katago_analysis_pv_length_: int
 var opening_katago_extra_board_candidates_: int
@@ -312,6 +316,9 @@ func _ready() -> void:
 	)
 	katago_analysis_config_path_.text_changed.connect(on_katago_path_changed_)
 	katago_max_visits_.value_changed.connect(on_katago_max_visits_changed_)
+	katago_territory_visits_.value_changed.connect(
+		on_katago_analysis_option_changed_
+	)
 	katago_report_interval_seconds_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
@@ -715,6 +722,8 @@ func open_panel_() -> void:
 	opening_katago_analysis_config_path_ = \
 		SettingsStore.get_katago_analysis_config_path()
 	opening_katago_max_visits_ = SettingsStore.get_katago_max_visits()
+	opening_katago_territory_visits_ = \
+		SettingsStore.get_katago_territory_visits()
 	opening_katago_report_interval_seconds_ = \
 		SettingsStore.get_katago_report_interval_seconds()
 	opening_katago_analysis_pv_length_ = \
@@ -794,6 +803,9 @@ func open_panel_() -> void:
 	katago_analysis_config_path_.text = "" if config_path_invalid \
 		else opening_katago_analysis_config_path_
 	katago_max_visits_.set_value_no_signal(opening_katago_max_visits_)
+	katago_territory_visits_.set_value_no_signal(
+		opening_katago_territory_visits_
+	)
 	katago_report_interval_seconds_.set_value_no_signal(
 		opening_katago_report_interval_seconds_
 	)
@@ -1058,6 +1070,8 @@ func has_staged_changes_() -> bool:
 		or selected_katago_analysis_config_path_() \
 			!= opening_katago_analysis_config_path_ \
 		or selected_katago_max_visits_() != opening_katago_max_visits_ \
+		or selected_katago_territory_visits_() \
+			!= opening_katago_territory_visits_ \
 		or not is_equal_approx(
 			selected_katago_report_interval_seconds_(),
 			opening_katago_report_interval_seconds_
@@ -1194,6 +1208,10 @@ func selected_katago_max_visits_() -> int:
 	return maxi(roundi(katago_max_visits_.value), 1)
 
 
+func selected_katago_territory_visits_() -> int:
+	return maxi(roundi(katago_territory_visits_.value), 1)
+
+
 func selected_katago_human_max_visits_() -> int:
 	return maxi(roundi(katago_human_max_visits_.value), 1)
 
@@ -1310,6 +1328,7 @@ func on_confirm_pressed_() -> void:
 		selected_katago_executable_path_(),
 		selected_katago_model_path_(),
 		selected_katago_max_visits_(),
+		selected_katago_territory_visits_(),
 		selected_katago_report_interval_seconds_(),
 		selected_katago_analysis_pv_length_(),
 		selected_katago_extra_board_candidates_(),
@@ -1359,6 +1378,7 @@ func on_confirm_pressed_() -> void:
 	opening_katago_analysis_config_path_ = \
 		selected_katago_analysis_config_path_()
 	opening_katago_max_visits_ = selected_katago_max_visits_()
+	opening_katago_territory_visits_ = selected_katago_territory_visits_()
 	opening_katago_report_interval_seconds_ = \
 		selected_katago_report_interval_seconds_()
 	opening_katago_analysis_pv_length_ = selected_katago_analysis_pv_length_()
@@ -1444,6 +1464,9 @@ func on_restore_pressed_() -> void:
 			opening_katago_analysis_config_path_
 		) else ""
 	katago_max_visits_.set_value_no_signal(opening_katago_max_visits_)
+	katago_territory_visits_.set_value_no_signal(
+		opening_katago_territory_visits_
+	)
 	katago_report_interval_seconds_.set_value_no_signal(
 		opening_katago_report_interval_seconds_
 	)
@@ -2383,6 +2406,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 		not desktop_paths_enabled and not android_model_enabled
 	katago_analysis_config_browse_.disabled = not desktop_paths_enabled
 	katago_max_visits_.editable = enabled
+	katago_territory_visits_.editable = enabled
 	katago_report_interval_seconds_.editable = enabled
 	katago_analysis_pv_length_.editable = enabled
 	katago_extra_board_candidates_.editable = enabled

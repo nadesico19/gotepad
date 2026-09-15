@@ -33,6 +33,9 @@ const kPptxTemplatePath: String = \
 const kPptxCopyBytesPerFrame: int = 1024 * 1024
 const kAndroidHostClass: StringName = &"com.godot.game.GodotApp"
 const kAndroidOpenIntentPollSeconds: float = 0.25
+const kWindowsSingleInstanceClass: StringName = \
+	&"WindowsSingleInstanceBridge"
+const kWindowsOpenRequestPollSeconds: float = 0.1
 const kHumanMoveUtilityLambda: float = 0.5
 const kHuman9dMoveUtilityLambda: float = 0.08
 const kHuman9dProfiles: Array[String] = ["rank_9d", "preaz_9d"]
@@ -294,6 +297,10 @@ var android_host_class_: Variant
 var android_open_intent_timer_: Timer
 var android_open_requests_: Array[String] = []
 var android_open_action_pending_: bool = false
+var windows_single_instance_bridge_: Object
+var windows_open_request_timer_: Timer
+var windows_open_requests_: Array[String] = []
+var windows_open_action_pending_: bool = false
 var territory_mode_active_: bool = false
 var territory_query_id_: String = ""
 var territory_side_panel_to_restore_: int = kPendingPanelNone
@@ -339,6 +346,8 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	if not configure_windows_single_instance_():
+		return
 	set_process(false)
 	get_tree().auto_accept_quit = false
 	export_progress_dialog_.get_ok_button().hide()
@@ -680,6 +689,102 @@ func configure_android_open_intents_() -> void:
 	android_open_intent_timer_.start()
 
 
+func configure_windows_single_instance_() -> bool:
+	if OS.get_name() != "Windows" or OS.has_feature("editor"):
+		return true
+	if not ClassDB.class_exists(kWindowsSingleInstanceClass):
+		push_warning("Windows single-instance bridge is unavailable.")
+		return true
+	windows_single_instance_bridge_ = ClassDB.instantiate(
+		kWindowsSingleInstanceClass
+	)
+	if windows_single_instance_bridge_ == null:
+		push_warning("Unable to create the Windows single-instance bridge.")
+		return true
+	var is_primary: bool = bool(windows_single_instance_bridge_.call(
+		&"start_or_forward", get_startup_sgf_paths_()
+	))
+	if not is_primary:
+		get_tree().quit()
+		return false
+	var bridge_error: String = str(
+		windows_single_instance_bridge_.call(&"get_error")
+	)
+	if not bridge_error.is_empty():
+		push_warning(bridge_error)
+	windows_open_request_timer_ = Timer.new()
+	windows_open_request_timer_.wait_time = kWindowsOpenRequestPollSeconds
+	windows_open_request_timer_.timeout.connect(poll_windows_open_requests_)
+	add_child(windows_open_request_timer_)
+	windows_open_request_timer_.start()
+	return true
+
+
+func poll_windows_open_requests_() -> void:
+	if windows_single_instance_bridge_ == null:
+		return
+	var requests: Array = windows_single_instance_bridge_.call(
+		&"poll_requests"
+	)
+	for request: Variant in requests:
+		bring_main_window_to_foreground_()
+		if request is not PackedStringArray:
+			continue
+		var request_paths: PackedStringArray = request as PackedStringArray
+		var paths: PackedStringArray = PackedStringArray()
+		var seen_paths: Dictionary = {}
+		for argument: String in request_paths:
+			append_startup_sgf_path_(argument, paths, seen_paths)
+		for path: String in paths:
+			enqueue_windows_open_request_(path)
+	dispatch_next_windows_open_request_()
+
+
+func bring_main_window_to_foreground_() -> void:
+	var window: Window = get_window()
+	if window.mode == Window.MODE_MINIMIZED:
+		window.mode = Window.MODE_MAXIMIZED \
+			if last_window_maximized_ else Window.MODE_WINDOWED
+	DisplayServer.window_move_to_foreground()
+	DisplayServer.window_request_attention()
+
+
+func enqueue_windows_open_request_(path: String) -> void:
+	var normalized_path: String = normalized_file_path_(path)
+	if normalized_path.is_empty():
+		return
+	for queued_path: String in windows_open_requests_:
+		if normalized_file_path_(queued_path) == normalized_path:
+			return
+	windows_open_requests_.append(path)
+
+
+func dispatch_next_windows_open_request_() -> void:
+	if windows_open_action_pending_ or windows_open_requests_.is_empty():
+		return
+	windows_open_action_pending_ = true
+	var path: String = windows_open_requests_.pop_front()
+	request_after_note_edit_resolution_(
+		Callable(self, "continue_windows_open_request_").bind(path)
+	)
+
+
+func continue_windows_open_request_(path: String) -> void:
+	request_after_human_play_navigation_(
+		Callable(self, "open_windows_sgf_path_now_").bind(path)
+	)
+
+
+func open_windows_sgf_path_now_(path: String) -> void:
+	if active_document_index_ >= 0 \
+			and active_document_index_ < documents_.size() \
+			and documents_[active_document_index_].initialized:
+		create_new_tab_after_human_play_()
+	on_sgf_load_requested_(path)
+	windows_open_action_pending_ = false
+	call_deferred(&"dispatch_next_windows_open_request_")
+
+
 func poll_android_open_intents_() -> void:
 	if android_host_class_ == null:
 		return
@@ -698,20 +803,26 @@ func dispatch_next_android_open_request_() -> void:
 	android_open_action_pending_ = true
 	var uri: String = android_open_requests_.pop_front()
 	request_after_note_edit_resolution_(
+		Callable(self, "continue_android_open_request_").bind(uri)
+	)
+
+
+func continue_android_open_request_(uri: String) -> void:
+	request_after_human_play_navigation_(
 		Callable(self, "open_android_sgf_uri_now_").bind(uri)
 	)
 
 
 func open_android_sgf_uri_now_(uri: String) -> void:
-	android_open_action_pending_ = false
 	if active_document_index_ >= 0 \
 			and active_document_index_ < documents_.size() \
 			and documents_[active_document_index_].initialized:
-		create_new_tab_()
+		create_new_tab_after_human_play_()
 	var source_writable: bool = false
 	if android_host_class_ != null:
 		source_writable = bool(android_host_class_.canWriteDocument(uri))
 	on_sgf_load_requested_(uri, source_writable)
+	android_open_action_pending_ = false
 	call_deferred(&"dispatch_next_android_open_request_")
 
 
@@ -721,7 +832,7 @@ func open_startup_sgf_files_() -> void:
 	var paths: PackedStringArray = get_startup_sgf_paths_()
 	for index: int in range(paths.size()):
 		if index > 0:
-			create_new_tab_()
+			create_new_tab_after_human_play_()
 		on_sgf_load_requested_(paths[index])
 
 
@@ -2760,6 +2871,12 @@ func on_human_play_navigation_canceled_() -> void:
 	var resume_ai: bool = human_play_navigation_paused_ai_ \
 		and human_play_mode_active_
 	clear_human_play_navigation_action_()
+	if android_open_action_pending_:
+		android_open_action_pending_ = false
+		call_deferred(&"dispatch_next_android_open_request_")
+	if windows_open_action_pending_:
+		windows_open_action_pending_ = false
+		call_deferred(&"dispatch_next_windows_open_request_")
 	refresh_document_tabs_()
 	if resume_ai:
 		call_deferred(&"request_human_play_ai_move_")
@@ -2947,7 +3064,7 @@ func enter_territory_scoring_mode_() -> void:
 		context,
 		territory_query_id_,
 		[target_turn],
-		SettingsStore.get_katago_max_visits(),
+		SettingsStore.get_katago_territory_visits(),
 		SettingsStore.get_katago_report_interval_seconds(),
 		2
 	)
@@ -3615,6 +3732,9 @@ func on_note_edit_resolution_canceled_() -> void:
 	if android_open_action_pending_:
 		android_open_action_pending_ = false
 		call_deferred(&"dispatch_next_android_open_request_")
+	if windows_open_action_pending_:
+		windows_open_action_pending_ = false
+		call_deferred(&"dispatch_next_windows_open_request_")
 	pending_side_panel_ = kPendingPanelNone
 	board_.restore_playback_position()
 	refresh_document_tabs_()
