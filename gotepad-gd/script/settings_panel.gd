@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.14"
+const kGotepadVersion: String = "0.1.15"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -15,7 +15,8 @@ const kBenchmarkStateIdle: int = 0
 const kBenchmarkStateRunning: int = 1
 const kBenchmarkStateSucceeded: int = 2
 const kBenchmarkStateFailed: int = 3
-const kPanelLeftButtonMargin: float = 18.0
+const kSettingsScrollScreenRatio: float = 2.0 / 3.0
+const kSettingsScrollAnimationSeconds: float = 0.22
 const kMobileSpinBoxLongPressSeconds: float = 0.5
 const kMobileSpinBoxDragCancelDistance: float = 16.0
 const kMobileSpinBoxButtonScale: float = 1.5
@@ -89,6 +90,7 @@ const kStoneWhitePaths: Array[String] = [
 
 @onready var settings_button_: Button = $SettingsButton
 @onready var settings_panel_: PanelContainer = $SettingsPanel
+@onready var settings_scroll_: ScrollContainer = $SettingsPanel/Margin
 @onready var version_label_: Label = \
 	$SettingsPanel/Margin/Options/Version
 @onready var language_option_: OptionButton = \
@@ -210,6 +212,11 @@ const kStoneWhitePaths: Array[String] = [
 	$ActionBar/RestoreButton
 @onready var cancel_button_: Button = \
 	$ActionBar/CancelButton
+@onready var scroll_button_bar_: VBoxContainer = $ScrollButtonBar
+@onready var scroll_up_button_: Button = \
+	$ScrollButtonBar/ScrollUpButton
+@onready var scroll_down_button_: Button = \
+	$ScrollButtonBar/ScrollDownButton
 
 var opening_board_path_: String
 var opening_language_: String
@@ -268,6 +275,8 @@ var mobile_spinbox_press_position_: Vector2 = Vector2.ZERO
 var mobile_spinbox_line_edit_: LineEdit
 var mobile_spinbox_: SpinBox
 var configured_mobile_spinboxes_: Dictionary = {}
+var settings_scroll_tween_: Tween
+var settings_scroll_target_: float = 0.0
 
 
 func _ready() -> void:
@@ -276,6 +285,10 @@ func _ready() -> void:
 	configure_platform_option_visibility_()
 	configure_mobile_spinbox_long_press_()
 	settings_panel_.resized.connect(position_panel_left_buttons_)
+	settings_scroll_.resized.connect(on_settings_scroll_resized_)
+	settings_scroll_.get_v_scroll_bar().value_changed.connect(
+		on_settings_scroll_changed_
+	)
 	settings_button_.pressed.connect(on_settings_pressed_)
 	language_option_.item_selected.connect(on_language_selected_)
 	horizontal_safe_margin_.value_changed.connect(
@@ -391,10 +404,13 @@ func _ready() -> void:
 	confirm_button_.pressed.connect(on_confirm_pressed_)
 	restore_button_.pressed.connect(on_restore_pressed_)
 	cancel_button_.pressed.connect(on_cancel_pressed_)
+	scroll_up_button_.pressed.connect(on_scroll_settings_pressed_.bind(-1))
+	scroll_down_button_.pressed.connect(on_scroll_settings_pressed_.bind(1))
 	settings_panel_.hide()
 	katago_model_use_builtin_.visible = OS.get_name() == "Android"
 	close_button_.hide()
 	action_bar_.hide()
+	scroll_button_bar_.hide()
 	error_label_.hide()
 	katago_benchmark_window_.hide()
 	set_process(false)
@@ -502,6 +518,9 @@ func on_mobile_spinbox_gui_input_(
 
 
 func _input(event: InputEvent) -> void:
+	if settings_scroll_tween_ != null \
+			and should_cancel_settings_scroll_tween_(event):
+		cancel_settings_scroll_tween_()
 	# Observe releases even when a ScrollContainer takes over the gesture.
 	if OS.get_name() != "Android" or mobile_spinbox_touch_index_ < 0:
 		return
@@ -664,11 +683,114 @@ func _notification(what: int) -> void:
 func position_panel_left_buttons_() -> void:
 	if not is_node_ready():
 		return
+	var close_size: Vector2 = close_button_.size
+	var panel_style: StyleBox = settings_panel_.get_theme_stylebox(&"panel")
+	var left_gutter_width: float = panel_style.get_content_margin(SIDE_LEFT)
 	var target_x: float = roundf(
-		settings_panel_.position.x + kPanelLeftButtonMargin
+		settings_panel_.position.x
+		+ maxf((left_gutter_width - close_size.x) * 0.5, 0.0)
 	)
 	close_button_.position.x = target_x
 	action_bar_.position.x = target_x
+	scroll_button_bar_.position.x = target_x
+	confirm_button_.custom_minimum_size = close_size
+	restore_button_.custom_minimum_size = close_size
+	cancel_button_.custom_minimum_size = close_size
+	action_bar_.size.x = close_size.x
+	scroll_up_button_.custom_minimum_size = close_size
+	scroll_down_button_.custom_minimum_size = close_size
+	var separation: float = float(
+		scroll_button_bar_.get_theme_constant(&"separation")
+	)
+	scroll_button_bar_.size = Vector2(
+		close_size.x, close_size.y * 2.0 + separation
+	)
+	var panel_top_gap: float = close_button_.position.y - settings_panel_.position.y
+	scroll_button_bar_.position.y = roundf(
+		settings_panel_.position.y + settings_panel_.size.y
+		- panel_top_gap - scroll_button_bar_.size.y
+	)
+
+
+func on_scroll_settings_pressed_(direction: int) -> void:
+	var scroll_bar: VScrollBar = settings_scroll_.get_v_scroll_bar()
+	var distance: float = maxf(
+		settings_scroll_.size.y * kSettingsScrollScreenRatio, 1.0
+	)
+	var base: float = settings_scroll_target_ \
+		if settings_scroll_tween_ != null else scroll_bar.value
+	settings_scroll_target_ = clampf(
+		base + float(direction) * distance,
+		0.0,
+		float(maximum_settings_scroll_())
+	)
+	if settings_scroll_tween_ != null:
+		settings_scroll_tween_.kill()
+	if is_equal_approx(scroll_bar.value, settings_scroll_target_):
+		settings_scroll_tween_ = null
+		update_scroll_buttons_()
+		return
+	settings_scroll_tween_ = create_tween()
+	settings_scroll_tween_.set_trans(Tween.TRANS_CUBIC)
+	settings_scroll_tween_.set_ease(Tween.EASE_OUT)
+	settings_scroll_tween_.tween_property(
+		scroll_bar,
+		^"value",
+		settings_scroll_target_,
+		kSettingsScrollAnimationSeconds
+	)
+	settings_scroll_tween_.finished.connect(on_settings_scroll_tween_finished_)
+
+
+func on_settings_scroll_tween_finished_() -> void:
+	settings_scroll_tween_ = null
+	settings_scroll_target_ = settings_scroll_.get_v_scroll_bar().value
+	update_scroll_buttons_()
+
+
+func cancel_settings_scroll_tween_() -> void:
+	if settings_scroll_tween_ != null:
+		settings_scroll_tween_.kill()
+		settings_scroll_tween_ = null
+	settings_scroll_target_ = settings_scroll_.get_v_scroll_bar().value
+
+
+func should_cancel_settings_scroll_tween_(event: InputEvent) -> bool:
+	if event is InputEventScreenDrag or event is InputEventPanGesture:
+		return true
+	if event is InputEventScreenTouch:
+		return not scroll_button_at_((event as InputEventScreenTouch).position)
+	if event is InputEventMouseButton:
+		return not scroll_button_at_((event as InputEventMouseButton).position)
+	return event is InputEventKey and (event as InputEventKey).pressed
+
+
+func scroll_button_at_(position: Vector2) -> bool:
+	return scroll_up_button_.get_global_rect().has_point(position) \
+		or scroll_down_button_.get_global_rect().has_point(position)
+
+
+func on_settings_scroll_resized_() -> void:
+	cancel_settings_scroll_tween_()
+	update_scroll_buttons_()
+
+
+func on_settings_scroll_changed_(_value: float) -> void:
+	update_scroll_buttons_()
+
+
+func maximum_settings_scroll_() -> int:
+	var scroll_bar: VScrollBar = settings_scroll_.get_v_scroll_bar()
+	return maxi(roundi(scroll_bar.max_value - scroll_bar.page), 0)
+
+
+func update_scroll_buttons_() -> void:
+	if not is_node_ready():
+		return
+	var position: int = settings_scroll_.scroll_vertical
+	var maximum: int = maximum_settings_scroll_()
+	scroll_up_button_.disabled = position <= 0
+	scroll_down_button_.disabled = position >= maximum
 
 
 func on_settings_pressed_() -> void:
@@ -857,10 +979,14 @@ func open_panel_() -> void:
 		refresh_katago_human_path_status_()
 	settings_panel_.show()
 	close_button_.show()
+	scroll_button_bar_.show()
+	settings_scroll_target_ = settings_scroll_.get_v_scroll_bar().value
 	call_deferred(&"position_panel_left_buttons_")
+	call_deferred(&"update_scroll_buttons_")
 
 
 func close_panel_() -> void:
+	cancel_settings_scroll_tween_()
 	if OS.get_name() == "Android":
 		cancel_mobile_spinbox_long_press_()
 		for node: Node in settings_panel_.find_children("*", "SpinBox", true, false):
@@ -887,6 +1013,7 @@ func close_panel_() -> void:
 	settings_panel_.hide()
 	close_button_.hide()
 	action_bar_.hide()
+	scroll_button_bar_.hide()
 	error_label_.hide()
 
 

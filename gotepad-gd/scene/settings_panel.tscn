@@ -850,6 +850,50 @@ theme_override_font_sizes/font_size = 22
 tooltip_text = "取消并关闭设置"
 text = "✕"
 
+[node name="ScrollButtonBar" type="VBoxContainer" parent="."]
+layout_mode = 0
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -488.0
+offset_top = -110.0
+offset_right = -452.0
+offset_bottom = -30.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_constants/separation = 8
+
+[node name="ScrollUpButton" type="Button" parent="ScrollButtonBar"]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+tooltip_text = "向上滚动设置"
+script = ExtResource("4_fixed_width_button")
+source_text = "∧"
+fixed_font_size = 22
+horizontal_padding = 6.0
+
+[node name="ScrollDownButton" type="Button" parent="ScrollButtonBar"]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+tooltip_text = "向下滚动设置"
+script = ExtResource("4_fixed_width_button")
+source_text = "∨"
+fixed_font_size = 22
+horizontal_padding = 6.0
+
 [node name="KatagoExecutableDialog" type="FileDialog" parent="."]
 title = "选择 KataGo 可执行文件"
 transient = true

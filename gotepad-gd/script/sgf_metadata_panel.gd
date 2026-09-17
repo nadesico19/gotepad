@@ -3,6 +3,8 @@ extends Control
 
 signal panel_visibility_changed(opened: bool)
 
+const kScrollScreenRatio: float = 2.0 / 3.0
+const kScrollAnimationSeconds: float = 0.22
 const kFieldNodes: Dictionary = {
 	"game_name": "GameName",
 	"event": "Event",
@@ -27,14 +29,23 @@ const kFieldNodes: Dictionary = {
 }
 
 @onready var panel_: PanelContainer = $Panel
+@onready var scroll_: ScrollContainer = $Panel/Margin/Content/Scroll
 @onready var form_: VBoxContainer = \
 	$Panel/Margin/Content/Scroll/FormMargin/Form
+@onready var rules_header_: HBoxContainer = \
+	$Panel/Margin/Content/Scroll/FormMargin/Form/RulesHeader
+@onready var komi_header_: HBoxContainer = \
+	$Panel/Margin/Content/Scroll/FormMargin/Form/KomiHeader
 @onready var actions_: HBoxContainer = \
-	$Panel/Margin/Content/Header/ActionSlot/Actions
+	$Panel/Margin/Content/Header/ActionRow/EditActions
 @onready var accept_button_: Button = \
-	$Panel/Margin/Content/Header/ActionSlot/Actions/Accept
+	$Panel/Margin/Content/Header/ActionRow/EditActions/Accept
 @onready var cancel_button_: Button = \
-	$Panel/Margin/Content/Header/ActionSlot/Actions/Cancel
+	$Panel/Margin/Content/Header/ActionRow/EditActions/Cancel
+@onready var scroll_up_button_: Button = \
+	$Panel/Margin/Content/Header/ActionRow/ScrollUp
+@onready var scroll_down_button_: Button = \
+	$Panel/Margin/Content/Header/ActionRow/ScrollDown
 @onready var unsaved_confirmation_: ConfirmationDialog = \
 	$UnsavedConfirmation
 @onready var error_dialog_: AcceptDialog = $ErrorDialog
@@ -45,6 +56,9 @@ var saved_values_: Dictionary = {}
 var updating_: bool = false
 var close_after_edit_resolution_: bool = false
 var mobile_text_edit_long_press_: MobileTextEditLongPressController
+var scroll_tween_: Tween
+var scroll_target_: float = 0.0
+var last_internal_button_press_frame_: int = -2
 
 
 func _ready() -> void:
@@ -62,15 +76,36 @@ func _ready() -> void:
 			text_edit.focus_exited.connect(on_editor_focus_exited_)
 			text_edit.gui_input.connect(on_editor_gui_input_)
 	configure_mobile_text_edit_long_press_()
+	configure_quick_buttons_(rules_header_, "rules")
+	configure_quick_buttons_(komi_header_, "komi")
+	scroll_.resized.connect(on_scroll_resized_)
+	scroll_.get_v_scroll_bar().value_changed.connect(on_scroll_changed_)
 	accept_button_.pressed.connect(on_accept_pressed_)
 	cancel_button_.pressed.connect(on_cancel_pressed_)
+	scroll_up_button_.pressed.connect(on_scroll_pressed_.bind(-1))
+	scroll_down_button_.pressed.connect(on_scroll_pressed_.bind(1))
 	unsaved_confirmation_.confirmed.connect(on_unsaved_confirmed_)
 	unsaved_confirmation_.canceled.connect(on_unsaved_discarded_)
 	panel_.hide()
 	actions_.hide()
 
 
+func configure_quick_buttons_(header: HBoxContainer, field_name: String) -> void:
+	var buttons: Array[Button] = []
+	var widest: float = 0.0
+	for child: Node in header.get_children():
+		if child is Button:
+			var button: Button = child as Button
+			buttons.append(button)
+			widest = maxf(widest, button.get_combined_minimum_size().x)
+			button.pressed.connect(on_quick_value_pressed_.bind(field_name, button.text))
+	for button: Button in buttons:
+		button.custom_minimum_size = Vector2(widest, button.custom_minimum_size.y)
+
+
 func _input(event: InputEvent) -> void:
+	if scroll_tween_ != null and should_cancel_scroll_tween_(event):
+		cancel_scroll_tween_()
 	if not panel_.visible or unsaved_confirmation_.visible or not is_dirty_():
 		return
 	if event is not InputEventMouseButton:
@@ -80,7 +115,8 @@ func _input(event: InputEvent) -> void:
 		return
 	if editor_at_(mouse_event.position) != null \
 			or accept_button_.get_global_rect().has_point(mouse_event.position) \
-			or cancel_button_.get_global_rect().has_point(mouse_event.position):
+			or cancel_button_.get_global_rect().has_point(mouse_event.position) \
+			or scroll_button_at_(mouse_event.position):
 		return
 	show_unsaved_confirmation_()
 	get_viewport().set_input_as_handled()
@@ -96,13 +132,16 @@ func toggle_panel(go_notes: GoNotes) -> void:
 func open_panel(go_notes: GoNotes) -> void:
 	go_notes_ = go_notes
 	panel_.show()
+	scroll_target_ = scroll_.get_v_scroll_bar().value
 	refresh_metadata()
+	call_deferred(&"update_scroll_buttons_")
 	panel_visibility_changed.emit(true)
 
 
 func close_panel() -> void:
 	if not panel_.visible:
 		return
+	cancel_scroll_tween_()
 	if is_dirty_():
 		close_after_edit_resolution_ = true
 		show_unsaved_confirmation_()
@@ -111,6 +150,7 @@ func close_panel() -> void:
 
 
 func close_panel_immediately_() -> void:
+	cancel_scroll_tween_()
 	cancel_edit_()
 	if mobile_text_edit_long_press_ != null:
 		mobile_text_edit_long_press_.reset()
@@ -135,6 +175,80 @@ func set_panel_rect(panel_rect: Rect2) -> void:
 	panel_.size = panel_rect.size
 
 
+func on_scroll_pressed_(direction: int) -> void:
+	last_internal_button_press_frame_ = Engine.get_process_frames()
+	var scroll_bar: VScrollBar = scroll_.get_v_scroll_bar()
+	var distance: float = maxf(scroll_.size.y * kScrollScreenRatio, 1.0)
+	var base: float = scroll_target_ if scroll_tween_ != null else scroll_bar.value
+	scroll_target_ = clampf(
+		base + float(direction) * distance, 0.0, float(maximum_scroll_())
+	)
+	if scroll_tween_ != null:
+		scroll_tween_.kill()
+	if is_equal_approx(scroll_bar.value, scroll_target_):
+		scroll_tween_ = null
+		update_scroll_buttons_()
+		return
+	scroll_tween_ = create_tween()
+	scroll_tween_.set_trans(Tween.TRANS_CUBIC)
+	scroll_tween_.set_ease(Tween.EASE_OUT)
+	scroll_tween_.tween_property(
+		scroll_bar, ^"value", scroll_target_, kScrollAnimationSeconds
+	)
+	scroll_tween_.finished.connect(on_scroll_tween_finished_)
+
+
+func on_scroll_tween_finished_() -> void:
+	scroll_tween_ = null
+	scroll_target_ = scroll_.get_v_scroll_bar().value
+	update_scroll_buttons_()
+
+
+func cancel_scroll_tween_() -> void:
+	if scroll_tween_ != null:
+		scroll_tween_.kill()
+		scroll_tween_ = null
+	scroll_target_ = scroll_.get_v_scroll_bar().value
+
+
+func should_cancel_scroll_tween_(event: InputEvent) -> bool:
+	if event is InputEventScreenDrag or event is InputEventPanGesture:
+		return true
+	if event is InputEventScreenTouch:
+		return not scroll_button_at_((event as InputEventScreenTouch).position)
+	if event is InputEventMouseButton:
+		return not scroll_button_at_((event as InputEventMouseButton).position)
+	return event is InputEventKey and (event as InputEventKey).pressed
+
+
+func scroll_button_at_(position: Vector2) -> bool:
+	return scroll_up_button_.get_global_rect().has_point(position) \
+		or scroll_down_button_.get_global_rect().has_point(position)
+
+
+func on_scroll_resized_() -> void:
+	cancel_scroll_tween_()
+	update_scroll_buttons_()
+
+
+func on_scroll_changed_(_value: float) -> void:
+	update_scroll_buttons_()
+
+
+func maximum_scroll_() -> int:
+	var scroll_bar: VScrollBar = scroll_.get_v_scroll_bar()
+	return maxi(roundi(scroll_bar.max_value - scroll_bar.page), 0)
+
+
+func update_scroll_buttons_() -> void:
+	if not is_node_ready():
+		return
+	var position: int = scroll_.scroll_vertical
+	var maximum: int = maximum_scroll_()
+	scroll_up_button_.disabled = position <= 0
+	scroll_down_button_.disabled = position >= maximum
+
+
 func refresh_metadata() -> void:
 	if not panel_.visible or go_notes_ == null or is_dirty_():
 		return
@@ -154,6 +268,12 @@ func on_text_changed_(_unused: String = "") -> void:
 	actions_.visible = is_dirty_()
 
 
+func on_quick_value_pressed_(field_name: String, value: String) -> void:
+	last_internal_button_press_frame_ = Engine.get_process_frames()
+	set_editor_text_(editors_[field_name], value)
+	on_text_changed_()
+
+
 func is_dirty_() -> bool:
 	if updating_ or saved_values_.is_empty():
 		return false
@@ -171,6 +291,8 @@ func on_editor_focus_exited_() -> void:
 
 func show_unsaved_after_focus_change_() -> void:
 	if not panel_.visible or unsaved_confirmation_.visible or not is_dirty_():
+		return
+	if Engine.get_process_frames() <= last_internal_button_press_frame_ + 1:
 		return
 	var focus_owner: Control = get_viewport().gui_get_focus_owner()
 	if focus_owner != null and editors_.values().has(focus_owner):
@@ -253,6 +375,9 @@ func editor_at_(position: Vector2) -> Control:
 	for editor: Control in editors_.values():
 		if editor.get_global_rect().has_point(position):
 			return editor
+	for header: HBoxContainer in [rules_header_, komi_header_]:
+		if header.get_global_rect().has_point(position):
+			return header
 	return null
 
 

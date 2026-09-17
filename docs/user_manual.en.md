@@ -2,7 +2,7 @@
 
 [简体中文](user_manual.md) | [English](user_manual.en.md) | [日本語](user_manual.ja.md) | [한국어](user_manual.ko.md)
 
-This manual applies to Gotepad 0.1.14. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
+This manual applies to Gotepad 0.1.15. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
 
 ## Contents
 
@@ -252,7 +252,7 @@ When the notes panel is open and there are notes in the current position, board 
 
 ![game recordinfo](../gotepad-gd/assets/ui/sgf_info.svg)
 
-The game record information panel can edit the game name, event, round, date, location, black and white names and rank, results, rules, komi, handicap number, time, countdown, layout name, recorder, source, copyright and game general rating and other commonly used SGF header information.
+The game record information panel can edit the game name, event, round, date, location, black and white names and rank, results, rules, komi, handicap number, time, countdown, layout name, recorder, source, copyright and game general rating and other commonly used SGF header information. Use the buttons to the right of the Rules heading to fill in `Chinese`, `Japanese`, or `Korean`, and those to the right of the Komi heading to fill in `0`, `6.5`, or `7.5`. You can still enter either value manually. The `∧` and `∨` buttons on the right of the title bar scroll smoothly up or down by two-thirds of the visible height.
 
 After modification, click the green `✓` at the top of the panel to submit all fields at once, and click the red `✕` to give up. When editing content loses focus, it will also ask whether to keep it. Fields such as date, komi, handicap number, time and result should follow the interface example format, otherwise they may be rejected by the SGF validator when saving.
 
@@ -367,7 +367,7 @@ KataGo's life and death and region determination may be wrong. When an error is 
 
 ## Settings
 
-Click the gear button in the upper-right corner or press `Ctrl+O`. After modifying settings, use the controls in the upper-left of the panel: green `✓` to save, blue `↺` to revert the current changes, and red `✕` to cancel and close.
+Click the gear button in the upper-right corner or press `Ctrl+O`. After modifying settings, use the controls in the upper-left of the panel: green `✓` to save, blue `↺` to revert the current changes, and red `✕` to cancel and close. Use the `∧` and `∨` buttons on the left to scroll smoothly up or down by two-thirds of the visible settings area.
 
 ### Interface language
 

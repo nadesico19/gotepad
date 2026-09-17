@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://script/sgf_metadata_panel.gd" id="1_script"]
+[ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="2_fixed_width_button"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
 bg_color = Color(0.075, 0.075, 0.085, 0.5)
@@ -15,6 +16,72 @@ corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 shadow_color = Color(0, 0, 0, 0.35)
 shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxQuickNormal"]
+bg_color = Color(0.18, 0.18, 0.2, 1)
+content_margin_left = 4.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxQuickHover"]
+bg_color = Color(0.26, 0.26, 0.3, 1)
+content_margin_left = 4.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxQuickPressed"]
+bg_color = Color(0.33, 0.33, 0.38, 1)
+content_margin_left = 4.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxKomiQuickNormal"]
+bg_color = Color(0.18, 0.18, 0.2, 1)
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxKomiQuickHover"]
+bg_color = Color(0.26, 0.26, 0.3, 1)
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxKomiQuickPressed"]
+bg_color = Color(0.33, 0.33, 0.38, 1)
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="SgfMetadataPanel" type="Control"]
 layout_mode = 3
@@ -65,22 +132,19 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
 text = "棋谱信息"
 vertical_alignment = 1
+text_overrun_behavior = 3
+clip_text = true
 
-[node name="ActionSlot" type="Control" parent="Panel/Margin/Content/Header"]
-custom_minimum_size = Vector2(82, 38)
+[node name="ActionRow" type="HBoxContainer" parent="Panel/Margin/Content/Header"]
 layout_mode = 2
-
-[node name="Actions" type="HBoxContainer" parent="Panel/Margin/Content/Header/ActionSlot"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 theme_override_constants/separation = 4
 
-[node name="Accept" type="Button" parent="Panel/Margin/Content/Header/ActionSlot/Actions"]
-custom_minimum_size = Vector2(38, 36)
+[node name="EditActions" type="HBoxContainer" parent="Panel/Margin/Content/Header/ActionRow"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Accept" type="Button" parent="Panel/Margin/Content/Header/ActionRow/EditActions"]
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "接受全部棋谱信息修改"
@@ -88,14 +152,42 @@ theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
 theme_override_font_sizes/font_size = 22
 text = "✓"
 
-[node name="Cancel" type="Button" parent="Panel/Margin/Content/Header/ActionSlot/Actions"]
-custom_minimum_size = Vector2(38, 36)
+[node name="Cancel" type="Button" parent="Panel/Margin/Content/Header/ActionRow/EditActions"]
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "取消全部棋谱信息修改"
 theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
 theme_override_font_sizes/font_size = 22
 text = "✕"
+
+[node name="ScrollUp" type="Button" parent="Panel/Margin/Content/Header/ActionRow"]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "向上滚动棋谱信息"
+theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+script = ExtResource("2_fixed_width_button")
+source_text = "∧"
+fixed_font_size = 22
+horizontal_padding = 6.0
+
+[node name="ScrollDown" type="Button" parent="Panel/Margin/Content/Header/ActionRow"]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "向下滚动棋谱信息"
+theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+script = ExtResource("2_fixed_width_button")
+source_text = "∨"
+fixed_font_size = 22
+horizontal_padding = 6.0
 
 [node name="Scroll" type="ScrollContainer" parent="Panel/Margin/Content"]
 layout_mode = 2
@@ -176,15 +268,79 @@ text = "结果"
 layout_mode = 2
 placeholder_text = "例如 B+R / W+2.5 / 0"
 
-[node name="RulesLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
+[node name="RulesHeader" type="HBoxContainer" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="RulesLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form/RulesHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "规则"
+
+[node name="Chinese" type="Button" parent="Panel/Margin/Content/Scroll/FormMargin/Form/RulesHeader"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxQuickNormal")
+theme_override_styles/hover = SubResource("StyleBoxQuickHover")
+theme_override_styles/pressed = SubResource("StyleBoxQuickPressed")
+text = "Chinese"
+
+[node name="Japanese" type="Button" parent="Panel/Margin/Content/Scroll/FormMargin/Form/RulesHeader"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxQuickNormal")
+theme_override_styles/hover = SubResource("StyleBoxQuickHover")
+theme_override_styles/pressed = SubResource("StyleBoxQuickPressed")
+text = "Japanese"
+
+[node name="Korean" type="Button" parent="Panel/Margin/Content/Scroll/FormMargin/Form/RulesHeader"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxQuickNormal")
+theme_override_styles/hover = SubResource("StyleBoxQuickHover")
+theme_override_styles/pressed = SubResource("StyleBoxQuickPressed")
+text = "Korean"
 [node name="Rules" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 
-[node name="KomiLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
+[node name="KomiHeader" type="HBoxContainer" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="KomiLabel" type="Label" parent="Panel/Margin/Content/Scroll/FormMargin/Form/KomiHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "贴目"
+
+[node name="Zero" type="Button" parent="Panel/Margin/Content/Scroll/FormMargin/Form/KomiHeader"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxKomiQuickNormal")
+theme_override_styles/hover = SubResource("StyleBoxKomiQuickHover")
+theme_override_styles/pressed = SubResource("StyleBoxKomiQuickPressed")
+text = "0"
+
+[node name="SixPointFive" type="Button" parent="Panel/Margin/Content/Scroll/FormMargin/Form/KomiHeader"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxKomiQuickNormal")
+theme_override_styles/hover = SubResource("StyleBoxKomiQuickHover")
+theme_override_styles/pressed = SubResource("StyleBoxKomiQuickPressed")
+text = "6.5"
+
+[node name="SevenPointFive" type="Button" parent="Panel/Margin/Content/Scroll/FormMargin/Form/KomiHeader"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxKomiQuickNormal")
+theme_override_styles/hover = SubResource("StyleBoxKomiQuickHover")
+theme_override_styles/pressed = SubResource("StyleBoxKomiQuickPressed")
+text = "7.5"
 [node name="Komi" type="LineEdit" parent="Panel/Margin/Content/Scroll/FormMargin/Form"]
 layout_mode = 2
 placeholder_text = "例如 6.5"

@@ -1,3 +1,15 @@
+# 0.1.15
+
+- 棋谱信息页的规则和贴目增加快捷设置按钮，便于在加载缺少相关属性的SGF时做快速设置，该设置会影响KataGo分析。
+- 设置和棋谱信息面板增加翻页按钮，优化移动端的翻页体验。
+- 优化手机上打开大尺寸界面选项后，英文版的分析面板尺寸可能异常的问题。
+
+Translation：
+
+- Added quick-set buttons for rules and komi to the game information panel, making it easier to configure SGFs that omit these properties. These settings affect KataGo analysis.
+- Added page navigation buttons to the settings and game information panels, improving the mobile scrolling experience.
+- Fixed an issue where the English analysis panel could become abnormally wide on phones when the large UI option was enabled.
+
 # 0.1.14
 
 - 解决安卓版中如果KataGo后台被系统回收，只能重启软件才能恢复的问题。

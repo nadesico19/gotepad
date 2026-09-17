@@ -27,11 +27,12 @@ const kWatchdogMaxRestartAttempts: int = 1
 	$Panel/Margin/Content/Controls/Secondary/Continuous
 @onready var candidates_: Tree = $Panel/Margin/Content/Candidates
 @onready var curve_: AnalysisCurve = $Panel/Margin/Content/Curve
-@onready var score_legend_: Label = $Panel/Margin/Content/CurveFooter/ScoreLegend
+@onready var score_group_: HBoxContainer = \
+	$Panel/Margin/Content/CurveFooter/ScoreGroup
 @onready var current_winrate_value_: Label = \
-	$Panel/Margin/Content/CurveFooter/CurrentWinrateValue
+	$Panel/Margin/Content/CurveFooter/WinrateGroup/CurrentWinrateValue
 @onready var current_score_value_: Label = \
-	$Panel/Margin/Content/CurveFooter/CurrentScoreValue
+	$Panel/Margin/Content/CurveFooter/ScoreGroup/CurrentScoreValue
 @onready var analyze_game_button_: Button = \
 	$Panel/Margin/Content/CurveFooter/AnalyzeGame
 @onready var invalid_max_playouts_dialog_: AcceptDialog = \
@@ -659,8 +660,7 @@ func refresh_curve_() -> void:
 	curve_.set_series(
 		board_.get_playback_path(), results_by_uid_, show_score, current_uid_
 	)
-	score_legend_.visible = show_score
-	current_score_value_.visible = show_score
+	score_group_.visible = show_score
 	refresh_current_curve_values_()
 
 
