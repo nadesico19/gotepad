@@ -2,7 +2,7 @@
 
 [简体中文](user_manual.md) | [English](user_manual.en.md) | [日本語](user_manual.ja.md) | [한국어](user_manual.ko.md)
 
-本手册适用于 Gotepad 0.1.15。Gotepad 是一款用于围棋记谱、棋局检讨、分支整理、局面笔记和PPTX 课件导出的跨平台客户端。程序仍处于开发阶段，建议在进行较大范围的棋谱修改前先保存备份。
+本手册适用于 Gotepad 0.1.16。Gotepad 是一款用于围棋记谱、棋局检讨、分支整理、局面笔记和PPTX 课件导出的跨平台客户端。程序仍处于开发阶段，建议在进行较大范围的棋谱修改前先保存备份。
 
 ## 目录
 

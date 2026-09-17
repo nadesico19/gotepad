@@ -1,3 +1,11 @@
+# 0.1.16 (android)
+
+- 完善安卓端的自动性能检测和配置参数优化的逻辑，避免落入保守配置导致无法充分发挥移动端GPU的性能。特别指出，此修改使得KataGo分析模式在小米玄戒O3上取得了至少翻倍的性能提升。
+
+Translation：
+
+- Improved Android's automatic performance testing and configuration optimization logic, preventing overly conservative settings from underutilizing the mobile GPU. In particular, this change at least doubled KataGo analysis performance on the Xiaomi XRING O3.
+
 # 0.1.15
 
 - 棋谱信息页的规则和贴目增加快捷设置按钮，便于在加载缺少相关属性的SGF时做快速设置，该设置会影响KataGo分析。

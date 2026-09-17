@@ -285,19 +285,20 @@ if (BUILD_EMBEDDED_KATAGO)
       ${KATAGO_EMBEDDED_EIGEN_SOURCES})
   target_sources(go_gdext PRIVATE ${KATAGO_GDEXT_SOURCES})
   target_include_directories(go_gdext PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${KATAGO_CPP_DIR}"
       "${KATAGO_CPP_DIR}/external"
       "${KATAGO_CPP_DIR}/external/tclap-1.2.5/include"
       "${KATAGO_CPP_DIR}/external/filesystem-1.5.8/include"
       "${KATAGO_EIGEN_DIR}")
-  target_compile_definitions(go_gdext PRIVATE GOTEPAD_KATAGO_MERGED)
-  set_property(SOURCE ${KATAGO_GDEXT_SOURCES} APPEND PROPERTY
-      COMPILE_DEFINITIONS
+  # These definitions must be target-local. KATAGO_EMBEDDED_COMMON_SOURCES is
+  # also compiled into the isolated OpenCL library below, and source-level
+  # definitions would leak USE_EIGEN_BACKEND into that target.
+  target_compile_definitions(go_gdext PRIVATE
       GOTEPAD_KATAGO_EMBEDDED GOTEPAD_KATAGO_MERGED
       USE_EIGEN_BACKEND NO_GIT_REVISION NO_LIBZIP
       BYTE_ORDER=1234 LITTLE_ENDIAN=1234 BIG_ENDIAN=4321)
-  set_property(SOURCE ${KATAGO_GDEXT_SOURCES} APPEND PROPERTY
-      COMPILE_OPTIONS -fsigned-char)
+  target_compile_options(go_gdext PRIVATE -fsigned-char)
   target_link_libraries(go_gdext PRIVATE Threads::Threads ZLIB::ZLIB)
   # Android's NDK does not expose the legacy endian macros expected by
   # KataGo's portable SHA implementation. Gotepad currently builds only
@@ -334,6 +335,7 @@ if (BUILD_EMBEDDED_KATAGO)
         src/katago_version.cpp
         ${KATAGO_OPENCL_SOURCES})
     target_include_directories(katago_opencl_android PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${KATAGO_CPP_DIR}"
         "${KATAGO_CPP_DIR}/external"
         "${KATAGO_CPP_DIR}/external/tclap-1.2.5/include"

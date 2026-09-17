@@ -25,6 +25,12 @@ diff --git a/cpp/command/analysis.cpp b/cpp/command/analysis.cpp
 index 9a6e1f0..b3f3eff 100644
 --- a/cpp/command/analysis.cpp
 +++ b/cpp/command/analysis.cpp
+@@ -14,1 +14,5 @@
+ #include "../external/nlohmann_json/json.hpp"
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++#include "katago_embedded_benchmark.hpp"
++#endif
++
 @@ -58,6 +58,20 @@ struct AnalyzeRequest {
  
  
@@ -89,6 +95,67 @@ index 9a6e1f0..b3f3eff 100644
        line = Global::trim(line);
        if(line.length() == 0)
          continue;
+@@ -544,4 +562,50 @@ int MainCmds::analysis(const vector<string>& args) {
+             evalCache->clear();
+           pushToWrite(new string(input.dump()));
+         }
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++        else if(action == "query_runtime_stats") {
++          input["nn"] = GotepadKataGo::get_embedded_nn_stats(nnEval);
++          pushToWrite(new string(input.dump()));
++        }
++        else if(action == "prepare_benchmark") {
++          if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
++            reportErrorForId(rbase.id, "batchSize", "prepare_benchmark requires an integer batchSize");
++            continue;
++          }
++          int batchSize = input["batchSize"].get<int>();
++          if(batchSize < 1 || batchSize > nnEval->getMaxBatchSize()) {
++            reportErrorForId(rbase.id, "batchSize", "batchSize is outside the configured NN batch range");
++            continue;
++          }
++          nnEval->setCurrentBatchSize(batchSize);
++          nnEval->clearCache();
++          nnEval->clearStats();
++          if(evalCache != nullptr)
++            evalCache->clear();
++          input["nn"] = GotepadKataGo::get_embedded_nn_stats(nnEval);
++          pushToWrite(new string(input.dump()));
++        }
++        else if(action == "benchmark_nn") {
++          if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
++            reportErrorForId(rbase.id, "batchSize", "benchmark_nn requires an integer batchSize");
++            continue;
++          }
++          int batchSize = input["batchSize"].get<int>();
++          int durationMillis = 1500;
++          if(input.find("durationMillis") != input.end() && input["durationMillis"].is_number_integer())
++            durationMillis = input["durationMillis"].get<int>();
++          if(batchSize < 1 || batchSize > nnEval->getMaxBatchSize()) {
++            reportErrorForId(rbase.id, "batchSize", "batchSize is outside the configured NN batch range");
++            continue;
++          }
++          if(durationMillis < 250 || durationMillis > 10000) {
++            reportErrorForId(rbase.id, "durationMillis", "durationMillis must be between 250 and 10000");
++            continue;
++          }
++          input["benchmark"] = GotepadKataGo::run_embedded_nn_benchmark(
++            nnEval,batchSize,durationMillis
++          );
++          pushToWrite(new string(input.dump()));
++        }
++#endif
+         else if(action == "terminate") {
+@@ -614,4 +688,8 @@ int MainCmds::analysis(const vector<string>& args) {
+           pushToWrite(new string(input.dump()));
+         }
+         else {
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++          reportError("'action' field must be 'query_version', 'query_models', 'clear_cache', 'query_runtime_stats', 'prepare_benchmark', 'benchmark_nn', 'terminate', or 'terminate_all'");
++#else
+           reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all'");
++#endif
+         }
 diff --git a/cpp/core/global.cpp b/cpp/core/global.cpp
 index 249f159..b7f03f4 100644
 --- a/cpp/core/global.cpp

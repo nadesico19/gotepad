@@ -4,11 +4,21 @@ extends Node
 signal output_changed(output: String)
 signal completed(succeeded: bool, search_threads: int, batch_size: int, message: String)
 
-const kCandidates: Array[int] = [1, 2, 4, 6, 8]
-const kWarmupVisits: int = 8
-const kBenchmarkVisits: int = 64
-const kMaxThreads: int = 8
-const kMaxBatchSize: int = 4
+const kRegularThreadCandidates: Array[int] = [1, 2, 4, 8, 16, 32]
+const kRegularBatchCandidates: Array[int] = [1, 2, 4, 8, 16, 32]
+const kRegularBenchmarkVisits: int = 128
+const kRegularNnBenchmarkDurationMillis: int = 1500
+const kRegularWarmupDurationMillis: int = 10000
+const kRegularRetestCandidateCount: int = 4
+const kRegularSelectionTolerance: float = 1.05
+const kRegularReportPath: String = \
+	"user://katago/benchmark-latest.jsonl"
+const kRegularPhaseInitialStats: int = 1
+const kRegularPhaseNnBenchmark: int = 2
+const kRegularPhaseWarmup: int = 3
+const kRegularPhasePrepareSearch: int = 4
+const kRegularPhaseSearch: int = 5
+const kRegularPhaseSearchStats: int = 6
 const kHumanCandidates: Array[Vector2i] = [
 	Vector2i(4, 2),
 	Vector2i(1, 1),
@@ -23,11 +33,20 @@ const kHumanCandidateMaxRetries: int = 2
 
 var transport_: KataGoTransport
 var output_: String = ""
-var candidate_index_: int = -1
 var query_id_: String = ""
 var query_started_usec_: int = 0
-var visits_per_second_: Dictionary = {}
 var finishing_: bool = false
+var regular_phase_: int = 0
+var regular_nn_candidates_: Array[int] = []
+var regular_nn_candidate_index_: int = 0
+var regular_search_candidates_: Array[Vector2i] = []
+var regular_search_candidate_index_: int = 0
+var regular_search_retesting_: bool = false
+var regular_search_samples_: Dictionary = {}
+var regular_search_retest_samples_: Dictionary = {}
+var regular_retest_candidates_: Array[Vector2i] = []
+var regular_pending_sample_: Dictionary = {}
+var regular_report_records_: Array[Dictionary] = []
 var human_model_: bool = false
 var human_model_path_: String = ""
 var human_benchmark_visits_: int = SettingsStore.kDefaultKatagoHumanMaxVisits
@@ -69,9 +88,19 @@ func start_regular_benchmark_() -> bool:
 	transport_ = KataGoOpenCLTransport.new()
 	connect_transport_()
 	append_output_(tr("正在准备 Android 内置 KataGo 性能检测…"))
+	append_output_(tr("检测将分别测量纯神经网络吞吐量和真实搜索性能。"))
+	append_regular_report_("environment", {
+		"platform": OS.get_name(),
+		"deviceModel": OS.get_model_name(),
+		"osVersion": OS.get_version(),
+		"engineVersion": Engine.get_version_info(),
+	})
 	var override_config: String = (
 		"numSearchThreadsPerAnalysisThread=%d,nnMaxBatchSize=%d"
-		% [kMaxThreads, kMaxBatchSize]
+		% [
+			kRegularThreadCandidates[kRegularThreadCandidates.size() - 1],
+			kRegularBatchCandidates[kRegularBatchCandidates.size() - 1],
+		]
 	)
 	var started: bool = bool(transport_.call(
 		"start_transport_with_override", override_config
@@ -79,7 +108,8 @@ func start_regular_benchmark_() -> bool:
 	if not started:
 		finish_(false, 0, 0, tr("无法启动内置 KataGo 性能检测。"))
 		return false
-	start_query_(true)
+	regular_phase_ = kRegularPhaseInitialStats
+	send_regular_action_("query_runtime_stats")
 	return true
 
 
@@ -139,34 +169,101 @@ func cancel_benchmark() -> void:
 	queue_free()
 
 
-func start_query_(warmup: bool) -> void:
-	var threads: int = kMaxThreads if warmup else kCandidates[candidate_index_]
+func configure_regular_candidates_(max_batch_size: int) -> void:
+	regular_nn_candidates_.clear()
+	for batch_size: int in kRegularBatchCandidates:
+		if batch_size <= max_batch_size:
+			regular_nn_candidates_.append(batch_size)
+	if regular_nn_candidates_.is_empty() \
+			or regular_nn_candidates_[regular_nn_candidates_.size() - 1] \
+				< max_batch_size:
+		regular_nn_candidates_.append(max_batch_size)
+	regular_search_candidates_.clear()
+	for threads: int in kRegularThreadCandidates:
+		for batch_size: int in regular_nn_candidates_:
+			if batch_size <= threads:
+				regular_search_candidates_.append(
+					Vector2i(threads, batch_size)
+				)
+
+
+func send_regular_action_(action: String, values: Dictionary = {}) -> void:
 	query_id_ = "embedded-benchmark-%s-%d" % [
-		"warmup" if warmup else str(threads), Time.get_ticks_usec()
+		action, Time.get_ticks_usec()
 	]
-	var visits: int = kWarmupVisits if warmup else kBenchmarkVisits
+	var request: Dictionary = {"id": query_id_, "action": action}
+	for key: Variant in values:
+		request[key] = values[key]
+	if not transport_.send_line(JSON.stringify(request, "", false)):
+		finish_(false, 0, 0, tr("无法向内置 KataGo 发送性能检测请求。"))
+
+
+func start_regular_nn_benchmark_() -> void:
+	if regular_nn_candidate_index_ >= regular_nn_candidates_.size():
+		start_regular_warmup_()
+		return
+	var batch_size: int = regular_nn_candidates_[regular_nn_candidate_index_]
+	regular_phase_ = kRegularPhaseNnBenchmark
+	append_output_(tr("正在测试纯神经网络批量 %d…") % batch_size)
+	send_regular_action_("benchmark_nn", {
+		"batchSize": batch_size,
+		"durationMillis": kRegularNnBenchmarkDurationMillis,
+	})
+
+
+func start_regular_warmup_() -> void:
+	var batch_size: int = regular_nn_candidates_[
+		regular_nn_candidates_.size() - 1
+	]
+	regular_phase_ = kRegularPhaseWarmup
+	append_output_(tr("正在进行持续负载预热，以测量热态性能…"))
+	send_regular_action_("benchmark_nn", {
+		"batchSize": batch_size,
+		"durationMillis": kRegularWarmupDurationMillis,
+	})
+
+
+func start_regular_search_candidate_() -> void:
+	if regular_search_candidate_index_ >= regular_search_candidates_.size():
+		if not regular_search_retesting_ and prepare_regular_search_retest_():
+			start_regular_search_candidate_()
+			return
+		finish_regular_success_()
+		return
+	var candidate: Vector2i = \
+		regular_search_candidates_[regular_search_candidate_index_]
+	var status: String = "正在复测搜索配置：%d线程，批量%d…" \
+		if regular_search_retesting_ else "正在测试搜索配置：%d线程，批量%d…"
+	append_output_(tr(status) % [candidate.x, candidate.y])
+	regular_phase_ = kRegularPhasePrepareSearch
+	send_regular_action_("prepare_benchmark", {"batchSize": candidate.y})
+
+
+func start_regular_search_query_() -> void:
+	var candidate: Vector2i = \
+		regular_search_candidates_[regular_search_candidate_index_]
+	query_id_ = "embedded-search-%d-%d-%d" % [
+		candidate.x, candidate.y, Time.get_ticks_usec()
+	]
 	var query: Dictionary = {
 		"id": query_id_,
-		"moves": [],
+		"moves": [
+			["B", "Q16"], ["W", "D4"], ["B", "D16"], ["W", "Q4"],
+			["B", "K16"], ["W", "K4"], ["B", "C10"], ["W", "Q10"],
+			["B", "F17"], ["W", "F3"], ["B", "R14"], ["W", "C6"],
+			["B", "J14"], ["W", "L6"], ["B", "E12"], ["W", "O7"],
+		],
 		"initialStones": [],
 		"initialPlayer": "B",
 		"rules": "chinese",
 		"komi": 7.5,
 		"boardXSize": 19,
 		"boardYSize": 19,
-		"maxVisits": visits,
+		"maxVisits": kRegularBenchmarkVisits,
 		"analysisPVLen": 1,
-		"overrideSettings": {"numSearchThreads": threads}
+		"overrideSettings": {"numSearchThreads": candidate.x},
 	}
-	if human_model_:
-		var overrides: Dictionary = Dictionary(query["overrideSettings"])
-		overrides["humanSLProfile"] = "rank_1d"
-		overrides["ignorePreRootHistory"] = false
-		overrides["analysisIgnorePreRootHistory"] = false
-		query["overrideSettings"] = overrides
-		query["includePolicy"] = true
-	if not warmup:
-		append_output_(tr("正在测试 %d 个搜索线程…") % threads)
+	regular_phase_ = kRegularPhaseSearch
 	query_started_usec_ = Time.get_ticks_usec()
 	if not transport_.send_line(JSON.stringify(query, "", false)):
 		finish_(false, 0, 0, tr("无法向内置 KataGo 发送性能检测请求。"))
@@ -236,27 +333,129 @@ func on_line_received_(line: String, source: KataGoTransport) -> void:
 	if human_model_:
 		on_human_query_completed_(result)
 		return
-	if candidate_index_ < 0:
-		candidate_index_ = 0
-		start_query_(false)
+	on_regular_response_(result)
+
+
+func on_regular_response_(result: Dictionary) -> void:
+	match regular_phase_:
+		kRegularPhaseInitialStats:
+			var stats: Dictionary = Dictionary(result.get("nn", {}))
+			var max_batch_size: int = int(stats.get("maxBatchSize", 0))
+			if max_batch_size <= 0:
+				finish_(false, 0, 0, tr("内置 KataGo 没有返回有效的最大批量。"))
+				return
+			configure_regular_candidates_(max_batch_size)
+			append_output_(
+				"NN buffer = %dx%d, max batch = %d, FP16 = %s (%s)" % [
+					int(stats.get("nnXLen", 0)), int(stats.get("nnYLen", 0)),
+					int(stats.get("maxBatchSize", 0)),
+					str(stats.get("usingFP16", false)),
+					str(stats.get("requestedFP16Mode", "unknown")),
+				]
+			)
+			append_output_(tr("已按后端实际最大批量 %d 调整检测范围。") % \
+				max_batch_size)
+			append_regular_report_("runtime", stats)
+			regular_nn_candidate_index_ = 0
+			start_regular_nn_benchmark_()
+		kRegularPhaseNnBenchmark:
+			on_regular_nn_benchmark_completed_(result)
+		kRegularPhaseWarmup:
+			on_regular_warmup_completed_(result)
+		kRegularPhasePrepareSearch:
+			start_regular_search_query_()
+		kRegularPhaseSearch:
+			on_regular_search_completed_(result)
+		kRegularPhaseSearchStats:
+			on_regular_search_stats_received_(result)
+		_:
+			finish_(false, 0, 0, tr("性能检测收到未知阶段的结果。"))
+
+
+func on_regular_nn_benchmark_completed_(result: Dictionary) -> void:
+	var benchmark: Dictionary = Dictionary(result.get("benchmark", {}))
+	if benchmark.is_empty():
+		finish_(false, 0, 0, tr("纯神经网络性能检测没有返回有效结果。"))
 		return
+	append_output_(
+		"NN batch = %d : positions/s = %.2f, actual batch = %.2f" % [
+			int(benchmark.get("requestedBatchSize", 0)),
+			float(benchmark.get("positionsPerSecond", 0.0)),
+			float(benchmark.get("averageBatchSize", 0.0)),
+		]
+	)
+	append_regular_report_("nn", benchmark)
+	regular_nn_candidate_index_ += 1
+	start_regular_nn_benchmark_()
+
+
+func on_regular_warmup_completed_(result: Dictionary) -> void:
+	var benchmark: Dictionary = Dictionary(result.get("benchmark", {}))
+	if benchmark.is_empty():
+		finish_(false, 0, 0, tr("持续负载预热没有返回有效结果。"))
+		return
+	append_output_(
+		tr("预热完成：%.2f positions/s，实际批量 %.2f") % [
+			float(benchmark.get("positionsPerSecond", 0.0)),
+			float(benchmark.get("averageBatchSize", 0.0)),
+		]
+	)
+	append_regular_report_("warmup", benchmark)
+	regular_search_candidate_index_ = 0
+	start_regular_search_candidate_()
+
+
+func on_regular_search_completed_(result: Dictionary) -> void:
 	var elapsed_seconds: float = maxf(
 		float(Time.get_ticks_usec() - query_started_usec_) / 1000000.0,
 		0.001
 	)
 	var root_info: Dictionary = Dictionary(result.get("rootInfo", {}))
-	var visits: int = int(root_info.get("visits", kBenchmarkVisits))
+	var visits: int = int(root_info.get("visits", kRegularBenchmarkVisits))
 	var rate: float = float(visits) / elapsed_seconds
-	var threads: int = kCandidates[candidate_index_]
-	visits_per_second_[threads] = rate
-	append_output_(
-		"numSearchThreads = %d : visits/s = %.2f" % [threads, rate]
-	)
-	candidate_index_ += 1
-	if candidate_index_ < kCandidates.size():
-		start_query_(false)
+	var candidate: Vector2i = \
+		regular_search_candidates_[regular_search_candidate_index_]
+	regular_pending_sample_ = {
+		"threads": candidate.x,
+		"batch": candidate.y,
+		"visits": visits,
+		"elapsedSeconds": elapsed_seconds,
+		"visitsPerSecond": rate,
+		"retest": regular_search_retesting_,
+	}
+	regular_phase_ = kRegularPhaseSearchStats
+	send_regular_action_("query_runtime_stats")
+
+
+func on_regular_search_stats_received_(result: Dictionary) -> void:
+	var stats: Dictionary = Dictionary(result.get("nn", {}))
+	var sample: Dictionary = regular_pending_sample_.duplicate(true)
+	sample["nn"] = stats
+	var threads: int = int(sample.get("threads", 0))
+	var batch_size: int = int(sample.get("batch", 0))
+	var rate: float = float(sample.get("visitsPerSecond", 0.0))
+	var key: String = "%d:%d" % [threads, batch_size]
+	if regular_search_retesting_:
+		var retest_samples: Array = regular_search_retest_samples_.get(key, [])
+		retest_samples.append(rate)
+		regular_search_retest_samples_[key] = retest_samples
 	else:
-		finish_success_()
+		var samples: Array = regular_search_samples_.get(key, [])
+		samples.append(rate)
+		regular_search_samples_[key] = samples
+	append_output_(
+		"threads = %d, batch = %d : visits/s = %.2f, NN rows/s = %.2f, actual batch = %.2f, cache hits = %d" % [
+			threads, batch_size, rate,
+			float(stats.get("rows", 0)) /
+				maxf(float(sample.get("elapsedSeconds", 0.0)), 0.001),
+			float(stats.get("averageBatchSize", 0.0)),
+			int(stats.get("cacheHits", 0)),
+		]
+	)
+	append_regular_report_("search", sample)
+	regular_pending_sample_.clear()
+	regular_search_candidate_index_ += 1
+	start_regular_search_candidate_()
 
 
 func on_human_query_completed_(result: Dictionary) -> void:
@@ -380,23 +579,147 @@ func prepare_human_retest_() -> bool:
 	return true
 
 
-func finish_success_() -> void:
-	var best_threads: int = 0
-	var best_rate: float = -1.0
-	for key: Variant in visits_per_second_:
-		var threads: int = int(key)
-		var rate: float = float(visits_per_second_[key])
-		if rate > best_rate:
-			best_rate = rate
-			best_threads = threads
-	if best_threads <= 0:
+func regular_average_rate_(candidate: Vector2i) -> float:
+	var key: String = "%d:%d" % [candidate.x, candidate.y]
+	var samples: Array = regular_search_samples_.get(key, [])
+	if samples.is_empty():
+		return -1.0
+	var total: float = 0.0
+	for sample: Variant in samples:
+		total += float(sample)
+	return total / float(samples.size())
+
+
+func regular_retest_average_rate_(candidate: Vector2i) -> float:
+	var key: String = "%d:%d" % [candidate.x, candidate.y]
+	var samples: Array = regular_search_retest_samples_.get(key, [])
+	if samples.is_empty():
+		return -1.0
+	var total: float = 0.0
+	for sample: Variant in samples:
+		total += float(sample)
+	return total / float(samples.size())
+
+
+func regular_measured_candidates_() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for key_value: Variant in regular_search_samples_:
+		var fields: PackedStringArray = str(key_value).split(":", false, 1)
+		if fields.size() == 2:
+			result.append(Vector2i(int(fields[0]), int(fields[1])))
+	return result
+
+
+func prepare_regular_search_retest_() -> bool:
+	var remaining: Array[Vector2i] = regular_measured_candidates_()
+	if remaining.is_empty():
+		return false
+	regular_retest_candidates_.clear()
+	var candidate_count: int = mini(
+		kRegularRetestCandidateCount, remaining.size()
+	)
+	while regular_retest_candidates_.size() < candidate_count:
+		var fastest: Vector2i = Vector2i.ZERO
+		var fastest_rate: float = -1.0
+		for candidate: Vector2i in remaining:
+			var rate: float = regular_average_rate_(candidate)
+			if rate > fastest_rate:
+				fastest = candidate
+				fastest_rate = rate
+		if fastest == Vector2i.ZERO:
+			break
+		regular_retest_candidates_.append(fastest)
+		remaining.erase(fastest)
+	if regular_retest_candidates_.is_empty():
+		return false
+	regular_search_candidates_.clear()
+	# Run two passes in opposite order. Each candidate's two samples are then
+	# centered at roughly the same point in the device's thermal timeline.
+	for candidate: Vector2i in regular_retest_candidates_:
+		regular_search_candidates_.append(candidate)
+	for index: int in range(
+		regular_retest_candidates_.size() - 1, -1, -1
+	):
+		regular_search_candidates_.append(regular_retest_candidates_[index])
+	regular_search_candidate_index_ = 0
+	regular_search_retesting_ = true
+	append_output_(tr(
+		"将对最快的 %d 组配置进行两轮反向热态复测。"
+	) % regular_retest_candidates_.size())
+	return true
+
+
+func finish_regular_success_() -> void:
+	var fastest_candidate: Vector2i = Vector2i.ZERO
+	var fastest_rate: float = -1.0
+	# Select exclusively from the symmetric hot retests. The initial scan is
+	# intentionally used only to shortlist candidates because its early samples
+	# still benefit from a colder device.
+	for candidate: Vector2i in regular_retest_candidates_:
+		var rate: float = regular_retest_average_rate_(candidate)
+		if rate > fastest_rate:
+			fastest_rate = rate
+			fastest_candidate = candidate
+	if fastest_candidate == Vector2i.ZERO:
 		finish_(false, 0, 0, tr("性能检测没有取得有效结果。"))
 		return
-	var batch_size: int = maxi(2, ceili(float(best_threads) / 2.0))
-	append_output_(tr("推荐配置：%d 个搜索线程，批量大小 %d") % [
-		best_threads, batch_size
-	])
-	finish_(true, best_threads, batch_size, "")
+	var selected: Vector2i = fastest_candidate
+	var minimum_acceptable_rate: float = \
+		fastest_rate / kRegularSelectionTolerance
+	for candidate: Vector2i in regular_retest_candidates_:
+		var rate: float = regular_retest_average_rate_(candidate)
+		if rate >= minimum_acceptable_rate \
+				and (candidate.x < selected.x \
+				or (candidate.x == selected.x and candidate.y < selected.y)):
+			selected = candidate
+	var selected_rate: float = regular_retest_average_rate_(selected)
+	var selected_key: String = "%d:%d" % [selected.x, selected.y]
+	var fastest_key: String = "%d:%d" % [
+		fastest_candidate.x, fastest_candidate.y
+	]
+	append_output_(tr(
+		"推荐配置：%d 个搜索线程，批量大小 %d，热态复测 %.2f visits/s"
+	) % [selected.x, selected.y, selected_rate])
+	append_regular_report_("summary", {
+		"selectionMode": "hotRetestMean",
+		"selectedThreads": selected.x,
+		"selectedBatchSize": selected.y,
+		"selectedVisitsPerSecond": selected_rate,
+		"selectedInitialVisitsPerSecond": regular_average_rate_(selected),
+		"selectedRetestSamples": regular_search_retest_samples_.get(
+			selected_key, []
+		),
+		"fastestThreads": fastest_candidate.x,
+		"fastestBatchSize": fastest_candidate.y,
+		"fastestVisitsPerSecond": fastest_rate,
+		"fastestInitialVisitsPerSecond": regular_average_rate_(
+			fastest_candidate
+		),
+		"fastestRetestSamples": regular_search_retest_samples_.get(
+			fastest_key, []
+		),
+	})
+	finish_(true, selected.x, selected.y, "")
+
+
+func append_regular_report_(record_type: String, data: Dictionary) -> void:
+	regular_report_records_.append({
+		"type": record_type,
+		"unixTime": Time.get_unix_time_from_system(),
+		"data": data.duplicate(true),
+	})
+
+
+func write_regular_report_() -> String:
+	if regular_report_records_.is_empty():
+		return ""
+	var file: FileAccess = FileAccess.open(kRegularReportPath, FileAccess.WRITE)
+	if file == null:
+		return ""
+	for record: Dictionary in regular_report_records_:
+		file.store_line(JSON.stringify(record, "", false))
+	file.close()
+	return ProjectSettings.globalize_path(kRegularReportPath)
 
 
 func finish_(
@@ -407,6 +730,9 @@ func finish_(
 ) -> void:
 	if finishing_:
 		return
+	var report_path: String = write_regular_report_()
+	if not report_path.is_empty():
+		append_output_(tr("性能检测报告已保存：%s") % report_path)
 	finishing_ = true
 	stop_transport_()
 	completed.emit(succeeded, search_threads, batch_size, message)
@@ -456,6 +782,8 @@ func on_log_received_(line: String, source: KataGoTransport) -> void:
 	if source != transport_:
 		return
 	append_output_(line)
+	if not human_model_:
+		append_regular_report_("engineLog", {"message": line})
 
 
 func on_transport_error_(message: String, source: KataGoTransport) -> void:
