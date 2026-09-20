@@ -14,7 +14,7 @@ signal large_ui_changed(enabled: bool, multiplier: float)
 
 const kConfigPath: String = "user://settings.cfg"
 const kWindowStatePath: String = "user://window_state.cfg"
-const kSchemaVersion: int = 29
+const kSchemaVersion: int = 30
 const kLanguageSimplifiedChinese: String = "zh_CN"
 const kLanguageJapanese: String = "ja"
 const kLanguageKorean: String = "ko"
@@ -48,6 +48,9 @@ const kLargeUiMultiplierMaximum: float = 2.0
 const kDefaultLargeUiMultiplier: float = 1.5
 const kDefaultDesktopMoveConfirmation: bool = false
 const kDefaultMobileMoveConfirmation: bool = true
+const kMoveConfirmationMethodIcons: int = 0
+const kMoveConfirmationMethodSecondClick: int = 1
+const kDefaultMoveConfirmationMethod: int = kMoveConfirmationMethodIcons
 const kPptxImageFormatSvg: int = 0
 const kPptxImageFormatPng: int = 1
 const kDefaultPptxImageFormat: int = kPptxImageFormatSvg
@@ -109,6 +112,7 @@ var large_ui_enabled_: bool = kDefaultLargeUiEnabled
 var large_ui_multiplier_: float = kDefaultLargeUiMultiplier
 var move_confirmation_enabled_: bool = kDefaultMobileMoveConfirmation \
 	if OS.has_feature("mobile") else kDefaultDesktopMoveConfirmation
+var move_confirmation_method_: int = kDefaultMoveConfirmationMethod
 var pptx_image_format_: int = kDefaultPptxImageFormat
 var pptx_board_coordinates_: bool = kDefaultPptxBoardCoordinates
 var katago_executable_path_: String = kDefaultKatagoExecutablePath
@@ -225,6 +229,10 @@ func get_large_ui_multiplier() -> float:
 
 func get_move_confirmation_enabled() -> bool:
 	return move_confirmation_enabled_
+
+
+func get_move_confirmation_method() -> int:
+	return move_confirmation_method_
 
 
 func get_pptx_image_format() -> int:
@@ -456,6 +464,7 @@ func set_settings(
 		large_ui_enabled: bool,
 		large_ui_multiplier: float,
 		move_confirmation_enabled: bool,
+		move_confirmation_method: int,
 		pptx_image_format: int,
 		pptx_board_coordinates: bool,
 		katago_executable_path: String,
@@ -493,6 +502,7 @@ func set_settings(
 	var previous_large_ui_enabled: bool = large_ui_enabled_
 	var previous_large_ui_multiplier: float = large_ui_multiplier_
 	var previous_move_confirmation_enabled: bool = move_confirmation_enabled_
+	var previous_move_confirmation_method: int = move_confirmation_method_
 	var previous_pptx_image_format: int = pptx_image_format_
 	var previous_pptx_board_coordinates: bool = pptx_board_coordinates_
 	var previous_katago_executable_path: String = katago_executable_path_
@@ -546,6 +556,11 @@ func set_settings(
 	large_ui_enabled_ = large_ui_enabled
 	large_ui_multiplier_ = large_ui_multiplier
 	move_confirmation_enabled_ = move_confirmation_enabled
+	move_confirmation_method_ = clampi(
+		move_confirmation_method,
+		kMoveConfirmationMethodIcons,
+		kMoveConfirmationMethodSecondClick
+	)
 	pptx_image_format_ = clampi(
 		pptx_image_format, kPptxImageFormatSvg, kPptxImageFormatPng
 	)
@@ -599,6 +614,7 @@ func set_settings(
 		large_ui_enabled_ = previous_large_ui_enabled
 		large_ui_multiplier_ = previous_large_ui_multiplier
 		move_confirmation_enabled_ = previous_move_confirmation_enabled
+		move_confirmation_method_ = previous_move_confirmation_method
 		pptx_image_format_ = previous_pptx_image_format
 		pptx_board_coordinates_ = previous_pptx_board_coordinates
 		katago_executable_path_ = previous_katago_executable_path
@@ -637,7 +653,8 @@ func set_settings(
 		playback_interval_seconds_, previous_playback_interval
 	):
 		playback_interval_changed.emit()
-	if move_confirmation_enabled_ != previous_move_confirmation_enabled:
+	if move_confirmation_enabled_ != previous_move_confirmation_enabled \
+			or move_confirmation_method_ != previous_move_confirmation_method:
 		move_confirmation_changed.emit(move_confirmation_enabled_)
 	if horizontal_safe_margin_ != previous_horizontal_safe_margin:
 		horizontal_safe_margin_changed.emit(horizontal_safe_margin_)
@@ -806,6 +823,11 @@ func load_config_() -> void:
 		"move_confirmation_enabled",
 		default_move_confirmation_enabled_()
 	))
+	move_confirmation_method_ = clampi(int(config.get_value(
+		"gameplay",
+		"move_confirmation_method",
+		kDefaultMoveConfirmationMethod
+	)), kMoveConfirmationMethodIcons, kMoveConfirmationMethodSecondClick)
 	pptx_image_format_ = clampi(int(config.get_value(
 		"export",
 		"pptx_image_format",
@@ -998,6 +1020,9 @@ func save_config_() -> Error:
 	config.set_value(
 		"gameplay", "move_confirmation_enabled", move_confirmation_enabled_
 	)
+	config.set_value(
+		"gameplay", "move_confirmation_method", move_confirmation_method_
+	)
 	config.set_value("export", "pptx_image_format", pptx_image_format_)
 	config.set_value(
 		"export", "pptx_board_coordinates", pptx_board_coordinates_
@@ -1060,6 +1085,7 @@ func reset_settings_() -> void:
 	large_ui_enabled_ = kDefaultLargeUiEnabled
 	large_ui_multiplier_ = kDefaultLargeUiMultiplier
 	move_confirmation_enabled_ = default_move_confirmation_enabled_()
+	move_confirmation_method_ = kDefaultMoveConfirmationMethod
 	pptx_image_format_ = kDefaultPptxImageFormat
 	pptx_board_coordinates_ = kDefaultPptxBoardCoordinates
 	katago_executable_path_ = kDefaultKatagoExecutablePath

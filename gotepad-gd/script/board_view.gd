@@ -1276,9 +1276,8 @@ func on_playback_interval_changed_() -> void:
 		schedule_playback_step_()
 
 
-func on_move_confirmation_changed_(enabled: bool) -> void:
-	if not enabled:
-		cancel_pending_move()
+func on_move_confirmation_changed_(_enabled: bool) -> void:
+	cancel_pending_move()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
@@ -2143,7 +2142,7 @@ func try_activate_branch_at_(screen_position: Vector2) -> bool:
 		return false
 	if SettingsStore.get_move_confirmation_enabled() \
 			and not has_move_branch_(next_color_, row, column):
-		request_stage_pending_move_(next_color_, row, column)
+		request_confirm_or_stage_pending_move_(next_color_, row, column)
 	else:
 		cancel_pending_move()
 		var _placed_or_roamed: bool = execute_place_stone_(
@@ -2311,7 +2310,7 @@ func place_stone_at_screen_position_(
 		get_viewport().set_input_as_handled()
 		return
 	if SettingsStore.get_move_confirmation_enabled():
-		request_stage_pending_move_(command_color, row, column)
+		request_confirm_or_stage_pending_move_(command_color, row, column)
 		get_viewport().set_input_as_handled()
 		return
 
@@ -2432,6 +2431,24 @@ func request_stage_pending_move_(color: int, row: int, column: int) -> void:
 	request_edit_sensitive_action_(
 		Callable(self, "stage_pending_move_").bind(color, row, column)
 	)
+
+
+func request_confirm_or_stage_pending_move_(
+		color: int,
+		row: int,
+		column: int
+) -> void:
+	if SettingsStore.get_move_confirmation_method() \
+			== SettingsStore.kMoveConfirmationMethodSecondClick \
+			and go_notes_ != null \
+			and has_pending_move() \
+			and color == pending_move_color_ \
+			and row == pending_move_row_ \
+			and column == pending_move_column_ \
+			and int(go_notes_.get_current_uid()) == pending_move_origin_uid_:
+		request_edit_sensitive_action_(Callable(self, "accept_pending_move"))
+		return
+	request_stage_pending_move_(color, row, column)
 
 
 func stage_pending_move_(color: int, row: int, column: int) -> void:

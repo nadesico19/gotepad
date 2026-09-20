@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.16"
+const kGotepadVersion: String = "0.1.17"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -126,7 +126,9 @@ const kStoneWhitePaths: Array[String] = [
 @onready var stone_sound_volume_value_: Label = \
 	$SettingsPanel/Margin/Options/StoneSoundVolumeRow/Value
 @onready var move_confirmation_: CheckBox = \
-	$SettingsPanel/Margin/Options/MoveConfirmation
+	$SettingsPanel/Margin/Options/MoveConfirmationRow/Enabled
+@onready var move_confirmation_method_: OptionButton = \
+	$SettingsPanel/Margin/Options/MoveConfirmationRow/Method
 @onready var pptx_image_format_: OptionButton = \
 	$SettingsPanel/Margin/Options/PptxImageFormatRow/Format
 @onready var pptx_board_coordinates_: CheckBox = \
@@ -232,6 +234,7 @@ var opening_absolute_move_numbers_: bool
 var opening_playback_interval_seconds_: float
 var opening_stone_sound_volume_: int
 var opening_move_confirmation_: bool
+var opening_move_confirmation_method_: int
 var opening_pptx_image_format_: int
 var opening_pptx_board_coordinates_: bool
 var opening_katago_executable_path_: String
@@ -313,7 +316,8 @@ func _ready() -> void:
 		on_playback_interval_changed_
 	)
 	stone_sound_volume_.value_changed.connect(on_stone_sound_volume_changed_)
-	move_confirmation_.toggled.connect(on_katago_boolean_option_changed_)
+	move_confirmation_.toggled.connect(on_move_confirmation_toggled_)
+	move_confirmation_method_.item_selected.connect(on_option_selected_)
 	pptx_image_format_.item_selected.connect(on_option_selected_)
 	pptx_board_coordinates_.toggled.connect(on_katago_boolean_option_changed_)
 	katago_executable_path_.text_changed.connect(on_katago_path_changed_)
@@ -654,6 +658,7 @@ func refresh_localized_options_() -> void:
 	])
 	var board_index: int = maxi(board_option_.selected, 0)
 	var stone_index: int = maxi(stone_option_.selected, 0)
+	var confirmation_method: int = maxi(move_confirmation_method_.selected, 0)
 	var format_index: int = maxi(pptx_image_format_.selected, 0)
 	updating_options_ = true
 	board_option_.clear()
@@ -662,11 +667,15 @@ func refresh_localized_options_() -> void:
 	stone_option_.clear()
 	for stone_name: String in kStoneNames:
 		stone_option_.add_item(tr(stone_name))
+	move_confirmation_method_.clear()
+	move_confirmation_method_.add_item(tr("图标确认"))
+	move_confirmation_method_.add_item(tr("二次点击"))
 	pptx_image_format_.clear()
 	pptx_image_format_.add_item(tr("SVG (矢量)"))
 	pptx_image_format_.add_item(tr("PNG (兼容)"))
 	board_option_.select(clampi(board_index, 0, kBoardNames.size() - 1))
 	stone_option_.select(clampi(stone_index, 0, kStoneNames.size() - 1))
+	move_confirmation_method_.select(clampi(confirmation_method, 0, 1))
 	pptx_image_format_.select(clampi(format_index, 0, 1))
 	updating_options_ = false
 	set_katago_benchmark_window_state_(katago_benchmark_state_)
@@ -829,6 +838,8 @@ func open_panel_() -> void:
 	opening_stone_sound_volume_ = SettingsStore.get_stone_sound_volume()
 	opening_move_confirmation_ = \
 		SettingsStore.get_move_confirmation_enabled()
+	opening_move_confirmation_method_ = \
+		SettingsStore.get_move_confirmation_method()
 	opening_pptx_image_format_ = SettingsStore.get_pptx_image_format()
 	opening_pptx_board_coordinates_ = \
 		SettingsStore.get_pptx_board_coordinates()
@@ -906,6 +917,8 @@ func open_panel_() -> void:
 	stone_sound_volume_.set_value_no_signal(opening_stone_sound_volume_)
 	update_stone_sound_volume_label_()
 	move_confirmation_.set_pressed_no_signal(opening_move_confirmation_)
+	move_confirmation_method_.select(opening_move_confirmation_method_)
+	update_move_confirmation_method_enabled_(true)
 	pptx_image_format_.select(opening_pptx_image_format_)
 	pptx_board_coordinates_.set_pressed_no_signal(
 		opening_pptx_board_coordinates_
@@ -1114,6 +1127,16 @@ func on_katago_boolean_option_changed_(_value: bool) -> void:
 	on_option_selected_(0)
 
 
+func on_move_confirmation_toggled_(_pressed: bool) -> void:
+	update_move_confirmation_method_enabled_(true)
+	on_option_selected_(0)
+
+
+func update_move_confirmation_method_enabled_(controls_enabled: bool) -> void:
+	move_confirmation_method_.disabled = \
+		not controls_enabled or not move_confirmation_.button_pressed
+
+
 func on_katago_show_score_lead_toggled_(_pressed: bool) -> void:
 	update_katago_show_score_lead_on_board_enabled_(true)
 	on_option_selected_(0)
@@ -1182,6 +1205,8 @@ func has_staged_changes_() -> bool:
 		or selected_absolute_move_numbers_() != opening_absolute_move_numbers_ \
 		or selected_stone_sound_volume_() != opening_stone_sound_volume_ \
 		or selected_move_confirmation_() != opening_move_confirmation_ \
+		or selected_move_confirmation_method_() \
+			!= opening_move_confirmation_method_ \
 		or selected_pptx_image_format_() != opening_pptx_image_format_ \
 		or selected_pptx_board_coordinates_() \
 			!= opening_pptx_board_coordinates_ \
@@ -1291,6 +1316,14 @@ func selected_stone_sound_volume_() -> int:
 
 func selected_move_confirmation_() -> bool:
 	return move_confirmation_.button_pressed
+
+
+func selected_move_confirmation_method_() -> int:
+	return clampi(
+		move_confirmation_method_.selected,
+		SettingsStore.kMoveConfirmationMethodIcons,
+		SettingsStore.kMoveConfirmationMethodSecondClick
+	)
 
 
 func on_stone_sound_volume_changed_(_value: float) -> void:
@@ -1450,6 +1483,7 @@ func on_confirm_pressed_() -> void:
 		selected_large_ui_(),
 		selected_large_ui_multiplier_(),
 		selected_move_confirmation_(),
+		selected_move_confirmation_method_(),
 		selected_pptx_image_format_(),
 		selected_pptx_board_coordinates_(),
 		selected_katago_executable_path_(),
@@ -1488,6 +1522,7 @@ func on_confirm_pressed_() -> void:
 	opening_large_ui_ = selected_large_ui_()
 	opening_large_ui_multiplier_ = selected_large_ui_multiplier_()
 	opening_move_confirmation_ = selected_move_confirmation_()
+	opening_move_confirmation_method_ = selected_move_confirmation_method_()
 	opening_pptx_image_format_ = selected_pptx_image_format_()
 	opening_pptx_board_coordinates_ = selected_pptx_board_coordinates_()
 	opening_katago_executable_path_ = selected_katago_executable_path_()
@@ -1560,6 +1595,8 @@ func on_restore_pressed_() -> void:
 	stone_sound_volume_.set_value_no_signal(opening_stone_sound_volume_)
 	update_stone_sound_volume_label_()
 	move_confirmation_.set_pressed_no_signal(opening_move_confirmation_)
+	move_confirmation_method_.select(opening_move_confirmation_method_)
+	update_move_confirmation_method_enabled_(true)
 	pptx_image_format_.select(opening_pptx_image_format_)
 	pptx_board_coordinates_.set_pressed_no_signal(
 		opening_pptx_board_coordinates_
@@ -2515,6 +2552,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	playback_interval_seconds_.editable = enabled
 	stone_sound_volume_.editable = enabled
 	move_confirmation_.disabled = not enabled
+	update_move_confirmation_method_enabled_(enabled)
 	pptx_image_format_.disabled = not enabled
 	pptx_board_coordinates_.disabled = not enabled
 	var desktop_paths_enabled: bool = enabled and not OS.has_feature("mobile")

@@ -3440,11 +3440,15 @@ func on_pending_move_cancel_requested_() -> void:
 
 
 func on_pending_move_changed_(active: bool) -> void:
-	pending_move_accept_button_.visible = active \
+	var show_confirmation_icons: bool = \
+		SettingsStore.get_move_confirmation_method() \
+		== SettingsStore.kMoveConfirmationMethodIcons
+	pending_move_accept_button_.visible = active and show_confirmation_icons \
 		and (not board_.is_variation_mode() or human_play_mode_active_) \
 		and not board_.is_preset_mode()
 	pending_move_cancel_button_.visible = pending_move_accept_button_.visible
 	variation_pending_move_accept_button_.visible = active \
+		and show_confirmation_icons \
 		and board_.is_variation_mode() and not human_play_mode_active_
 	variation_pending_move_cancel_button_.visible = \
 		variation_pending_move_accept_button_.visible

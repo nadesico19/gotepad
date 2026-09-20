@@ -1,3 +1,11 @@
+# 0.1.17
+
+- 落子防误触支持两种模式：二次点击和图标确认。
+
+Translation：
+
+- Move confirmation now supports two modes: clicking the same position again and confirming with icons.
+
 # 0.1.16 (android)
 
 - 完善安卓端的自动性能检测和配置参数优化的逻辑，避免落入保守配置导致无法充分发挥移动端GPU的性能。特别指出，此修改使得KataGo分析模式在小米玄戒O3上取得了至少翻倍的性能提升。

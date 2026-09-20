@@ -2,7 +2,7 @@
 
 [简体中文](user_manual.md) | [English](user_manual.en.md) | [日本語](user_manual.ja.md) | [한국어](user_manual.ko.md)
 
-This manual applies to Gotepad 0.1.16. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
+This manual applies to Gotepad 0.1.17. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
 
 ## Contents
 
@@ -83,7 +83,7 @@ Commonly used icons are as follows:
 - A semi-transparent preview will be displayed when the mouse is hovering over the available location.
 - Use the black and white stone switch button or `Ctrl+Q` to specify the next color. After normal move, black and white alternation will be restored by default.
 
-After enabling "Move confirmation", the first click on a legal intersection will only display a translucent stone to be confirmed, and game record will not be modified immediately. The green `✓` at the top of the toolbar on the right of board is used to confirm move, and the red `✕` Used for cancellation; click on other legal intersections before confirmation to move the pending stone, and right-click the mouse to cancel. Entering the existing next branch will still roam directly without confirmation. This feature is turned off by default on the desktop version and enabled by default on mobile versions such as Android and iOS. User-saved settings take precedence over platform defaults.
+After enabling "Move confirmation", the first click on a legal intersection only displays a translucent pending stone and does not modify the game record immediately. The confirmation method to the right of the setting can be set to "Confirm with icons" or "Click twice". "Confirm with icons" temporarily displays a green `✓` and red `✕` at the top of the toolbar on the right side of the board for confirming or canceling the move. "Click twice" does not display these temporary buttons; the move is confirmed only when you click the intersection containing the current translucent stone again. In either mode, clicking another legal intersection before confirmation moves the pending stone, and right-clicking cancels it. Entering an existing next-move branch still navigates directly without confirmation. This feature is off by default on desktop and enabled by default on mobile platforms such as Android and iOS. User-saved settings take precedence over the platform default.
 - The program abides by basic rules and does not accept illegal events such as suicide.
 
 board will mark all the next move branches that can be entered with translucent graphics: the next hand on the current play path uses a square, and other branches use circles. When clicking on a marker:
@@ -384,7 +384,7 @@ Click the gear button in the upper-right corner or press `Ctrl+O`. After modifyi
 - Absolute move number: Use absolute movemove number from the current branch, otherwise show relative numbering.
 - Playback interval: the number of seconds to wait for each step of automatic playback, the default is 1 second.
 - move Sound effect: Use the 0–100 slider to adjust, the default is 50, and it is muted when set to 0. The program will randomly play five real Gomove recordings; it will be played when a new move is successfully created and roaming to the next move node. Loading game record, roaming to the preset node and setup stones will not be triggered.
-- Move confirmation: first display the semi-transparent stone for confirmation, click the green `✓` to actually move; it is turned off by default on the desktop and enabled by default on the mobile terminal.
+- Move confirmation: first displays a translucent pending stone; confirm the move with the green `✓` icon or by clicking the same intersection again. It is off by default on desktop and enabled by default on mobile platforms.
 - PPTX Board Image: Switch between SVG and PNG, default is SVG.
 - Export board coordinates: Display column letters on the upper side of PPTX board and row numbers on the left. The default is off.
 

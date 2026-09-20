@@ -360,10 +360,20 @@ text = "50%"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="MoveConfirmation" type="CheckBox" parent="SettingsPanel/Margin/Options"]
+[node name="MoveConfirmationRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
+
+[node name="Enabled" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveConfirmationRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "落子后先显示半透明棋子，确认后才写入棋谱"
 text = "落子防误触"
+
+[node name="Method" type="OptionButton" parent="SettingsPanel/Margin/Options/MoveConfirmationRow"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+tooltip_text = "选择待确认落子的确认方式"
+disabled = true
 
 [node name="PptxImageFormatRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
