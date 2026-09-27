@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.17"
+const kGotepadVersion: String = "0.1.18"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -201,8 +201,12 @@ const kStoneWhitePaths: Array[String] = [
 	$KatagoBenchmarkWindow/Panel/Margin/Content/Output
 @onready var katago_benchmark_action_button_: Button = \
 	$KatagoBenchmarkWindow/Panel/Margin/Content/Footer/Action
-@onready var katago_benchmark_save_reminder_: AcceptDialog = \
-	$KatagoBenchmarkWindow/SaveReminder
+@onready var katago_benchmark_cancel_button_: Button = \
+	$KatagoBenchmarkWindow/Panel/Margin/Content/Footer/Cancel
+@onready var katago_benchmark_cancel_confirmation_: ConfirmationDialog = \
+	$KatagoBenchmarkWindow/CancelConfirmation
+@onready var katago_benchmark_apply_error_: AcceptDialog = \
+	$KatagoBenchmarkWindow/ApplyError
 @onready var error_label_: Label = \
 	$SettingsPanel/Margin/Options/ErrorLabel
 @onready var close_button_: Button = $CloseButton
@@ -265,6 +269,7 @@ var pending_katago_benchmark_threads_: int = 0
 var pending_katago_benchmark_batch_size_: int = 0
 var pending_katago_human_benchmark_threads_: int = 0
 var pending_katago_human_benchmark_batch_size_: int = 0
+var katago_benchmark_previous_analysis_config_path_: String = ""
 var android_katago_benchmark_prepare_: Callable
 var katago_benchmark_human_mode_: bool = false
 var active_katago_file_dialog_: FileDialog
@@ -279,10 +284,21 @@ var mobile_spinbox_line_edit_: LineEdit
 var mobile_spinbox_: SpinBox
 var configured_mobile_spinboxes_: Dictionary = {}
 var settings_scroll_tween_: Tween
+var katago_model_acceleration_help_: Window
+var katago_model_acceleration_help_button_: Button
+var katago_model_acceleration_help_text_: RichTextLabel
+var katago_model_acceleration_help_close_: Button
+var katago_o3_optimize_: CheckBox
+var opening_katago_o3_optimize_: bool = false
+var katago_o3_validation_button_: Button
+var katago_o3_validation_mode_: bool = false
+var katago_o3_profile_: CheckBox
+var opening_katago_o3_profile_: bool = false
 var settings_scroll_target_: float = 0.0
 
 
 func _ready() -> void:
+	configure_o3_profile_option_()
 	populate_options_()
 	refresh_localized_options_()
 	configure_platform_option_visibility_()
@@ -395,14 +411,14 @@ func _ready() -> void:
 	katago_benchmark_action_button_.pressed.connect(
 		on_katago_benchmark_action_pressed_
 	)
+	katago_benchmark_cancel_button_.pressed.connect(
+		on_katago_benchmark_cancel_pressed_
+	)
 	katago_benchmark_window_.close_requested.connect(
 		on_katago_benchmark_window_close_requested_
 	)
-	katago_benchmark_save_reminder_.confirmed.connect(
-		close_katago_benchmark_window_
-	)
-	katago_benchmark_save_reminder_.canceled.connect(
-		close_katago_benchmark_window_
+	katago_benchmark_cancel_confirmation_.confirmed.connect(
+		on_katago_benchmark_cancel_confirmed_
 	)
 	close_button_.pressed.connect(on_cancel_pressed_)
 	confirm_button_.pressed.connect(on_confirm_pressed_)
@@ -649,6 +665,14 @@ func refresh_localized_options_() -> void:
 			% tr("KataGo Human SL 模型"),
 	])
 	katago_model_use_builtin_.text = tr("内置")
+	katago_model_acceleration_help_button_.tooltip_text = tr("特定模型加速说明")
+	katago_o3_optimize_.text = tr("特定模型加速")
+	katago_o3_optimize_.tooltip_text = tr("保存后用于分析和自动性能检测；关闭可恢复原实现。")
+	update_model_acceleration_help_text_()
+	katago_o3_validation_button_.text = tr("数值验证")
+	katago_o3_validation_button_.tooltip_text = tr("使用已保存模型自动比较新旧内核，不修改性能设置。")
+	katago_o3_profile_.text = tr("性能诊断（影响速度）")
+	katago_o3_profile_.tooltip_text = tr("记录分析耗时，自动性能检测不受此开关影响。")
 	katago_model_path_.placeholder_text = tr("使用内置模型") \
 		if OS.get_name() == "Android" else tr("请选择 .bin.gz 模型")
 	katago_human_model_path_.placeholder_text = \
@@ -693,6 +717,9 @@ func position_panel_left_buttons_() -> void:
 	if not is_node_ready():
 		return
 	var close_size: Vector2 = close_button_.size
+	var action_button_spacing: float = float(
+		action_bar_.get_theme_constant(&"separation")
+	)
 	var panel_style: StyleBox = settings_panel_.get_theme_stylebox(&"panel")
 	var left_gutter_width: float = panel_style.get_content_margin(SIDE_LEFT)
 	var target_x: float = roundf(
@@ -701,6 +728,9 @@ func position_panel_left_buttons_() -> void:
 	)
 	close_button_.position.x = target_x
 	action_bar_.position.x = target_x
+	action_bar_.position.y = roundf(
+		close_button_.position.y + close_size.y + action_button_spacing
+	)
 	scroll_button_bar_.position.x = target_x
 	confirm_button_.custom_minimum_size = close_size
 	restore_button_.custom_minimum_size = close_size
@@ -749,6 +779,106 @@ func on_scroll_settings_pressed_(direction: int) -> void:
 		kSettingsScrollAnimationSeconds
 	)
 	settings_scroll_tween_.finished.connect(on_settings_scroll_tween_finished_)
+
+
+func configure_o3_profile_option_() -> void:
+	katago_o3_optimize_ = CheckBox.new()
+	katago_o3_profile_ = CheckBox.new()
+	katago_o3_validation_button_ = Button.new()
+	katago_o3_validation_button_.text = tr("数值验证")
+	katago_o3_validation_button_.tooltip_text = tr("使用已保存模型自动比较新旧内核，不修改性能设置。")
+	katago_o3_validation_button_.pressed.connect(on_o3_validation_pressed_)
+	katago_o3_optimize_.text = tr("特定模型加速")
+	katago_o3_optimize_.tooltip_text = tr("保存后用于分析和自动性能检测；关闭可恢复原实现。")
+	katago_o3_profile_.text = tr("性能诊断（影响速度）")
+	katago_o3_profile_.tooltip_text = tr("记录分析耗时，自动性能检测不受此开关影响。")
+	var options: Node = katago_status_.get_parent()
+	var acceleration_row: HBoxContainer = HBoxContainer.new()
+	options.add_child(acceleration_row)
+	options.move_child(acceleration_row, katago_status_.get_index())
+	acceleration_row.add_child(katago_o3_optimize_)
+	katago_model_acceleration_help_button_ = Button.new()
+	katago_model_acceleration_help_button_.text = "?"
+	katago_model_acceleration_help_button_.custom_minimum_size = \
+		Vector2(36.0, 36.0)
+	katago_model_acceleration_help_button_.tooltip_text = tr("特定模型加速说明")
+	katago_model_acceleration_help_button_.pressed.connect(show_model_acceleration_help_)
+	acceleration_row.add_child(katago_model_acceleration_help_button_)
+	acceleration_row.add_child(katago_o3_validation_button_)
+	options.add_child(katago_o3_profile_)
+	options.move_child(katago_o3_profile_, katago_status_.get_index())
+	acceleration_row.visible = OS.get_name() == "Android"
+	katago_o3_profile_.visible = OS.get_name() == "Android"
+	katago_o3_validation_button_.visible = OS.get_name() == "Android"
+	katago_o3_profile_.toggled.connect(on_katago_boolean_option_changed_)
+	katago_o3_optimize_.toggled.connect(on_katago_boolean_option_changed_)
+
+
+func show_model_acceleration_help_() -> void:
+	if katago_model_acceleration_help_ == null:
+		configure_model_acceleration_help_()
+		update_model_acceleration_help_text_()
+	katago_model_acceleration_help_.popup_centered_ratio(0.8)
+
+
+func configure_model_acceleration_help_() -> void:
+	katago_model_acceleration_help_ = Window.new()
+	katago_model_acceleration_help_.exclusive = true
+	katago_model_acceleration_help_.transient = true
+	katago_model_acceleration_help_.unresizable = true
+	katago_model_acceleration_help_.close_requested.connect(
+		katago_model_acceleration_help_.hide
+	)
+	add_child(katago_model_acceleration_help_)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side: StringName in [
+		&"margin_left", &"margin_top", &"margin_right", &"margin_bottom"
+	]:
+		margin.add_theme_constant_override(side, 20)
+	katago_model_acceleration_help_.add_child(margin)
+
+	var content: VBoxContainer = VBoxContainer.new()
+	content.add_theme_constant_override(&"separation", 12)
+	margin.add_child(content)
+	katago_model_acceleration_help_text_ = RichTextLabel.new()
+	katago_model_acceleration_help_text_.fit_content = false
+	katago_model_acceleration_help_text_.scroll_active = true
+	katago_model_acceleration_help_text_.autowrap_mode = \
+		TextServer.AUTOWRAP_WORD_SMART
+	katago_model_acceleration_help_text_.size_flags_horizontal = \
+		Control.SIZE_EXPAND_FILL
+	katago_model_acceleration_help_text_.size_flags_vertical = \
+		Control.SIZE_EXPAND_FILL
+	content.add_child(katago_model_acceleration_help_text_)
+
+	var action_row: HBoxContainer = HBoxContainer.new()
+	action_row.alignment = BoxContainer.ALIGNMENT_END
+	content.add_child(action_row)
+	katago_model_acceleration_help_close_ = Button.new()
+	katago_model_acceleration_help_close_.custom_minimum_size = \
+		Vector2(100.0, 36.0)
+	katago_model_acceleration_help_close_.pressed.connect(
+		katago_model_acceleration_help_.hide
+	)
+	action_row.add_child(katago_model_acceleration_help_close_)
+
+
+func update_model_acceleration_help_text_() -> void:
+	if katago_model_acceleration_help_ == null:
+		return
+	katago_model_acceleration_help_.title = tr("特定模型加速说明")
+	katago_model_acceleration_help_close_.text = tr("确定")
+	katago_model_acceleration_help_text_.text = tr(
+		"这是 Android OpenCL 后端的实验功能。早期版本在玄戒 O3 上对 tf2-b10c384 和 b18c384nbt 做过提速和数值对照；当前已扩展为按实际网络结构识别，不保证所有模型和设备都能提速。"
+	) + "\n\n" + tr(
+		"程序遍历主干、嵌套残差块、注意力、FFN 和输出头，不按文件名、内部名称或训练批次匹配。当前覆盖格式版本 14～17、无元数据输入且含兼容算子的卷积、NBT、Transformer 及混合结构；深度和通道宽度不再固定。只有符合尺寸和布局条件的 1×1 卷积、投影及融合算子进入加速，其余算子继续使用原实现。"
+	) + "\n\n" + tr(
+		"当前要求 19×19 棋盘、后端启用 FP16 存储及设备支持实验内核所需的 FP16 能力；实验内核独立检查和编译，不要求原后端启用 FP16 计算。性能检测会显示结构适配、候选内核数量及实际启用状态；条件不满足或内核失败时使用原实现。新版可能替换更多算子，结构兼容不等于数值验证通过；包括之前测过的模型，也请重新进行数值验证。"
+	) + "\n\n" + tr(
+		"请分别取消和勾选“特定模型加速”，每次用绿色 ✓ 保存后运行自动性能检测。保持相同模型及相近设备温度，对比两次数据判断是否提速；新设备还建议运行数值验证。此说明会随支持模型和平台的增加更新。"
+	)
 
 
 func on_settings_scroll_tween_finished_() -> void:
@@ -854,6 +984,8 @@ func open_panel_() -> void:
 		SettingsStore.get_katago_human_resign_suggestion()
 	opening_katago_analysis_config_path_ = \
 		SettingsStore.get_katago_analysis_config_path()
+	opening_katago_o3_optimize_ = SettingsStore.get_katago_o3_optimize()
+	opening_katago_o3_profile_ = SettingsStore.get_katago_o3_profile()
 	opening_katago_max_visits_ = SettingsStore.get_katago_max_visits()
 	opening_katago_territory_visits_ = \
 		SettingsStore.get_katago_territory_visits()
@@ -937,6 +1069,8 @@ func open_panel_() -> void:
 	)
 	katago_analysis_config_path_.text = "" if config_path_invalid \
 		else opening_katago_analysis_config_path_
+	katago_o3_optimize_.set_pressed_no_signal(opening_katago_o3_optimize_)
+	katago_o3_profile_.set_pressed_no_signal(opening_katago_o3_profile_)
 	katago_max_visits_.set_value_no_signal(opening_katago_max_visits_)
 	katago_territory_visits_.set_value_no_signal(
 		opening_katago_territory_visits_
@@ -1018,10 +1152,12 @@ func close_panel_() -> void:
 	pending_katago_benchmark_batch_size_ = 0
 	pending_katago_human_benchmark_threads_ = 0
 	pending_katago_human_benchmark_batch_size_ = 0
+	katago_benchmark_previous_analysis_config_path_ = ""
 	katago_benchmark_confirmation_.hide()
 	katago_human_benchmark_save_confirmation_.hide()
 	katago_human_benchmark_path_alert_.hide()
-	katago_benchmark_save_reminder_.hide()
+	katago_benchmark_cancel_confirmation_.hide()
+	katago_benchmark_apply_error_.hide()
 	katago_benchmark_window_.hide()
 	settings_panel_.hide()
 	close_button_.hide()
@@ -1221,6 +1357,8 @@ func has_staged_changes_() -> bool:
 			!= opening_katago_human_resign_suggestion_ \
 		or selected_katago_analysis_config_path_() \
 			!= opening_katago_analysis_config_path_ \
+		or katago_o3_optimize_.button_pressed != opening_katago_o3_optimize_ \
+		or katago_o3_profile_.button_pressed != opening_katago_o3_profile_ \
 		or selected_katago_max_visits_() != opening_katago_max_visits_ \
 		or selected_katago_territory_visits_() \
 			!= opening_katago_territory_visits_ \
@@ -1501,7 +1639,9 @@ func on_confirm_pressed_() -> void:
 		selected_katago_analysis_config_path_(),
 		selected_katago_human_model_path_(),
 		selected_katago_human_max_visits_(),
-		selected_katago_human_resign_suggestion_()
+		selected_katago_human_resign_suggestion_(),
+		katago_o3_profile_.button_pressed,
+		katago_o3_optimize_.button_pressed
 	)
 	if error != OK:
 		error_label_.text = tr("保存设置失败：%s") % error_string(error)
@@ -1539,6 +1679,8 @@ func on_confirm_pressed_() -> void:
 	pending_imported_human_model_path_ = ""
 	opening_katago_analysis_config_path_ = \
 		selected_katago_analysis_config_path_()
+	opening_katago_o3_optimize_ = katago_o3_optimize_.button_pressed
+	opening_katago_o3_profile_ = katago_o3_profile_.button_pressed
 	opening_katago_max_visits_ = selected_katago_max_visits_()
 	opening_katago_territory_visits_ = selected_katago_territory_visits_()
 	opening_katago_report_interval_seconds_ = \
@@ -1627,6 +1769,8 @@ func on_restore_pressed_() -> void:
 			or SettingsStore.is_katago_analysis_config_path_valid(
 			opening_katago_analysis_config_path_
 		) else ""
+	katago_o3_optimize_.set_pressed_no_signal(opening_katago_o3_optimize_)
+	katago_o3_profile_.set_pressed_no_signal(opening_katago_o3_profile_)
 	katago_max_visits_.set_value_no_signal(opening_katago_max_visits_)
 	katago_territory_visits_.set_value_no_signal(
 		opening_katago_territory_visits_
@@ -2144,11 +2288,21 @@ func cancel_katago_test_() -> void:
 	set_katago_controls_enabled_(true)
 
 
+func on_o3_validation_pressed_() -> void:
+	if is_katago_benchmark_running_():
+		return
+	katago_o3_validation_mode_ = true
+	katago_benchmark_human_mode_ = false
+	start_katago_benchmark_()
+
+
 func on_katago_benchmark_pressed_() -> void:
+	katago_o3_validation_mode_ = false
 	prepare_katago_benchmark_(false)
 
 
 func on_katago_human_benchmark_pressed_() -> void:
+	katago_o3_validation_mode_ = false
 	if is_katago_benchmark_running_():
 		return
 	var selected_path: String = selected_katago_human_model_path_()
@@ -2233,25 +2387,29 @@ func prepare_katago_benchmark_(human_model: bool) -> void:
 
 
 func start_katago_benchmark_() -> void:
-	if katago_benchmark_human_mode_:
-		pending_katago_human_benchmark_threads_ = 0
-		pending_katago_human_benchmark_batch_size_ = 0
-	else:
-		pending_katago_benchmark_threads_ = 0
-		pending_katago_benchmark_batch_size_ = 0
+	if not katago_o3_validation_mode_:
+		if katago_benchmark_human_mode_:
+			pending_katago_human_benchmark_threads_ = 0
+			pending_katago_human_benchmark_batch_size_ = 0
+		else:
+			pending_katago_benchmark_threads_ = 0
+			pending_katago_benchmark_batch_size_ = 0
 	on_option_selected_(0)
 	katago_benchmark_output_ = ""
 	katago_benchmark_window_.title = tr(
 		"KataGo 人类模仿棋自动性能检测"
 	) if katago_benchmark_human_mode_ else tr("KataGo 自动性能检测")
-	katago_benchmark_output_edit_.text = tr("正在启动 KataGo benchmark…")
+	if katago_o3_validation_mode_:
+		katago_benchmark_window_.title = tr("数值验证")
+	katago_benchmark_output_edit_.text = tr("正在启动 KataGo…")
 	set_katago_benchmark_window_state_(kBenchmarkStateRunning)
 	# 清除上一次打开时保留的尺寸，再由 Godot 根据父视图的实际可用尺寸计算弹窗大小。
 	# 这可以避免最大化窗口和高分屏内容缩放造成物理像素与逻辑尺寸混用。
 	katago_benchmark_window_.reset_size()
 	katago_benchmark_window_.popup_centered_ratio(0.8)
 	set_katago_controls_enabled_(false)
-	update_active_benchmark_status_(tr("正在自动检测性能…"), kStatusNeutralColor)
+	update_active_benchmark_status_(tr("正在进行数值验证…") if katago_o3_validation_mode_ \
+		else tr("正在自动检测性能…"), kStatusNeutralColor)
 	if OS.get_name() == "Android" or katago_benchmark_human_mode_:
 		if OS.get_name() == "Android" \
 				and android_katago_benchmark_prepare_.is_valid():
@@ -2301,7 +2459,9 @@ func start_embedded_katago_benchmark_() -> void:
 	katago_embedded_benchmark_.completed.connect(
 		on_embedded_katago_benchmark_completed_
 	)
-	if not katago_embedded_benchmark_.start_benchmark():
+	var started: bool = katago_embedded_benchmark_.start_o3_validation() if katago_o3_validation_mode_ \
+		else katago_embedded_benchmark_.start_benchmark()
+	if not started:
 		katago_embedded_benchmark_ = null
 
 
@@ -2329,6 +2489,10 @@ func on_embedded_katago_benchmark_completed_(
 			else tr("性能检测没有取得有效结果。")
 		update_active_benchmark_status_(effective_message, kStatusErrorColor)
 		set_katago_benchmark_window_state_(kBenchmarkStateFailed)
+		return
+	if katago_o3_validation_mode_:
+		update_active_benchmark_status_(message, kStatusNeutralColor)
+		set_katago_benchmark_window_state_(kBenchmarkStateIdle)
 		return
 	apply_katago_benchmark_result_(search_threads, batch_size)
 
@@ -2387,13 +2551,15 @@ func apply_katago_benchmark_result_(best_threads: int, batch_size: int) -> void:
 		pending_katago_human_benchmark_threads_ = best_threads
 		pending_katago_human_benchmark_batch_size_ = batch_size
 	else:
+		katago_benchmark_previous_analysis_config_path_ = \
+			selected_katago_analysis_config_path_()
 		katago_analysis_config_path_.text = \
 			SettingsStore.get_managed_katago_analysis_config_path()
 		pending_katago_benchmark_threads_ = best_threads
 		pending_katago_benchmark_batch_size_ = batch_size
 	on_option_selected_(0)
 	update_active_benchmark_status_(
-		tr("检测完成：%d线程，批量%d；请确认保存") \
+		tr("检测完成：%d线程，批量%d；请选择应用或取消") \
 			% [best_threads, batch_size],
 		kStatusValidColor
 	)
@@ -2455,13 +2621,15 @@ func find_best_threads_from_partial_benchmark_(output: String) -> int:
 
 func set_katago_benchmark_window_state_(state: int) -> void:
 	katago_benchmark_state_ = state
+	katago_benchmark_cancel_button_.visible = \
+		katago_benchmark_state_ == kBenchmarkStateSucceeded
 	match katago_benchmark_state_:
 		kBenchmarkStateRunning:
 			katago_benchmark_action_button_.text = tr("停止")
 			katago_benchmark_action_button_.tooltip_text = tr("停止性能检测")
 		kBenchmarkStateSucceeded:
-			katago_benchmark_action_button_.text = tr("确认")
-			katago_benchmark_action_button_.tooltip_text = tr("确认检测结果")
+			katago_benchmark_action_button_.text = tr("应用")
+			katago_benchmark_action_button_.tooltip_text = tr("应用检测结果")
 		kBenchmarkStateFailed:
 			katago_benchmark_action_button_.text = tr("关闭")
 			katago_benchmark_action_button_.tooltip_text = tr("关闭性能检测窗口")
@@ -2476,19 +2644,63 @@ func on_katago_benchmark_action_pressed_() -> void:
 			cancel_katago_benchmark_(true)
 			close_katago_benchmark_window_()
 		kBenchmarkStateSucceeded:
-			katago_benchmark_save_reminder_.popup_centered(Vector2i(500, 190))
+			apply_katago_benchmark_result_and_settings_()
 		_:
 			close_katago_benchmark_window_()
 
 
+func apply_katago_benchmark_result_and_settings_() -> void:
+	var human_mode: bool = katago_benchmark_human_mode_
+	var analysis_config_path_was_managed: bool = \
+		SettingsStore.get_katago_analysis_config_path() \
+			== SettingsStore.get_managed_katago_analysis_config_path()
+	on_confirm_pressed_()
+	var result_still_pending: bool = pending_katago_benchmark_threads_ > 0
+	if human_mode:
+		result_still_pending = pending_katago_human_benchmark_threads_ > 0
+	if result_still_pending:
+		katago_benchmark_apply_error_.dialog_text = error_label_.text
+		katago_benchmark_apply_error_.popup_centered(Vector2i(520, 190))
+		return
+	if not human_mode and analysis_config_path_was_managed:
+		SettingsStore.notify_katago_analysis_config_changed()
+	close_katago_benchmark_window_()
+
+
+func on_katago_benchmark_cancel_pressed_() -> void:
+	if katago_benchmark_state_ != kBenchmarkStateSucceeded:
+		return
+	katago_benchmark_cancel_confirmation_.popup_centered(Vector2i(560, 210))
+
+
+func on_katago_benchmark_cancel_confirmed_() -> void:
+	if katago_benchmark_human_mode_:
+		pending_katago_human_benchmark_threads_ = 0
+		pending_katago_human_benchmark_batch_size_ = 0
+		refresh_katago_human_path_status_()
+	else:
+		pending_katago_benchmark_threads_ = 0
+		pending_katago_benchmark_batch_size_ = 0
+		katago_analysis_config_path_.text = \
+			katago_benchmark_previous_analysis_config_path_
+		refresh_katago_path_status_()
+	on_option_selected_(0)
+	close_katago_benchmark_window_()
+
+
 func on_katago_benchmark_window_close_requested_() -> void:
-	on_katago_benchmark_action_pressed_()
+	if katago_benchmark_state_ == kBenchmarkStateSucceeded:
+		on_katago_benchmark_cancel_pressed_()
+	else:
+		on_katago_benchmark_action_pressed_()
 
 
 func close_katago_benchmark_window_() -> void:
-	katago_benchmark_save_reminder_.hide()
+	katago_benchmark_cancel_confirmation_.hide()
+	katago_benchmark_apply_error_.hide()
 	katago_benchmark_window_.hide()
 	katago_benchmark_state_ = kBenchmarkStateIdle
+	katago_benchmark_previous_analysis_config_path_ = ""
 
 
 func cancel_katago_benchmark_(show_canceled_status: bool = false) -> void:
@@ -2570,6 +2782,9 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_human_model_browse_.disabled = \
 		not desktop_paths_enabled and not android_model_enabled
 	katago_analysis_config_browse_.disabled = not desktop_paths_enabled
+	katago_o3_optimize_.disabled = not enabled
+	katago_o3_profile_.disabled = not enabled
+	katago_o3_validation_button_.disabled = not enabled
 	katago_max_visits_.editable = enabled
 	katago_territory_visits_.editable = enabled
 	katago_report_interval_seconds_.editable = enabled

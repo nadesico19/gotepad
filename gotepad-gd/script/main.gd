@@ -3782,6 +3782,7 @@ func switch_document_(index: int) -> void:
 		return
 
 	leave_transient_modes_()
+	katago_analysis_panel_.stop_continuous_analysis()
 	if active_document_index_ >= 0:
 		var outgoing: DocumentState = documents_[active_document_index_]
 		outgoing.interactions_locked = board_.is_interactions_locked()

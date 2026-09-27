@@ -118,9 +118,9 @@ clip_text = true
 
 [node name="PlaybackBar" type="HSlider" parent="."]
 z_index = 20
-offset_left = -416.0
+offset_left = -404.0
 offset_top = 524.0
-offset_right = 348.0
+offset_right = 336.0
 offset_bottom = 564.0
 mouse_default_cursor_shape = 2
 min_value = 0.0

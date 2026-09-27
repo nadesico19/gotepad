@@ -308,6 +308,20 @@ if (BUILD_EMBEDDED_KATAGO)
        "-Wl,-z,max-page-size=16384")
 
   if (BUILD_ANDROID_KATAGO_OPENCL)
+    file(READ "${KATAGO_CPP_DIR}/neuralnet/openclbackend.cpp" KATAGO_OPENCL_BACKEND)
+    if (NOT KATAGO_OPENCL_BACKEND MATCHES "katago_o3_profile.hpp" OR
+        NOT KATAGO_OPENCL_BACKEND MATCHES "katago_o3_gemm.hpp" OR
+        NOT KATAGO_OPENCL_BACKEND MATCHES "katago_o3_validation.hpp" OR
+        NOT KATAGO_OPENCL_BACKEND MATCHES "O3NbtConv1x1V1" OR
+        NOT KATAGO_OPENCL_BACKEND MATCHES "inspect_acceleration_structure" OR
+        NOT KATAGO_OPENCL_BACKEND MATCHES "publish_acceleration")
+      message(FATAL_ERROR
+          "KataGo OpenCL source needs third_party/katago/o3-profile.patch")
+    endif ()
+    file(READ "${KATAGO_CPP_DIR}/command/analysis.cpp" KATAGO_O3_ANALYSIS)
+    if (NOT KATAGO_O3_ANALYSIS MATCHES "validate_o3_nn")
+      message(FATAL_ERROR "KataGo analysis needs the updated o3-profile.patch")
+    endif ()
     if (NOT EXISTS "${KATAGO_OPENCL_HEADERS_DIR}/CL/cl.h")
       message(FATAL_ERROR
           "Khronos OpenCL-Headers are missing; see third_party/katago/gotepad_info.txt")
@@ -342,7 +356,7 @@ if (BUILD_EMBEDDED_KATAGO)
         "${KATAGO_CPP_DIR}/external/filesystem-1.5.8/include"
         "${KATAGO_OPENCL_HEADERS_DIR}")
     target_compile_definitions(katago_opencl_android PRIVATE
-        GOTEPAD_KATAGO_EMBEDDED USE_OPENCL_BACKEND
+        GOTEPAD_KATAGO_EMBEDDED USE_OPENCL_BACKEND GOTEPAD_O3_PROFILE
         NO_GIT_REVISION NO_LIBZIP
         BYTE_ORDER=1234 LITTLE_ENDIAN=1234 BIG_ENDIAN=4321)
     target_compile_options(katago_opencl_android PRIVATE

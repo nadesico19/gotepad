@@ -236,6 +236,13 @@ func is_panel_open() -> bool:
 	return panel_.visible
 
 
+func stop_continuous_analysis() -> void:
+	if not continuous_.button_pressed:
+		return
+	continuous_.set_pressed_no_signal(false)
+	on_continuous_toggled_(false)
+
+
 func set_panel_rect(rect: Rect2) -> void:
 	position = rect.position
 	size = rect.size

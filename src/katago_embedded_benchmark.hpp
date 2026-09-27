@@ -14,10 +14,27 @@
 #include "neuralnet/nneval.h"
 #include "external/nlohmann_json/json.hpp"
 
+#ifdef GOTEPAD_O3_PROFILE
+#include "katago_model_acceleration.hpp"
+#endif
+
 namespace GotepadKataGo {
+
+#ifdef GOTEPAD_O3_PROFILE
+nlohmann::json run_o3_validation(const std::string& model_file, ConfigParser& cfg,
+                                  Logger* logger, int batch_size);
+#endif
 
 inline nlohmann::json get_embedded_nn_stats(NNEvaluator* nn_eval) {
   nlohmann::json stats;
+#ifdef GOTEPAD_O3_PROFILE
+  stats["modelAcceleration"] = get_acceleration_status(nn_eval->getInternalModelName(), nn_eval->getModelVersion());
+  if(stats["modelAcceleration"]["handleCount"].get<size_t>() < static_cast<size_t>(nn_eval->getNumServerThreads())) {
+    stats["modelAcceleration"]["available"] = false;
+    stats["modelAcceleration"]["enabled"] = false;
+    stats["modelAcceleration"]["reason"] = "initializing";
+  }
+#endif
   const uint64_t rows = nn_eval->numRowsProcessed();
   const uint64_t batches = nn_eval->numBatchesProcessed();
   stats["nnXLen"] = nn_eval->getNNXLen();

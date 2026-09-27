@@ -51,7 +51,13 @@ func start_custom_transport(
 	if not ClassDB.class_exists(kEngineClass):
 		transport_error.emit(tr("安卓版未包含内置 KataGo 引擎扩展。"))
 		return false
-	var install_error: String = install_runtime_files_()
+	var selected_model_path: String = selected_model_path_() \
+		if model_path_override.is_empty() else model_path_override
+	if not human_model_path.is_empty():
+		selected_model_path = kInstalledModelPath
+	var install_error: String = install_runtime_files_(
+		selected_model_path == kInstalledModelPath
+	)
 	if not install_error.is_empty():
 		transport_error.emit(install_error)
 		return false
@@ -60,8 +66,6 @@ func start_custom_transport(
 	if engine_ == null:
 		transport_error.emit(tr("无法创建内置 KataGo 引擎。"))
 		return false
-	var selected_model_path: String = selected_model_path_() \
-		if model_path_override.is_empty() else model_path_override
 	var model_path: String = ProjectSettings.globalize_path(selected_model_path)
 	var effective_human_model_path: String = "" if human_model_path.is_empty() \
 		else ProjectSettings.globalize_path(human_model_path)
@@ -121,7 +125,7 @@ func _process(_delta: float) -> void:
 		emit_stopped_once_()
 
 
-func install_runtime_files_() -> String:
+func install_runtime_files_(use_builtin_model: bool) -> String:
 	var absolute_directory: String = \
 		ProjectSettings.globalize_path(kInstallDirectory)
 	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
@@ -130,7 +134,7 @@ func install_runtime_files_() -> String:
 	if directory_error != OK and directory_error != ERR_ALREADY_EXISTS:
 		return tr("无法创建内置 KataGo 数据目录：%s") % \
 			error_string(directory_error)
-	if not SettingsStore.get_android_external_katago_model_path().is_empty():
+	if not use_builtin_model:
 		return ensure_config_()
 	var must_copy_model: bool = true
 	if FileAccess.file_exists(kInstalledModelPath):

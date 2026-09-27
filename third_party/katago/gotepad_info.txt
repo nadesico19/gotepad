@@ -38,6 +38,18 @@ https://github.com/lightvector/KataGo/releases/tag/v1.17.1
 - 此文件仅用于1号开发机本地测试，不随 Gotepad 安装包分发；客户端通过设置面板选择模型路径。
 - 仿人棋分析配置由程序维护在 `user://katago/human_analysis.cfg`，设置面板不开放外部配置路径；自动性能检测会更新其中的线程数与批量大小。
 
+Transformer 分析模型（移动设备测试）：
+- 文件名：kata1-tf2-b10c384-s2941M-d5872M.bin.gz
+- 类型：KataGo tf2-b10c384，采用 Transformer + NBT 架构；包含 10 个 NBT 外层块，每个外层块包含 2 个 Transformer 内层块，通道数 C384、中间通道数 M192、6 个注意力头
+- 参数量：10545753
+- 官方粗略推理成本：0.3x（以 b28c512nbt 为 1.0x）
+- 官方同一 kata1 评级池 Elo：13705.9 ± 14.4（3972 局）；该数值按相同访问次数统计，不等同于人类 Elo 或相同运行时间下的强度
+- 来源：https://katagotraining.org/networks/
+- 下载：https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-tf2-b10c384-s2941M-d5872M.bin.gz
+- 文件大小：38245507 字节
+- SHA-256：8015D49BDF45854C94E5F9E22B2B70E8738D3E56A6EDCA730E5B82509998A5B5
+- 此文件用于移动设备外部模型测试，不随 Gotepad 安装包分发；客户端通过设置面板选择模型路径，首次使用 OpenCL 时可能因内核编译与调优缓存生成而需要较长时间才能产生第一个结果。
+
 Gotepad 分析配置：
 - 文件：gotepad_analysis.cfg
 - 并行分析局面数：1
@@ -100,3 +112,51 @@ Android OpenCL 后端：
 - 许可证：Apache-2.0，完整文本见 OpenCL-Headers 源码目录。
 - OpenCL KataGo 只在 Android 构建中生成，并运行于 `:katago_opencl` 独立服务进程。
 - APK 不携带 OpenCL 驱动，只使用 Android 设备公开的 `libOpenCL.so`；不可用时程序自动回退到 Eigen 后端。
+
+玄戒 O3 第一阶段诊断：
+- 诊断实现位于 src/katago_o3_profile.hpp，只有 Android OpenCL target 定义 GOTEPAD_O3_PROFILE。诊断开关本身不改变推理算法；实验加速独立控制。
+- o3-profile.patch 保存当前已接入 Transformer 的 OpenCL 后端上的诊断接入改动；本机 source 目录已应用。重新准备该后端源码时，在 KataGo 源码根目录执行 git apply ../../o3-profile.patch。此增量补丁要求先具备当前 Transformer 后端，不能直接套用到未同步这些改动的旧归档。CMake 会检查接入标记，避免漏打补丁后静默生成无诊断的包。
+- 开关 gotepadO3Profile 默认 false，UI 仅在 XRing O3 显示；原生端还必须精确匹配已确认的 GPU 名称 Mali-G2-Ultra-NX r0p1 或 Mali-G2-Ultra-NX MC16。本机 OpenCL 实际报告 r0p1，图形接口报告 MC16，不能仅以图形接口名称判断 OpenCL 设备。其他设备不创建诊断队列，不收集事件，不写诊断文件。若设备身份不匹配，显式请求诊断时会在 logcat 中说明原因。
+- 自动性能检测强制 gotepadO3Profile=false，不改动原有参数选择逻辑。正常分析可通过设置中的诊断开关启动采样；改变开关并保存会使分析服务重新加载。
+- O3 诊断使用独立的有序 profiling queue，跳过前三个 batch，此后每八个 batch 采样一个。只在原有阻塞回读完成后收集事件，不增加逐算子 clFinish；每约五秒及正常关闭时输出累计快照。采样、profiling queue 和日志本身仍会影响速度，不可把诊断结果当作正常吞吐成绩。
+- Android 宿主将 gotepadO3ProfileLogDir 指向 getExternalFilesDir("o3-profile")。通常为 /sdcard/Android/data/io.github.nadesico19.gotepad/files/o3-profile，可用 adb pull 读取，不依赖 run-as。o3-*.jsonl 按模型加载会话和计算线程分别保存；benchmark-*.jsonl 是每次普通自动性能检测报告的副本，包含模型、纯 NN 吞吐、实际 batch 和搜索样本，不覆盖前一次模型的副本。logcat 标签为 GotepadO3Profile。外部文件目录不可用时诊断仍写 logcat，并在 device 记录中注明 fileAvailable=false。
+- device/model 记录包含设备、驱动、模型、精度、注意力/GEMM 参数；profiling=false 的会话只写元数据。summary/kernel 记录是累计数据，按 session 和 samples 对应，不能把各次快照相加。kernel 按算子、形状和实际 batch 聚合，kernelPercent 的分母仅为已采集 kernel 的执行时间。首次几个 batch 即停止时可能只有 samples=0 的摘要，需要更长的分析过程。
+- sampleBackendWallMs 包含采样 batch 的后端输入准备、提交、阻塞回读和输出整理，不包含 MCTS、NN 请求排队或日志输出。samplePrepareUploadCpuMs、sampleEnqueueCpuMs、sampleReadWaitCpuMs 为 CPU 阶段时长；其中回读时间包含等待 GPU，不代表纯传输耗时。sampleBetweenKernelGapMs 是所采集 kernel 之间的 GPU 时间线间隙，不能直接认定为驱动开销。queuedToSubmitMs 与 submitToStartMs 是各事件等待时间之和，会重叠，不能与 kernel 时间相加作为总延迟。eventErrors 非零时不能把不完整的 kernelPercent 当作完整热点分布。
+- 验证时由测试者分别为 b18 和 tf2 模型运行自动性能检测并保留结果，再开启诊断对同一 19×19 局面持续分析至少一分钟，之后关闭诊断。保持设备温度、供电、显示状态一致；性能基线必须取关闭诊断的结果。
+
+玄戒 O3 实验加速 v1：
+- 实现位于 src/katago_o3_gemm.hpp；o3-profile.patch 已更新为包含诊断和实验内核接入的累计补丁，原生源码需同步应用最新版本。Android 链接 stub 增加 clGetKernelWorkGroupInfo，仅用于链接，不随 APK 分发。
+- gotepadO3Optimize 默认 false，由设置中的“玄戒 O3 实验加速”独立控制。硬件匹配沿用诊断的 XRing/O3/GPU 白名单，同时要求模型内部名称 b10c384h6nbttflrs、19×19/361 空间长度、FP16 storage+compute、非 WMMA 路径。只接管 Transformer 的 192→192、192→512、512→192 投影，batch 范围 1～32；其他情况继续原路径。b18 使用下述独立的 NBT v1 路径，不执行 Transformer 融合内核。
+- 每个 8×8 workgroup 计算 32×32 输出块，按 16 个输入通道分块缓存输入和权重，使用 half4 计算并保留原 NCHW 布局。Q/K/V 共享输入 tile，一次生成三个独立输出，不增加拆分复制。FFN 主投影与 gate 投影共享输入 tile，并在寄存器中执行原有 float SwiGLU，省去 gate 中间缓冲区。单路投影使用相同分块内核。沿用原权重缓冲区，没有额外权重副本，也不改动通用 tuner 或已有缓存。
+- 新内核改变分块和运算顺序，不能承诺与原内核逐位一致；采用原 FP16 投影精度和 float SwiGLU 计算方式。数值正确性与性能尚需实机验证，首次加载会编译三个内核变体。构建或创建内核失败，以及设置参数或提交返回错误时，会停用本句柄实验内核并回到原路径，logcat 标签 GotepadO3Gemm；无法捕获驱动直接终止进程的情况，届时应用已有的后端故障处理生效。
+- 模型诊断元数据的 o3OptimizeRequested/o3OptimizeEnabled 和 kernelPath（o3-gemm-v1/original）记录请求和初始化结果；运行中若回退，以实际算子标签和 GotepadO3Gemm 日志为准。专用算子标签为 O3TransformerMatMulV1、O3QKVV1、O3FFNSwiGLUV1。设备元数据仅注明以模型记录为准。
+- 自动性能检测只关闭 profiling，不关闭实验加速；报告 environment 记录 o3OptimizeRequested，测试窗口显示已保存的开关状态。测试者应在同一 Release 包中分别关闭/开启实验加速并保存，运行两次检测后再按需开启诊断采集热点。诊断输出含计时开销，不应拿来直接宣称速度提升。
+
+玄戒 O3 数值验证入口：
+- 设置按钮“玄戒 O3 数值验证”使用专用 OpenCL 会话，主 evaluator 仅分配 batch 1；validate_o3_nn 操作按需创建独立验证 handle，不修改正常分析 handle 或保存的配置。仅 GOTEPAD_O3_PROFILE target 编译该操作；额外要求 gotepadO3Validation=true、已适配的 tf2/b18 nbt 模型和 O3 硬件/FP16 白名单，实验内核无法启用或运行中回退直接报错。
+- src/katago_o3_validation.hpp 在 openclbackend.cpp 的完整私有类型之后包含，src/katago_embedded_benchmark.hpp 提供操作声明。o3-profile.patch 为累计补丁，现在还包含 command/analysis.cpp 的 validate_o3_nn 接入；该部分基于已应用 embedded-analysis-api.patch 的源码。CMake 同时检查验证头文件和操作接入，防止构建旧后端。
+- 32 个固定种子生成的合法局面覆盖 0/8/24/60/100/160/220/280 手附近的目标长度（部分样本加一手以覆盖双方轮次）、不同贴目及固定对称变换，保存完整走子序列、合法点掩码和实际输入特征。使用 Tromp-Taylor 规则，无搜索/缓存，policy optimism=0、temperature=1。这些是生成样本，不声称包含人工验证的劫争/死活题。
+- 每个实际 batch 1/2/4/8/16/32 独立执行全部 32 样本、正序和置换两种排列。直接调用 NeuralNet::getOutput 保证实际批量，比较 originalRepeat、candidateRepeat、originalVsCandidate、originalSingleVsBatch、candidateSingleVsBatch；检查对应模型实验内核的执行计数和回退状态（tf2 三种变体，b18 单路变体）。
+- validation-时间-b批量.jsonl 每条记录即时落盘，保留原始 policy/value/score/ownership 输出及派生的合法落子概率、白方胜率、白方目差、白方归属；记录最大/平均绝对差、RMS、最差元素位置及非有限值数。派生值只实现固定规则下用于对照的相应转换，不代替 NNEvaluator 的完整后处理。NaN/Inf 原始值在 JSON 中表现为 null，comparison 中保留非有限值计数。
+- 详细报告和 validation-summary-*.jsonl 位于现有外部 o3-profile 目录。窗口只显示概要，避免大数组通过 Android IPC；完整结束有 complete 记录，异常有 error，取消/进程退出可能留下无 complete 的部分报告。completed_needs_review 不表示正确性通过；不设未经实测支持的自动验收阈值，须结合原实现波动和真实棋谱人工审核。重复运行会新增报告。
+
+玄戒 O3 b18 nbt 实验加速 v1：
+- 首个支持的内部模型名严格限定 kata1-b18c384nbt-s9996604416-d4316597426；重命名外部文件不影响识别，其他检查点暂不自动放开。沿用三个 UI 入口及 O3/19×19/FP16/batch 1～32 白名单。
+- 2026-09-26 实机基线 57.3024 visits/s，推荐 16 线程、batch 16；诊断采样的 GPU kernel 时间中 1×1 卷积占约 41.81%，主要是 384→192 和 192→384。批量上限 16，但实际平均约 8.06，故不能只针对满 batch 16 调整。
+- 只接管上述两种 1×1 卷积，通过现有 ic,oc 权重缓冲和 NCHW 数据布局复用单路 half4 GEMM 内核。b18 仅编译 GROUPS=1；其形状白名单与 tf2 分离，不扩大 tf2 卷积的启用范围。3×3/Winograd、激活、残差和通用调优参数保持原实现。初始化/提交失败仍回退。
+- 模型元数据 kernelPath=o3-nbt-v1；诊断算子 O3NbtConv1x1V1 按通道和 batch 记录，logcat GotepadO3Gemm 显示 O3 NBT v1 enabled。数值验证支持 b18 v14 输入与输出，complete 记录额外标明模型和 kernelPath；只要求本模型实际使用的实验变体执行计数非零。
+- 本版尚未构建或实机验证。先运行 b18 数值验证，再关闭诊断对比开关前后的自动测速，最后按需采集开启加速的诊断数据；不预设提升幅度或数值验收结果。
+
+特定模型加速跨 GPU 开放（取代上述历史硬件白名单约束）：
+- 按用户要求取消 XRing/O3 和 Mali GPU 名称限制。UI 在所有 Android 设备显示“特定模型加速”“性能诊断（影响速度）”“数值验证”；性能和验证仍使用 Android OpenCL 后端，不扩展到 Eigen 或桌面后端。原 gotepadO3* 配置键、类名和 o3-profile 文件夹保留兼容性，不再代表硬件限制。
+- 特定模型加速右侧 ? 说明窗口集中列出当前两个模型、O3 验证来源与 b18 待验证状态、适用计算条件、保存设置和 A/B 测速方法。增加模型或实机验证平台时，需同时更新 settings_panel.gd 的 show_model_acceleration_help_ 和用户手册；本次不声称已验证骁龙或天玑性能。
+- src/katago_model_acceleration.hpp 汇总活动计算句柄的实际初始化/回退状态。query_runtime_stats 和 NN benchmark 报告增加 modelAcceleration，包含模型白名单、状态是否就绪、已启用句柄数、路径和原因。句柄销毁移除记录；内核提交/参数错误同步标记回退。读取使用互斥锁，不在正常算子成功路径中增加锁操作。
+- 普通 Android 自动性能检测在正式测速前等待后端状态就绪，显示模型内部名称、白名单和实际启用情况；期间状态变化会继续提示并写报告。Android Human SL 性能检测开始候选搜索前也报告主模型状态。未能确认状态时停止，不将勾选状态当作启用证据。
+- 仍保留模型/版本、19×19、FP16 storage、禁用不兼容的 tensor core 1×1 路径、batch 1～32、支持的矩阵尺寸及内核工作组能力检查和回退。实验内核独立检查 cl_khr_fp16、CL_DEVICE_HALF_FP_CONFIG 并编译实际内核，不再以原后端 usingFP16Compute 为前置条件；不修改原后端的调优选择。硬件开放不意味着任意模型或精度路径受支持。用户原先保存的加速开关值保留；未开启时仍使用原实现。
+- modelAcceleration.precision 与模型诊断记录保存后端 FP16 storage/compute、调优 canUse/shouldUse 和实验内核独立能力检查结果，区分调优选择与设备能力；编译或初始化错误保存详细原因。数值验证保存同样的状态，在原后端未使用 FP16 compute 时仍对照其原始路径，不强制改变基线精度。此路径在新 GPU 上需重新验证数值和性能。
+
+结构匹配加速 v2（取代上述历史模型名称与固定矩阵尺寸白名单）：
+- src/katago_model_structure.hpp 递归检查完整主干及嵌套块，识别普通残差、全局池化残差、NBT、Attention 和 SwiGLU FFN，并检查输入、归一化通道与输出头连接。仅接受当前集成理解的格式版本 14～17、V7 输入、无元数据输入的模型；未知结构不启用。模型名称、权重和训练批次不参与适配判断。
+- 按实际图发现可替换的 1×1 卷积、空间投影、QKV 和 SwiGLU 融合；通道从固定 192/384/512 扩展为输入 16 对齐、输出 32 对齐及整数索引安全范围。块数与网络宽度不固定。不兼容算子保留原实现，符合条件的 Transformer 中的卷积和输出头中的卷积也可进入优化；19×19、batch 1～32、FP16 存储及独立设备能力检查仍保留。
+- 启用路径标识为 structure-gemm-v2。后端状态、自动测速和数值验证共用同一结构判断；日志保存结构摘要及候选数量，诊断模型记录与验证报告另保存遍历信息。modelWhitelisted 仅作为旧报告字段兼容别名，其含义已变为结构适配。数值验证只要求结构中实际存在的内核变体被执行，不再强制每个 Transformer 都有三种变体。
+- 早期 O3 两个检查点的验证不代表新版更广泛替换路径已验证。所有模型均应重新做数值对照和性能比较；不宣称新结构、通道宽度或其他 GPU 已通过验证。

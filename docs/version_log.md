@@ -1,3 +1,17 @@
+# 0.1.18
+
+- 安卓版增加特定模型加速选项，勾选后KataGo分析可能获得加速效果。首批优化的对象模型是b18c384nbt、tf2-b10c384，在玄戒O3上已通过加速效果和数值一致性的双重验证，其中tf2模型获得了40%以上的显著速度提升。在其他机型（如骁龙8E5）和其他版本的模型上也可能获得相近的加速效果，但这受到多重因素的影响：该机型是否能够正常运行对象模型；对象模型的热点算子是否被本优化涵盖；不同计算精度带来的数值差异是否在可接受范围；等等。建议用户采取关闭、开启加速开关，分别进行自动性能检测，对比性能测试结果，再结合数值验证结果，综合考虑是否开启加速。请注意，安卓内置的10b模型由于内部结构差异，暂不受加速开关的影响。
+- 安卓版在进行人类模仿棋时，固定使用内置模型进行胜率、目差分析，以避免分析模式设置了较重模型导致AI行棋变慢。
+- 优化自动性能检测、持续分析相关的操作细节。
+- 优化影响触屏操作的UI细节。
+
+Translation：
+
+- Added a model-specific acceleration option on Android that may speed up KataGo analysis. The first optimized models are b18c384nbt and tf2-b10c384. On the XRING O3, both passed checks for speed gains and numerical consistency, with the tf2 model running more than 40% faster. Similar gains may be possible on other devices, such as Snapdragon 8E5, and with other versions of these models, depending on whether the device can run the model, whether the optimization covers its most demanding operations, and whether differences between numerical precisions are acceptable. To decide whether to enable the option, run the automatic performance test with acceleration off and on, compare the results, and consider the numerical validation results as well. The built-in Android 10b model has a different architecture and is currently unaffected by this option.
+- Human-like play on Android now always uses the built-in model to evaluate win rate and score lead, so selecting a larger model for regular analysis does not slow down the AI's moves.
+- Improved details of automatic performance testing and continuous analysis.
+- Improved UI details affecting touch controls.
+
 # 0.1.17
 
 - 落子防误触支持两种模式：二次点击和图标确认。

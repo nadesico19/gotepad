@@ -255,7 +255,7 @@ func refresh_metadata() -> void:
 	var metadata: Dictionary = Dictionary(go_notes_.call(&"get_sgf_metadata"))
 	updating_ = true
 	for field_name: String in editors_:
-		var value: String = str(metadata.get(field_name, ""))
+		var value: String = str(metadata.get(field_name, "")) 
 		set_editor_text_(editors_[field_name], value)
 		saved_values_[field_name] = value
 	updating_ = false

@@ -31,6 +31,12 @@ const kHumanCandidates: Array[Vector2i] = [
 const kHumanSimpleCandidateTolerance: float = 1.08
 const kHumanCandidateMaxRetries: int = 2
 
+var acceleration_status_text_: String = ""
+var acceleration_wait_count_: int = 0
+var o3_validation_mode_: bool = false
+var o3_validation_index_: int = 0
+var o3_validation_run_id_: String = ""
+
 var transport_: KataGoTransport
 var output_: String = ""
 var query_id_: String = ""
@@ -82,6 +88,67 @@ func start_benchmark() -> bool:
 	return start_regular_benchmark_()
 
 
+func start_o3_validation() -> bool:
+	o3_validation_mode_ = true
+	o3_validation_run_id_ = "%d-%d" % [int(Time.get_unix_time_from_system() * 1000), Time.get_ticks_usec()]
+	if OS.get_name() != "Android":
+		finish_(false, 0, 0, tr("数值验证需要 Android OpenCL 后端。"))
+		return false
+	var host: Variant = JavaClassWrapper.wrap(KataGoOpenCLTransport.kAndroidHostClass)
+	if host == null:
+		finish_(false, 0, 0, tr("数值验证需要 Android OpenCL 后端。"))
+		return false
+	host.protectKataGoValidationHistory(o3_validation_run_id_, true)
+	append_regular_report_("validationStart", {
+		"runId": o3_validation_run_id_,
+		"deviceModel": OS.get_model_name(), "osVersion": OS.get_version(),
+		"batchSizes": kRegularBatchCandidates, "caseCount": 32,
+		"numericalAcceptance": "not_evaluated",
+	})
+	transport_ = KataGoOpenCLTransport.new()
+	connect_transport_()
+	append_output_(tr("正在验证特定模型加速内核；使用已保存的分析模型。"))
+	append_output_(tr("自动对照原内核与实验内核，不改变已保存设置；诊断采样关闭。"))
+	append_output_(tr("覆盖 32 个固定生成局面、6 种真实批量及两种排列；完成后需要审核误差。"))
+	var started: bool = bool(transport_.call("start_transport_with_override",
+		"numSearchThreadsPerAnalysisThread=1,nnMaxBatchSize=1,gotepadO3Profile=false,gotepadO3Optimize=false,gotepadO3Validation=true,gotepadO3ValidationRunId=" + o3_validation_run_id_))
+	if not started:
+		finish_(false, 0, 0, tr("无法启动数值验证。"))
+		return false
+	send_next_o3_validation_()
+	return true
+
+
+func send_next_o3_validation_() -> void:
+	if o3_validation_index_ >= kRegularBatchCandidates.size():
+		append_output_(tr("全部批量验证已完成，报告待审核；这不等于数值正确性已通过。"))
+		finish_(true, 0, 0, tr("数值验证已完成，报告待审核。"))
+		return
+	var batch_size: int = kRegularBatchCandidates[o3_validation_index_]
+	append_output_(tr("正在验证实际 batch %d：重复性、新旧内核、单条与批量一致性…") % batch_size)
+	send_regular_action_("validate_o3_nn", {"batchSize": batch_size})
+
+
+func on_o3_validation_response_(result: Dictionary) -> void:
+	var validation: Dictionary = Dictionary(result.get("validation", {}))
+	var expected_batch: int = kRegularBatchCandidates[o3_validation_index_]
+	if validation.is_empty() or int(validation.get("batchSize", 0)) != expected_batch:
+		finish_(false, 0, 0, tr("数值验证未返回完整结果。"))
+		return
+	append_regular_report_("validation", validation)
+	append_output_(tr("批量 %d 的报告：%s") % [expected_batch, str(validation.get("reportPath", ""))])
+	var all_metrics: Dictionary = Dictionary(validation.get("maxAbsByComparison", {}))
+	var metrics: Dictionary = Dictionary(all_metrics.get("originalVsCandidate", {}))
+	append_output_(tr("新旧内核最大绝对差：落子概率 %.6f，胜率 %.6f，目差 %.6f，归属 %.6f") % [
+		float(metrics.get("legalPolicyProbability", 0.0)), float(metrics.get("whiteWinProbability", 0.0)),
+		float(metrics.get("whiteScoreMeanPoints", 0.0)), float(metrics.get("whiteOwnership", 0.0))])
+	if str(validation.get("status", "")) != "completed_needs_review":
+		finish_(false, 0, 0, tr("发现非有限值或验证不完整，请检查报告。"))
+		return
+	o3_validation_index_ += 1
+	send_next_o3_validation_()
+
+
 func start_regular_benchmark_() -> bool:
 	# Benchmark only the requested OpenCL backend. Falling back to Eigen here
 	# would produce a valid-looking result for the wrong implementation.
@@ -89,8 +156,15 @@ func start_regular_benchmark_() -> bool:
 	connect_transport_()
 	append_output_(tr("正在准备 Android 内置 KataGo 性能检测…"))
 	append_output_(tr("检测将分别测量纯神经网络吞吐量和真实搜索性能。"))
+	var host: Variant = JavaClassWrapper.wrap(KataGoOpenCLTransport.kAndroidHostClass)
+	if host != null:
+		append_output_(tr("特定模型加速开关：%s（按已保存设置，实际状态将在模型加载后显示）") % (
+			tr("已开启") if SettingsStore.get_katago_o3_optimize() else tr("已关闭")
+		))
 	append_regular_report_("environment", {
 		"platform": OS.get_name(),
+		"o3OptimizeRequested": SettingsStore.get_katago_o3_optimize(),
+		"o3ProfileRequested": false,
 		"deviceModel": OS.get_model_name(),
 		"osVersion": OS.get_version(),
 		"engineVersion": Engine.get_version_info(),
@@ -102,6 +176,9 @@ func start_regular_benchmark_() -> bool:
 			kRegularBatchCandidates[kRegularBatchCandidates.size() - 1],
 		]
 	)
+	# Diagnostic sampling must not affect throughput or thread selection.
+	if OS.get_name() == "Android":
+		override_config += ",gotepadO3Profile=false"
 	var started: bool = bool(transport_.call(
 		"start_transport_with_override", override_config
 	))
@@ -137,6 +214,8 @@ func start_human_candidate_() -> bool:
 	var primary_model_path: String = "" if OS.get_name() == "Android" \
 		else SettingsStore.get_katago_model_path()
 	human_transport_starting_ = true
+	if OS.get_name() == "Android":
+		override_config += ",gotepadO3Profile=false"
 	var started: bool = not model_path.is_empty() and bool(transport_.call(
 		"start_custom_transport", primary_model_path, model_path,
 		SettingsStore.get_managed_katago_human_analysis_config_path(),
@@ -147,7 +226,11 @@ func start_human_candidate_() -> bool:
 		finish_(false, 0, 0, tr("无法启动内置 KataGo 性能检测。"))
 		return false
 	human_warming_up_ = true
-	start_human_query_()
+	acceleration_wait_count_ = 0
+	if OS.get_name() == "Android":
+		send_regular_action_("query_runtime_stats")
+	else:
+		start_human_query_()
 	return true
 
 
@@ -163,6 +246,9 @@ func connect_transport_() -> void:
 func cancel_benchmark() -> void:
 	if finishing_:
 		return
+	if o3_validation_mode_:
+		append_regular_report_("validationEnd", {"status": "canceled", "completedBatches": o3_validation_index_})
+		write_regular_report_()
 	finishing_ = true
 	terminate_current_query_()
 	stop_transport_()
@@ -330,16 +416,88 @@ func on_line_received_(line: String, source: KataGoTransport) -> void:
 		return
 	if bool(result.get("isDuringSearch", false)):
 		return
+	if o3_validation_mode_:
+		on_o3_validation_response_(result)
+		return
 	if human_model_:
+		if result.has("nn"):
+			var stats: Dictionary = Dictionary(result["nn"])
+			report_model_acceleration_(stats)
+			if not bool(Dictionary(stats.get("modelAcceleration", {})).get("available", false)):
+				acceleration_wait_count_ += 1
+				if acceleration_wait_count_ > 120:
+					finish_(false, 0, 0, tr("无法确认模型加速状态，未开始测速。"))
+					return
+				await get_tree().create_timer(0.25).timeout
+				if not finishing_:
+					send_regular_action_("query_runtime_stats")
+				return
+			start_human_query_()
+			return
 		on_human_query_completed_(result)
 		return
 	on_regular_response_(result)
 
 
+func report_model_acceleration_(stats: Dictionary) -> void:
+	var status: Dictionary = Dictionary(stats.get("modelAcceleration", {}))
+	if status.is_empty():
+		return
+	var reasons: Dictionary = {
+		"initializing": tr("正在初始化，尚未确认启用"),
+		"disabled_by_setting": tr("开关未开启，使用原实现"),
+		"model_not_supported": tr("模型结构不兼容，使用原实现"),
+		"unsupported_structure": tr("网络结构或输入格式暂不支持，使用原实现"),
+		"no_compatible_operators": tr("未找到兼容的加速算子，使用原实现"),
+		"board_not_supported": tr("棋盘条件不满足，使用原实现"),
+		"precision_not_supported": tr("当前后端精度配置不满足旧版加速条件，使用原实现"),
+		"fp16_storage_not_enabled": tr("当前后端未启用 FP16 存储，使用原实现"),
+		"tensor_core_layout_not_supported": tr("当前 1×1 矩阵计算路径不兼容，使用原实现"),
+		"device_fp16_not_supported": tr("设备未提供实验内核所需的 FP16 能力，使用原实现"),
+		"device_capability_query_failed": tr("设备 FP16 能力查询失败，使用原实现"),
+		"kernel_compilation_failed": tr("实验内核编译失败，使用原实现"),
+		"kernel_initialization_failed": tr("加速内核初始化失败，使用原实现"),
+		"kernel_failed": tr("加速内核运行失败，已回退原实现"),
+		"enabled": tr("加速路径已启用"),
+	}
+	var compatibility: String = tr("未确认")
+	if bool(status.get("available", false)):
+		compatibility = tr("兼容") if bool(status.get("structureSupported", false)) else tr("不兼容")
+	var message: String = tr("模型：%s；结构适配：%s；实际状态：%s") % [
+		str(stats.get("modelInternalName", "")),
+		compatibility,
+		str(reasons.get(str(status.get("reason", "")), tr("状态未知"))),
+	]
+	var structure: Dictionary = Dictionary(status.get("structure", {}))
+	if not structure.is_empty():
+		message += tr("；结构类型：%s；候选内核数量（单路、FFN 融合、QKV 融合）：%s") % [
+			str(structure.get("family", "")), str(structure.get("kernelCandidates", []))]
+	var precision: Dictionary = Dictionary(status.get("precision", {}))
+	if bool(status.get("enabled", false)) and not precision.is_empty() \
+			and not bool(precision.get("backendFP16Compute", false)):
+		message += tr("；原后端未启用 FP16 计算，实验内核独立使用 FP16，请先进行数值验证")
+	if message != acceleration_status_text_:
+		acceleration_status_text_ = message
+		append_output_(message)
+		append_regular_report_("modelAcceleration", status)
+
+
 func on_regular_response_(result: Dictionary) -> void:
+	var runtime: Dictionary = Dictionary(result.get("nn", result.get("benchmark", {})))
+	report_model_acceleration_(runtime)
 	match regular_phase_:
 		kRegularPhaseInitialStats:
 			var stats: Dictionary = Dictionary(result.get("nn", {}))
+			var acceleration: Dictionary = Dictionary(stats.get("modelAcceleration", {}))
+			if not bool(acceleration.get("available", false)):
+				acceleration_wait_count_ += 1
+				if acceleration_wait_count_ > 120:
+					finish_(false, 0, 0, tr("无法确认模型加速状态，未开始测速。请检查后端或更新应用。"))
+					return
+				await get_tree().create_timer(0.25).timeout
+				if not finishing_:
+					send_regular_action_("query_runtime_stats")
+				return
 			var max_batch_size: int = int(stats.get("maxBatchSize", 0))
 			if max_batch_size <= 0:
 				finish_(false, 0, 0, tr("内置 KataGo 没有返回有效的最大批量。"))
@@ -713,13 +871,32 @@ func append_regular_report_(record_type: String, data: Dictionary) -> void:
 func write_regular_report_() -> String:
 	if regular_report_records_.is_empty():
 		return ""
-	var file: FileAccess = FileAccess.open(kRegularReportPath, FileAccess.WRITE)
+	var local_path: String = "user://katago/validation-latest.jsonl" if o3_validation_mode_ else kRegularReportPath
+	var file: FileAccess = FileAccess.open(local_path, FileAccess.WRITE)
 	if file == null:
 		return ""
 	for record: Dictionary in regular_report_records_:
 		file.store_line(JSON.stringify(record, "", false))
 	file.close()
-	return ProjectSettings.globalize_path(kRegularReportPath)
+	# Keep an externally readable, separate report for each O3 model/run.
+	if OS.get_name() == "Android":
+		var host: Variant = JavaClassWrapper.wrap(KataGoOpenCLTransport.kAndroidHostClass)
+		if host != null:
+			var directory: String = str(host.getKataGoO3ProfileDirectory())
+			if not directory.is_empty():
+				var prefix: String = "validation-summary" if o3_validation_mode_ else "benchmark"
+				var report_name: String = "%s-%d-%d.jsonl" % [
+					prefix,
+					int(Time.get_unix_time_from_system() * 1000), Time.get_ticks_usec()
+				]
+				var public_path: String = directory.path_join(report_name)
+				if o3_validation_mode_:
+					report_name = "validation-summary-run%s.jsonl" % o3_validation_run_id_
+					public_path = directory.path_join(report_name)
+				if bool(host.saveKataGoHistoryReport(ProjectSettings.globalize_path(local_path), report_name)):
+					return public_path
+				append_output_(tr("诊断报告副本保存失败：%s") % error_string(ERR_CANT_CREATE))
+	return ProjectSettings.globalize_path(local_path)
 
 
 func finish_(
@@ -730,9 +907,15 @@ func finish_(
 ) -> void:
 	if finishing_:
 		return
+	if o3_validation_mode_:
+		append_regular_report_("validationEnd", {
+			"status": "completed_needs_review" if succeeded else "failed",
+			"completedBatches": o3_validation_index_, "message": message,
+			"numericalAcceptance": "not_evaluated",
+		})
 	var report_path: String = write_regular_report_()
 	if not report_path.is_empty():
-		append_output_(tr("性能检测报告已保存：%s") % report_path)
+		append_output_(tr("报告已保存：%s") % report_path)
 	finishing_ = true
 	stop_transport_()
 	completed.emit(succeeded, search_threads, batch_size, message)
@@ -809,3 +992,7 @@ func on_transport_stopped_(source: KataGoTransport) -> void:
 func _exit_tree() -> void:
 	if transport_ != null:
 		transport_.stop_transport()
+	if o3_validation_mode_ and OS.get_name() == "Android":
+		var host: Variant = JavaClassWrapper.wrap(KataGoOpenCLTransport.kAndroidHostClass)
+		if host != null:
+			host.protectKataGoValidationHistory(o3_validation_run_id_, false)

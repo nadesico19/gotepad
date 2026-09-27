@@ -14,6 +14,7 @@ Prebuilt versions are published on the repository's [GitHub Releases](../../rele
 
 - The Windows x64 edition is distributed as a single `Gotepad.exe` and requires no installation. KataGo analysis requires a separately deployed desktop KataGo executable, model, and configuration.
 - The Android edition is distributed as an arm64-v8a APK and supports Android 9 or later. When installing it manually, follow the system prompt to allow installation from the current source if necessary.
+- The KataGo models required for human-like play, along with models that may be useful on high-performance Android devices, are published in a separate GitHub Release.
 
 ## <u>A few words from the human behind this project</u>
 

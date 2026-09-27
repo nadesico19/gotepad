@@ -36,15 +36,20 @@ func prepare_dialog_(dialog: AcceptDialog) -> void:
 	if not is_instance_valid(dialog):
 		return
 	configure_action_buttons_(dialog)
-	var viewport_size: Vector2 = get_tree().root.get_visible_rect().size
+	var owner_window: Window = dialog.get_parent().get_window()
+	if owner_window == null:
+		owner_window = get_tree().root
+	var viewport_size: Vector2 = owner_window.get_visible_rect().size
 	var viewport_width: int = roundi(viewport_size.x)
 	var maximum_content_width: int = maxi(
 		floori(float(viewport_width) * kMaximumWidthRatio), 1
 	)
 	# AcceptDialog 内部控件使用逻辑像素，而 Window.size/max_size 使用
-	# 窗口像素。高分屏和移动端必须按对话框的内容缩放倍率进行换算，
-	# 否则 max_size 会小于内容的物理最小宽度并被 Window 忽略。
-	var content_scale: float = maxf(dialog.content_scale_factor, 0.01)
+	# 窗口像素。首次弹出前，动态创建的子窗口尚未继承宿主窗口的内容
+	# 缩放倍率，dialog.content_scale_factor 仍可能是默认值 1。应直接使用
+	# 宿主窗口的当前倍率，否则首次布局的 max_size 会小于内容的物理
+	# 最小尺寸并被 Window 忽略。
+	var content_scale: float = maxf(owner_window.content_scale_factor, 0.01)
 	var maximum_window_width: int = maxi(
 		roundi(float(maximum_content_width) * content_scale), 1
 	)

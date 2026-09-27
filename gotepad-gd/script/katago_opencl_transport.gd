@@ -49,7 +49,13 @@ func start_custom_transport(
 	if OS.get_name() != "Android":
 		transport_error.emit(tr("OpenCL KataGo 后端仅供安卓版使用。"))
 		return false
-	var install_error: String = install_runtime_files_()
+	var selected_model_path: String = selected_model_path_() \
+		if model_path_override.is_empty() else model_path_override
+	if not human_model_path.is_empty():
+		selected_model_path = kInstalledModelPath
+	var install_error: String = install_runtime_files_(
+		selected_model_path == kInstalledModelPath
+	)
 	if not install_error.is_empty():
 		transport_error.emit(install_error)
 		return false
@@ -61,10 +67,17 @@ func start_custom_transport(
 		"reportAnalysisWinratesAs=BLACK,homeDataDir=%s,openclUseFP16=auto"
 		% ProjectSettings.globalize_path(kOpenCLDataDirectory)
 	)
+	effective_override += ",gotepadO3Optimize=%s" % (
+		"true" if SettingsStore.get_katago_o3_optimize() else "false"
+	)
+	effective_override += ",gotepadO3Profile=%s" % (
+		"true" if SettingsStore.get_katago_o3_profile() else "false"
+	)
+	var profile_directory: String = str(host_class_.getKataGoO3ProfileDirectory())
+	if not profile_directory.is_empty():
+		effective_override += ",gotepadO3ProfileLogDir=%s" % profile_directory
 	if not override_config.strip_edges().is_empty():
 		effective_override += "," + override_config.strip_edges()
-	var selected_model_path: String = selected_model_path_() \
-		if model_path_override.is_empty() else model_path_override
 	var effective_human_model_path: String = "" if human_model_path.is_empty() \
 		else ProjectSettings.globalize_path(human_model_path)
 	var started_session_id: int = int(host_class_.startKataGoOpenCL(
@@ -132,14 +145,14 @@ func _process(_delta: float) -> void:
 		emit_stopped_once_()
 
 
-func install_runtime_files_() -> String:
+func install_runtime_files_(use_builtin_model: bool) -> String:
 	for directory: String in [kInstallDirectory, kOpenCLDataDirectory]:
 		var error: Error = DirAccess.make_dir_recursive_absolute(
 			ProjectSettings.globalize_path(directory)
 		)
 		if error != OK and error != ERR_ALREADY_EXISTS:
 			return tr("无法创建内置 KataGo 数据目录：%s") % error_string(error)
-	if not SettingsStore.get_android_external_katago_model_path().is_empty():
+	if not use_builtin_model:
 		return ensure_config_()
 	var must_copy_model: bool = true
 	if FileAccess.file_exists(kInstalledModelPath):

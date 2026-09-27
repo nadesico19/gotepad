@@ -501,7 +501,7 @@ min_value = 1.0
 max_value = 100000.0
 step = 1.0
 custom_arrow_step = 100.0
-value = 500.0
+value = 5000.0
 allow_greater = true
 suffix = " visits"
 
@@ -552,7 +552,7 @@ min_value = 0.1
 max_value = 60.0
 step = 0.1
 custom_arrow_step = 1.0
-value = 2.0
+value = 1.0
 suffix = " 秒"
 
 [node name="KatagoAnalysisPvLengthRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
@@ -998,11 +998,20 @@ scroll_fit_content_height = false
 
 [node name="Footer" type="HBoxContainer" parent="KatagoBenchmarkWindow/Panel/Margin/Content"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
 [node name="Spacer" type="Control" parent="KatagoBenchmarkWindow/Panel/Margin/Content/Footer"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
+
+[node name="Cancel" type="Button" parent="KatagoBenchmarkWindow/Panel/Margin/Content/Footer"]
+visible = false
+custom_minimum_size = Vector2(104, 38)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "取消"
 
 [node name="Action" type="Button" parent="KatagoBenchmarkWindow/Panel/Margin/Content/Footer"]
 custom_minimum_size = Vector2(104, 38)
@@ -1011,9 +1020,16 @@ focus_mode = 0
 mouse_default_cursor_shape = 2
 text = "停止"
 
-[node name="SaveReminder" type="AcceptDialog" parent="KatagoBenchmarkWindow"]
-title = "还需保存设置"
-size = Vector2i(500, 190)
+[node name="CancelConfirmation" type="ConfirmationDialog" parent="KatagoBenchmarkWindow"]
+title = "取消性能检测结果"
+size = Vector2i(560, 210)
 exclusive = true
-dialog_text = "DIALOG_BENCHMARK_SAVE_REMINDER"
-ok_button_text = "知道了"
+dialog_text = "DIALOG_BENCHMARK_CANCEL_RESULT"
+ok_button_text = "确认取消"
+cancel_button_text = "返回"
+
+[node name="ApplyError" type="AcceptDialog" parent="KatagoBenchmarkWindow"]
+title = "应用失败"
+size = Vector2i(520, 190)
+exclusive = true
+ok_button_text = "确定"

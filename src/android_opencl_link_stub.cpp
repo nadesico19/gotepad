@@ -90,6 +90,10 @@ CL_API_ENTRY cl_int CL_API_CALL clSetKernelArg(cl_kernel, cl_uint, size_t,
 CL_API_ENTRY cl_int CL_API_CALL clReleaseKernel(cl_kernel) {
   return CL_INVALID_KERNEL;
 }
+CL_API_ENTRY cl_int CL_API_CALL clGetKernelWorkGroupInfo(
+    cl_kernel, cl_device_id, cl_kernel_work_group_info, size_t, void *, size_t *) {
+  return CL_INVALID_KERNEL;
+}
 CL_API_ENTRY cl_int CL_API_CALL clEnqueueReadBuffer(cl_command_queue, cl_mem,
                                                     cl_bool, size_t, size_t,
                                                     void *, cl_uint,

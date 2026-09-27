@@ -25,9 +25,17 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.lang.ref.WeakReference;
+import java.nio.channels.FileLock;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Gotepad 的 Godot Android 宿主 Activity。
@@ -72,6 +80,7 @@ public class GodotApp extends GodotActivity {
 		EdgeToEdge.enable(this);
 		super.onCreate(savedInstanceState);
 		currentActivity = new WeakReference<>(this);
+		LogHistory.start(getExternalFilesDir("o3-profile"));
 		queueOpenSgfIntent(getIntent());
 
 		Godot godot = getGodot();
@@ -348,6 +357,121 @@ public class GodotApp extends GodotActivity {
 			}
 		}
 		pendingOpenSgfUris.add(uri.toString());
+	}
+
+	public static String getKataGoO3ProfileDirectory() {
+		GodotApp activity = currentActivity.get();
+		if (activity == null) return "";
+		File directory = activity.getExternalFilesDir("o3-profile");
+		return directory == null ? "" : directory.getAbsolutePath();
+	}
+
+	/** Serialize frontend report copies with history cleanup. */
+	public static boolean saveKataGoHistoryReport(String source, String name) {
+		GodotApp activity = currentActivity.get();
+		return activity != null && LogHistory.copy(
+				activity.getExternalFilesDir("o3-profile"), source, name);
+	}
+
+	public static void protectKataGoValidationHistory(String runId, boolean active) {
+		LogHistory.protectValidation(runId, active);
+	}
+
+	private static final class LogHistory {
+		private static final int MAX_GROUPS = 20;
+		private static final long MAX_BYTES = 200L * 1024 * 1024;
+		private static boolean started;
+		private static String activeValidation = "";
+
+		static synchronized void protectValidation(String runId, boolean active) {
+			if (active) activeValidation = runId;
+			else if (activeValidation.equals(runId)) activeValidation = "";
+		}
+
+		private static final class Group {
+			final ArrayList<File> files = new ArrayList<>();
+			long bytes;
+			long newest;
+		}
+
+		static synchronized void start(File directory) {
+			if (started || directory == null) return;
+			started = true;
+			// Try immediately and after sessions end; never touch history while the
+			// native backend holds its shared POSIX lock. No UI/inference thread I/O.
+			Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(
+					() -> clean(directory), 0, 60, TimeUnit.SECONDS);
+		}
+
+		static synchronized boolean copy(File directory, String source, String name) {
+			if (directory == null || groupKey(name) == null) return false;
+			try {
+				File target = new File(directory, name);
+				if (!target.getCanonicalFile().equals(new File(directory.getCanonicalFile(), name))) return false;
+				Files.copy(new File(source).toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				return true;
+			} catch (IOException | SecurityException error) {
+				Log.w("GotepadLogHistory", "Cannot copy history report", error);
+				return false;
+			}
+		}
+
+		private static String groupKey(String name) {
+			if (name.matches("validation-(?:summary-)?run[0-9]+-[0-9]+(?:-b(?:1|2|4|8|16|32))?\\.jsonl")) {
+				return name.replaceFirst("^validation-(?:summary-)?", "")
+						.replaceFirst("-b[0-9]+\\.jsonl$", "").replaceFirst("\\.jsonl$", "");
+			}
+			// Old versions had no run ID. Keep their validation records together.
+			if (name.matches("validation-[0-9]+-b[0-9]+\\.jsonl")
+					|| name.matches("validation-summary-[0-9]+-[0-9]+\\.jsonl")) return "legacy-validation";
+			if (name.matches("o3-[0-9]+-[0-9]+-[0-9]+\\.jsonl"))
+				return "profile-process-" + name.split("-")[2];
+			if (name.matches("benchmark-[0-9]+-[0-9]+\\.jsonl")) return name;
+			return null;
+		}
+
+		private static synchronized void clean(File directory) {
+			if (!activeValidation.isEmpty()) return;
+			try (RandomAccessFile lockFile = new RandomAccessFile(new File(directory, ".retention.lock"), "rw")) {
+				try (FileLock lock = lockFile.getChannel().tryLock()) {
+					if (lock == null) return;
+					File[] entries = directory.listFiles();
+					if (entries == null) return;
+					Map<String, Group> byKey = new HashMap<>();
+					long total = 0;
+					for (File file : entries) {
+						String key = groupKey(file.getName());
+						if (key == null || !file.isFile()
+								|| !file.getCanonicalFile().equals(new File(directory.getCanonicalFile(), file.getName()))) continue;
+						Group group = byKey.computeIfAbsent(key, unused -> new Group());
+						group.files.add(file);
+						group.bytes += file.length();
+						group.newest = Math.max(group.newest, file.lastModified());
+					}
+					ArrayList<Group> groups = new ArrayList<>(byKey.values());
+					groups.sort((a, b) -> Long.compare(a.newest, b.newest));
+					for (Group group : groups) total += group.bytes;
+					int remaining = groups.size();
+					// Always keep the newest complete group, even if it alone exceeds
+					// the soft limit (e.g. a future, larger validation suite).
+					for (int i = 0; i + 1 < groups.size(); ++i) {
+						if (remaining <= MAX_GROUPS && total <= MAX_BYTES) break;
+						Group group = groups.get(i);
+						boolean removed = true;
+						for (File file : group.files) {
+							long bytes = file.length();
+							if (file.delete()) total -= bytes;
+							else { removed = false; Log.w("GotepadLogHistory", "Cannot remove " + file.getName()); }
+						}
+						if (!removed) break; // Retry this oldest group next time.
+						--remaining;
+					}
+				}
+			} catch (IOException | RuntimeException error) {
+				// Best effort only: never stop analysis or delete without a lock.
+				Log.w("GotepadLogHistory", "History cleanup skipped", error);
+			}
+		}
 	}
 
 	/** Starts the isolated Android OpenCL backend. */

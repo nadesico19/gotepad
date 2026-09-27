@@ -58,11 +58,11 @@ const kDefaultPptxBoardCoordinates: bool = false
 const kDefaultKatagoExecutablePath: String = ""
 const kDefaultKatagoModelPath: String = ""
 const kDefaultKatagoHumanModelPath: String = ""
-const kDefaultKatagoMaxVisits: int = 500
-const kDefaultKatagoTerritoryVisits: int = 500
-const kDefaultKatagoHumanMaxVisits: int = 500
+const kDefaultKatagoMaxVisits: int = 5000
+const kDefaultKatagoTerritoryVisits: int = 200
+const kDefaultKatagoHumanMaxVisits: int = 200
 const kDefaultKatagoHumanResignSuggestion: bool = false
-const kDefaultKatagoReportIntervalSeconds: float = 2.0
+const kDefaultKatagoReportIntervalSeconds: float = 1.0
 const kDefaultKatagoAnalysisPvLength: int = 10
 const kDefaultKatagoExtraBoardCandidates: int = 0
 const kKatagoExtraBoardCandidatesMaximum: int = 99
@@ -130,6 +130,8 @@ var katago_extra_board_candidates_: int = kDefaultKatagoExtraBoardCandidates
 var katago_primary_candidate_opacity_: int = \
 	kDefaultKatagoPrimaryCandidateOpacity
 var katago_extra_candidate_opacity_: int = kDefaultKatagoExtraCandidateOpacity
+var katago_o3_optimize_: bool = false
+var katago_o3_profile_: bool = false
 var katago_show_score_lead_: bool = kDefaultKatagoShowScoreLead
 var katago_show_score_lead_on_board_: bool = kDefaultKatagoShowScoreLeadOnBoard
 var katago_game_analysis_visits_: int = kDefaultKatagoGameAnalysisVisits
@@ -309,6 +311,14 @@ func get_katago_extra_candidate_opacity() -> int:
 	return katago_extra_candidate_opacity_
 
 
+func get_katago_o3_optimize() -> bool:
+	return katago_o3_optimize_
+
+
+func get_katago_o3_profile() -> bool:
+	return katago_o3_profile_
+
+
 func get_katago_show_score_lead() -> bool:
 	return katago_show_score_lead_
 
@@ -449,6 +459,10 @@ func write_managed_katago_human_analysis_config(
 	return OK
 
 
+func notify_katago_analysis_config_changed() -> void:
+	katago_paths_changed.emit()
+
+
 func set_settings(
 		language: String,
 		board_path: String,
@@ -482,7 +496,9 @@ func set_settings(
 		katago_analysis_config_path: String,
 		katago_human_model_path: String,
 		katago_human_max_visits: int,
-		katago_human_resign_suggestion: bool
+		katago_human_resign_suggestion: bool,
+		katago_o3_profile: bool = false,
+		katago_o3_optimize: bool = false
 ) -> Error:
 	if not is_finite(large_ui_multiplier) \
 			or large_ui_multiplier < kLargeUiMultiplierMinimum \
@@ -508,6 +524,8 @@ func set_settings(
 	var previous_katago_executable_path: String = katago_executable_path_
 	var previous_katago_model_path: String = katago_model_path_
 	var previous_katago_human_model_path: String = katago_human_model_path_
+	var previous_katago_o3_optimize: bool = katago_o3_optimize_
+	var previous_katago_o3_profile: bool = katago_o3_profile_
 	var previous_katago_max_visits: int = katago_max_visits_
 	var previous_katago_territory_visits: int = katago_territory_visits_
 	var previous_katago_human_max_visits: int = katago_human_max_visits_
@@ -589,6 +607,8 @@ func set_settings(
 		kKatagoCandidateOpacityMinimum,
 		kKatagoCandidateOpacityMaximum
 	)
+	katago_o3_optimize_ = katago_o3_optimize
+	katago_o3_profile_ = katago_o3_profile
 	katago_show_score_lead_ = katago_show_score_lead
 	katago_show_score_lead_on_board_ = \
 		katago_show_score_lead and katago_show_score_lead_on_board
@@ -633,6 +653,8 @@ func set_settings(
 			previous_katago_primary_candidate_opacity
 		katago_extra_candidate_opacity_ = \
 			previous_katago_extra_candidate_opacity
+		katago_o3_optimize_ = previous_katago_o3_optimize
+		katago_o3_profile_ = previous_katago_o3_profile
 		katago_show_score_lead_ = previous_katago_show_score_lead
 		katago_show_score_lead_on_board_ = \
 			previous_katago_show_score_lead_on_board
@@ -665,7 +687,9 @@ func set_settings(
 				large_ui_multiplier_, previous_large_ui_multiplier
 			):
 		large_ui_changed.emit(large_ui_enabled_, large_ui_multiplier_)
-	if katago_executable_path_ != previous_katago_executable_path \
+	if katago_o3_optimize_ != previous_katago_o3_optimize \
+			or katago_o3_profile_ != previous_katago_o3_profile \
+			or katago_executable_path_ != previous_katago_executable_path \
 			or katago_model_path_ != previous_katago_model_path \
 			or katago_analysis_config_path_ \
 				!= previous_katago_analysis_config_path:
@@ -922,6 +946,8 @@ func load_config_() -> void:
 		"extra_candidate_opacity",
 		kDefaultKatagoExtraCandidateOpacity
 	)), kKatagoCandidateOpacityMinimum, kKatagoCandidateOpacityMaximum)
+	katago_o3_optimize_ = bool(config.get_value("katago", "o3_optimize", false))
+	katago_o3_profile_ = bool(config.get_value("katago", "o3_profile", false))
 	katago_show_score_lead_ = bool(config.get_value(
 		"katago",
 		"show_score_lead",
@@ -1057,6 +1083,8 @@ func save_config_() -> Error:
 	config.set_value(
 		"katago", "extra_candidate_opacity", katago_extra_candidate_opacity_
 	)
+	config.set_value("katago", "o3_optimize", katago_o3_optimize_)
+	config.set_value("katago", "o3_profile", katago_o3_profile_)
 	config.set_value("katago", "show_score_lead", katago_show_score_lead_)
 	config.set_value(
 		"katago", "show_score_lead_on_board", katago_show_score_lead_on_board_
@@ -1100,6 +1128,8 @@ func reset_settings_() -> void:
 	katago_extra_board_candidates_ = kDefaultKatagoExtraBoardCandidates
 	katago_primary_candidate_opacity_ = kDefaultKatagoPrimaryCandidateOpacity
 	katago_extra_candidate_opacity_ = kDefaultKatagoExtraCandidateOpacity
+	katago_o3_optimize_ = false
+	katago_o3_profile_ = false
 	katago_show_score_lead_ = kDefaultKatagoShowScoreLead
 	katago_show_score_lead_on_board_ = kDefaultKatagoShowScoreLeadOnBoard
 	katago_game_analysis_visits_ = kDefaultKatagoGameAnalysisVisits
