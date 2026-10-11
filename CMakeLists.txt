@@ -193,6 +193,10 @@ add_library(go_gdext SHARED
     src/go_notes.hpp
     src/windows_single_instance_bridge.hpp)
 target_link_libraries(go_gdext PRIVATE godot::cpp goban_miniz lunasvg::lunasvg)
+if (APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  target_sources(go_gdext PRIVATE src/macos_single_instance_bridge.cpp)
+  target_compile_definitions(go_gdext PRIVATE GOTEPAD_MACOS_SINGLE_INSTANCE)
+endif ()
 option(GOTEPAD_PPTX_DIAGNOSTICS "Log Android PPTX export stages and timings" OFF)
 if (ANDROID AND GOTEPAD_PPTX_DIAGNOSTICS)
   target_compile_definitions(go_gdext PRIVATE GOTEPAD_PPTX_DIAGNOSTICS)

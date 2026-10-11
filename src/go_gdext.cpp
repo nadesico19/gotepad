@@ -7,6 +7,9 @@
 #include "go_notes.hpp"
 #include "go_board_image_recognizer.hpp"
 #include "windows_single_instance_bridge.hpp"
+#ifdef GOTEPAD_MACOS_SINGLE_INSTANCE
+#include "macos_single_instance_bridge.hpp"
+#endif
 #ifdef GOTEPAD_IOS_FILE_PICKER
 #include "ios_model_file_picker.hpp"
 #include "ios_sgf_file_bridge.hpp"
@@ -1048,6 +1051,9 @@ void initialize_go_gdext(godot::ModuleInitializationLevel level) {
   GDREGISTER_CLASS(GoNotes)
   GDREGISTER_CLASS(GoBoardImageRecognizer)
   GDREGISTER_CLASS(WindowsSingleInstanceBridge)
+#ifdef GOTEPAD_MACOS_SINGLE_INSTANCE
+  GDREGISTER_CLASS(MacOSSingleInstanceBridge)
+#endif
 #ifdef GOTEPAD_KATAGO_MERGED
   nd::go::katago::gdext::initialize_katago_gdext(level);
 #endif
