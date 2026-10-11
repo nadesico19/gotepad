@@ -1,3 +1,17 @@
+# 0.1.19
+
+- 适配macOS和iOS平台。macOS版与Windows版类似，需要自行准备KataGo环境；iOS版内置KataGo的Metal后端，以及与安卓版相同的10b模型，并支持侧载其他官方模型，人类模仿棋模型依然需要自行下载。在发布文件中，macOS目前仅构建了arm版，今后根据需要补充universal版；iOS提供ipa和构建指南，但不提供商店下载。
+- 安卓版的导出PPT功能，现已支持使用PNG格式的棋盘图片，可兼容WPS等Office软件。
+- 设置中的“大尺寸界面（移动端用）”改为“界面UI缩放”，倍率下限调整到0.5x，精度支持到小数点后2位。
+- 优化其他UI细节。
+
+Translation：
+
+- Added support for macOS and iOS. Like the Windows version, the macOS version requires users to set up KataGo themselves. The iOS version includes KataGo's Metal backend and the same 10b model as the Android version, and supports importing other official models; the Human SL model for human-like play must still be downloaded separately. The current macOS release is ARM-only, with a Universal version to be added as needed. For iOS, an IPA and build instructions are provided, but the app is not available through the App Store.
+- PPT export on Android now supports PNG board images for compatibility with WPS and other office suites.
+- Renamed the "Large UI (for mobile)" setting to "UI scaling", lowered the minimum scale to 0.5×, and added support for two decimal places.
+- Improved other UI details.
+
 # 0.1.18
 
 - 安卓版增加特定模型加速选项，勾选后KataGo分析可能获得加速效果。首批优化的对象模型是b18c384nbt、tf2-b10c384，在玄戒O3上已通过加速效果和数值一致性的双重验证，其中tf2模型获得了40%以上的显著速度提升。在其他机型（如骁龙8E5）和其他版本的模型上也可能获得相近的加速效果，但这受到多重因素的影响：该机型是否能够正常运行对象模型；对象模型的热点算子是否被本优化涵盖；不同计算精度带来的数值差异是否在可接受范围；等等。建议用户采取关闭、开启加速开关，分别进行自动性能检测，对比性能测试结果，再结合数值验证结果，综合考虑是否开启加速。请注意，安卓内置的10b模型由于内部结构差异，暂不受加速开关的影响。

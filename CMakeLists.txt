@@ -39,9 +39,24 @@ set(USE_SYSTEM_PLUTOVG OFF CACHE BOOL
 add_subdirectory(third_party/lunasvg EXCLUDE_FROM_ALL)
 set_target_properties(lunasvg plutovg PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Board-image recognition uses the same static OpenCV core on Windows and
-# Android. Godot performs image decoding, so only core and imgproc are needed.
-if (WIN32 OR ANDROID)
+if (ANDROID)
+  # Android requires a base mutex type alongside mtx_recursive. Compile a
+  # corrected copy so the fix survives replacing the downloaded dependency.
+  set(plutovg_font_source "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lunasvg/plutovg/source/plutovg-font.c")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${plutovg_font_source}")
+  file(READ "${plutovg_font_source}" plutovg_font_code)
+  string(REPLACE "mtx_init(mutex, mtx_recursive)"
+    "mtx_init(mutex, mtx_plain | mtx_recursive)" plutovg_font_code "${plutovg_font_code}")
+  set(plutovg_font_fixed "${CMAKE_CURRENT_BINARY_DIR}/plutovg-font-android.c")
+  file(CONFIGURE OUTPUT "${plutovg_font_fixed}" CONTENT "${plutovg_font_code}" @ONLY)
+  get_target_property(plutovg_sources plutovg SOURCES)
+  list(FILTER plutovg_sources EXCLUDE REGEX "(^|/)plutovg-font\\.c$")
+  set_property(TARGET plutovg PROPERTY SOURCES "${plutovg_sources};${plutovg_font_fixed}")
+endif ()
+
+# Board-image recognition uses the same static OpenCV core on Windows,
+# macOS, Android and iOS. Godot performs image decoding, so only core and imgproc are needed.
+if (WIN32 OR ANDROID OR APPLE)
   set(BUILD_LIST core,imgproc CACHE STRING "OpenCV modules used by Gotepad" FORCE)
   set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build OpenCV statically" FORCE)
   set(BUILD_opencv_apps OFF CACHE BOOL "Disable OpenCV applications" FORCE)
@@ -178,7 +193,24 @@ add_library(go_gdext SHARED
     src/go_notes.hpp
     src/windows_single_instance_bridge.hpp)
 target_link_libraries(go_gdext PRIVATE godot::cpp goban_miniz lunasvg::lunasvg)
-if (WIN32 OR ANDROID)
+option(GOTEPAD_PPTX_DIAGNOSTICS "Log Android PPTX export stages and timings" OFF)
+if (ANDROID AND GOTEPAD_PPTX_DIAGNOSTICS)
+  target_compile_definitions(go_gdext PRIVATE GOTEPAD_PPTX_DIAGNOSTICS)
+  target_link_libraries(go_gdext PRIVATE log)
+endif ()
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  enable_language(OBJCXX)
+  add_library(gotepad_sgf_receiver STATIC src/ios_sgf_open_receiver.mm)
+  target_compile_options(gotepad_sgf_receiver PRIVATE -fobjc-arc)
+  set_target_properties(gotepad_sgf_receiver PROPERTIES
+      ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/gotepad-gd/ios/plugins/sgf_receiver")
+  add_dependencies(go_gdext gotepad_sgf_receiver)
+  target_sources(go_gdext PRIVATE src/ios_model_file_picker.mm src/ios_sgf_file_bridge.mm)
+  set_source_files_properties(src/ios_model_file_picker.mm src/ios_sgf_file_bridge.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+  target_compile_definitions(go_gdext PRIVATE GOTEPAD_IOS_FILE_PICKER)
+  target_link_libraries(go_gdext PRIVATE "-framework UIKit" "-framework UniformTypeIdentifiers" "-framework PhotosUI" "-framework AVFoundation")
+endif ()
+if (WIN32 OR ANDROID OR APPLE)
   target_link_libraries(go_gdext PRIVATE opencv_core opencv_imgproc)
   target_include_directories(go_gdext SYSTEM PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/third_party/opencv/modules/core/include
@@ -188,6 +220,9 @@ if (WIN32 OR ANDROID)
 endif ()
 target_link_goban_dependencies(go_gdext)
 get_target_property(GOBAN_GDEXT_SUFFIX godot-cpp GODOTCPP_SUFFIX)
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  set(GOBAN_GDEXT_SUFFIX ".ios.${GODOTCPP_TARGET}.arm64")
+endif ()
 set_target_properties(go_gdext PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
@@ -204,11 +239,11 @@ set_target_properties(go_gdext PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/gotepad-gd/bin"
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_CURRENT_SOURCE_DIR}/gotepad-gd/bin")
 
-# KataGo is embedded into the existing Go GDExtension only on Android. Desktop
+# KataGo is embedded into the existing Go GDExtension on Android and iOS. Desktop
 # builds keep using the replaceable external-process transport and therefore
 # neither compile nor register the embedded engine.
 option(BUILD_EMBEDDED_KATAGO
-       "Build the embedded KataGo Eigen GDExtension" ${ANDROID})
+       "Build the embedded KataGo GDExtension" ${ANDROID})
 option(BUILD_ANDROID_KATAGO_OPENCL
        "Build the isolated Android KataGo OpenCL backend" ${ANDROID})
 set(KATAGO_SOURCE_DIR
@@ -222,9 +257,9 @@ set(KATAGO_OPENCL_HEADERS_DIR
     CACHE PATH "Root of the Khronos OpenCL-Headers source archive")
 
 if (BUILD_EMBEDDED_KATAGO)
-  if (NOT ANDROID)
+  if (NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     message(FATAL_ERROR
-        "BUILD_EMBEDDED_KATAGO is supported only for Android builds")
+        "BUILD_EMBEDDED_KATAGO requires Android or iOS")
   endif ()
   set(KATAGO_CPP_DIR "${KATAGO_SOURCE_DIR}/cpp")
   if (NOT EXISTS "${KATAGO_CPP_DIR}/command/analysis.cpp")
@@ -277,6 +312,11 @@ if (BUILD_EMBEDDED_KATAGO)
   set(KATAGO_EMBEDDED_EIGEN_SOURCES
       ${KATAGO_EMBEDDED_COMMON_SOURCES}
       "${KATAGO_CPP_DIR}/neuralnet/eigenbackend.cpp")
+  if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    include(cmake/katago_ios_metal.cmake)
+    set(KATAGO_EMBEDDED_EIGEN_SOURCES
+        ${KATAGO_EMBEDDED_COMMON_SOURCES} ${KATAGO_IOS_METAL_SOURCE})
+  endif ()
 
   find_package(Threads REQUIRED)
   find_package(ZLIB REQUIRED)
@@ -296,16 +336,30 @@ if (BUILD_EMBEDDED_KATAGO)
   # definitions would leak USE_EIGEN_BACKEND into that target.
   target_compile_definitions(go_gdext PRIVATE
       GOTEPAD_KATAGO_EMBEDDED GOTEPAD_KATAGO_MERGED
-      USE_EIGEN_BACKEND NO_GIT_REVISION NO_LIBZIP
+      NO_GIT_REVISION NO_LIBZIP
       BYTE_ORDER=1234 LITTLE_ENDIAN=1234 BIG_ENDIAN=4321)
-  target_compile_options(go_gdext PRIVATE -fsigned-char)
+  target_compile_options(go_gdext PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fsigned-char>)
   target_link_libraries(go_gdext PRIVATE Threads::Threads ZLIB::ZLIB)
   # Android's NDK does not expose the legacy endian macros expected by
   # KataGo's portable SHA implementation. Gotepad currently builds only
   # little-endian arm64 Android packages.
-  target_link_libraries(go_gdext PRIVATE log android)
-  target_link_options(go_gdext PRIVATE
-       "-Wl,-z,max-page-size=16384")
+  if (ANDROID)
+    target_compile_definitions(go_gdext PRIVATE USE_EIGEN_BACKEND)
+    target_link_libraries(go_gdext PRIVATE log android)
+    target_link_options(go_gdext PRIVATE "-Wl,-z,max-page-size=16384")
+  else ()
+    target_compile_definitions(go_gdext PRIVATE USE_METAL_BACKEND)
+    target_include_directories(go_gdext PRIVATE
+        "${KATAGO_CPP_DIR}/neuralnet" "${CMAKE_CURRENT_BINARY_DIR}/include")
+    target_link_libraries(go_gdext PRIVATE KataGoSwift
+        "-framework Foundation" "-framework CoreML" "-framework Metal"
+        "-framework MetalPerformanceShaders" "-framework MetalPerformanceShadersGraph")
+    target_link_directories(go_gdext PRIVATE
+        "${CMAKE_OSX_SYSROOT}/usr/lib/swift"
+        "${katago_swift_runtime_directory}")
+    target_link_options(go_gdext PRIVATE "LINKER:-rpath,/usr/lib/swift")
+    set_target_properties(go_gdext PROPERTIES LINKER_LANGUAGE CXX)
+  endif ()
 
   if (BUILD_ANDROID_KATAGO_OPENCL)
     file(READ "${KATAGO_CPP_DIR}/neuralnet/openclbackend.cpp" KATAGO_OPENCL_BACKEND)

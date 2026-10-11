@@ -167,7 +167,7 @@ layout_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-text = "大尺寸界面（移动端用）"
+text = "界面UI缩放"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/LargeUiRow"]
 layout_mode = 2
@@ -177,9 +177,10 @@ mouse_filter = 2
 [node name="Multiplier" type="SpinBox" parent="SettingsPanel/Margin/Options/LargeUiRow"]
 custom_minimum_size = Vector2(136, 36)
 layout_mode = 2
-min_value = 0.7
+min_value = 0.5
 max_value = 2.0
-step = 0.1
+step = 0.01
+custom_arrow_step = 0.1
 value = 1.5
 suffix = " x"
 

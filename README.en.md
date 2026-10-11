@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
-Gotepad is a cross-platform client for recording Go games, reviewing positions, and organizing game records. Its core board and game-record logic is implemented in C++17, while the client is built with Godot 4.7.1 (non-.NET) and GDExtension. It currently runs on Windows x64 and arm64-v8a Android devices running Android 9 or later in landscape orientation. Linux, macOS, and iOS support is planned.
+Gotepad is a cross-platform client for recording Go games, reviewing positions, and organizing game records. Its core board and game-record logic is implemented in C++17, while the client is built with Godot 4.7.1 (non-.NET) and GDExtension. It runs on Windows x64 and arm64-v8a Android devices running Android 9 or later in landscape orientation. Initial support for macOS arm64 and iOS targeting iPhone and iPad is now implemented, with further development and device testing in progress. Linux support remains planned.
 
 The project is still under development.
 
@@ -14,6 +14,8 @@ Prebuilt versions are published on the repository's [GitHub Releases](../../rele
 
 - The Windows x64 edition is distributed as a single `Gotepad.exe` and requires no installation. KataGo analysis requires a separately deployed desktop KataGo executable, model, and configuration.
 - The Android edition is distributed as an arm64-v8a APK and supports Android 9 or later. When installing it manually, follow the system prompt to allow installation from the current source if necessary.
+- Initial macOS arm64 support is implemented, with builds exported as `.app` bundles. Check the actual Release assets for prebuilt availability. KataGo uses a separately deployed desktop engine.
+- iOS builds can now be development-signed and installed on devices for testing, with a Metal backend and 10b model. An unsigned package cannot be installed directly like an APK. See the [iOS build guide](docs/ios_build_guidance.md) (Chinese) for the current process; this does not indicate an App Store or TestFlight release.
 - The KataGo models required for human-like play, along with models that may be useful on high-performance Android devices, are published in a separate GitHub Release.
 
 ## <u>A few words from the human behind this project</u>
@@ -35,13 +37,13 @@ Prebuilt versions are published on the repository's [GitHub Releases](../../rele
 - Variation exploration: create a temporary variation from any position, browse or roll back its moves, and choose whether to keep or discard it.
 - SGF reading and writing: load records from local files, the system clipboard, or the operating system's Open With action. Supports game metadata, setup nodes, branches, position titles, comments, common board marks, and Gotepad custom data, with defensive validation and warnings for malformed SGF files.
 - Game notes: store multiple layers of notes for one position; add sequential letters, triangles, squares, circles, and crosses; and configure different move-numbering modes for reading and publication. Focus mode browses every note linearly in publication-export order and allows direct editing while browsing.
-- Create positions from images: select a local image on Windows, or take a photo or choose one from the gallery on Android. OpenCV detects the board and black and white stones, after which users can rotate the image, correct its four corners, run recognition again, and manually correct individual intersections.
-- KataGo analysis: single-position and continuous analysis, candidate moves and variations, additional board candidates, candidate-marker opacity, win-rate and score-lead curves, fast full-game analysis, increased search effort, and warnings for inferior played moves. Opacity can be configured separately for the top three and additional candidates. Windows uses an externally deployed engine; Android includes OpenCL and Eigen backends and a built-in model, while also allowing an external model to be imported.
+- Create positions from images: select a local image on Windows and macOS, take a photo or choose one from the gallery on Android, or use the camera, Photos, or Files on iOS. OpenCV detects the board and black and white stones, after which users can rotate the image, correct its four corners, run recognition again, and manually correct individual intersections.
+- KataGo analysis: single-position and continuous analysis, candidate moves and variations, additional board candidates, candidate-marker opacity, win-rate and score-lead curves, fast full-game analysis, increased search effort, and warnings for inferior played moves. Opacity can be configured separately for the top three and additional candidates. Windows and macOS use an external engine; Android includes OpenCL/Eigen backends, and iOS includes a Metal GPU backend. Both mobile editions provide a 10b model, standard external-model import, and automatic performance detection.
 - KataGo human-like play: choose whether the AI plays Black or White, select a modern or pre-AlphaGo style, playing strength, and search effort per move, then start a game from any position in the current record. Temporary games support takeback and can either be retained in the original record or discarded.
-- Final scoring: under Chinese rules, use KataGo to determine ownership at every intersection, manually correct connected ownership regions, and report stones plus territory, komi, and the final margin for both sides.
-- PPTX publication export: lay out selected boards, move numbers, marks, and notes as an editable B5 landscape slide deck. Board images can be exported as SVG vectors or compatibility-oriented PNG files; Android currently supports SVG only.
+- Final scoring: under Chinese rules, use KataGo to determine ownership at every intersection, manually correct connected ownership regions, and report stones plus territory, komi, and the final margin for both sides. Android and iOS always use the built-in 10b model and a separate configuration, independently of the external model selected for normal analysis.
+- PPTX publication export: lay out selected boards, move numbers, marks, and notes as an editable B5 landscape slide deck. Board images can be exported as SVG vectors or compatibility-oriented PNG files. PNG mode has been re-enabled on Android, but its stability still needs device testing; switch to SVG if export hangs.
 - Multiple documents and a customizable interface: tabs, new, save, save as, texture selection, move-number display, stone-sound volume, board width, UI scaling, and mobile safe-margin settings.
-- Cross-platform interaction: Windows x64 and Android arm64-v8a are supported. Android adds touch zoom and panning, a large-UI option, landscape-orientation following, and opening SGF files from the system file manager.
+- Cross-platform interaction: Windows, Android, macOS, and iOS editions can now run. Mobile editions support touch zoom and panning, UI scaling, and loading records through system file interfaces. iOS also supports opening SGF from other apps and saving SGF or exporting PPTX through the system file interface. On macOS, `Control+Command+F` toggles fullscreen.
 - Chinese, Japanese, Korean, and English interface languages.
 - Update checking: check GitHub Releases for the current platform and stable/test channel, display notes for up to the five newest applicable versions, and open either the GitHub or cloud-drive download page in the system browser.
 - SGF saves use a temporary backup to reduce the risk of damaging the original file if an overwrite fails.
@@ -98,7 +100,7 @@ third_party/  Third-party dependency directories and version notes
 docs/         Project documentation
 ```
 
-The core code is kept as independent as possible from a specific GUI technology so that other desktop and mobile front ends can be added later. Windows and Android are the currently maintained clients; Linux, macOS, and iOS are future targets.
+The core code is kept as independent as possible from a specific GUI technology so that other desktop and mobile front ends can be added later. Windows and Android clients are maintained, while initial macOS and iOS support continues to be refined. Linux remains a future target.
 
 ## Build environment
 
@@ -116,7 +118,7 @@ The project depends on the following third-party libraries:
 - [LunaSVG](https://github.com/sammycage/lunasvg): converts board SVGs in PPTX exports to compatibility-oriented PNG images.
 - [OpenCV](https://github.com/opencv/opencv): computer-vision algorithms for image-board grid detection, perspective correction, and black-and-white stone recognition; licensed under the Apache License 2.0.
 - [Noto CJK](https://github.com/notofonts/noto-cjk): Gothic and serif CJK fonts used for Chinese PPTX layout. Font files are distributed under OFL-1.1.
-- [KataGo](https://github.com/lightvector/KataGo): Go position analysis engine. The desktop edition runs an external process, while the Android edition compiles KataGo as built-in analysis backends.
+- [KataGo](https://github.com/lightvector/KataGo): Go position analysis engine. Desktop editions run an external process; Android and iOS compile KataGo as built-in analysis backends.
 - [Eigen](https://gitlab.com/libeigen/eigen): CPU backend for the embedded Android KataGo engine.
 - [OpenCL-Headers](https://github.com/KhronosGroup/OpenCL-Headers): compile-time dependency for the embedded Android KataGo OpenCL backend.
 
@@ -150,11 +152,21 @@ keytool -genkeypair -v -keystore gotepad-release.jks -alias gotepad -keyalg RSA 
 
 Store the generated key outside the repository and keep a secure backup. Configure its keystore path, alias, and password in your local Godot Android Release export preset. Do not publish local export configuration containing signing paths or credentials.
 
+### macOS build
+
+macOS arm64 supports building the native GDExtension with CMake and exporting an `.app` with Godot’s macOS export template. Prepare Xcode Command Line Tools, CMake, Python 3, export templates matching Godot 4.7.1, and the third-party sources specified in their directories. Desktop analysis continues to use external KataGo; the embedded iOS Metal backend is not used on macOS.
+
+### iOS build and device installation
+
+iOS device builds require full Xcode with iOS platform support, CMake, Ninja, Godot 4.7.1 with matching export templates, and a local Apple Development signing identity. Build the macOS host extension for Godot import first, then cross-compile the arm64 iOS extension, export the Xcode project, and build and install with automatic signing. Pair the device, trust the computer, and enable Developer Mode.
+
+See the [iOS build and installation guide](docs/ios_build_guidance.md) (Chinese) for setup from a machine with only Git-tracked files. Download or generate third-party sources, tools, extension binaries, and signing credentials locally; the process does not depend on the original developer’s local scripts. A free Apple account’s Personal Team can test on personal devices; rebuild and reinstall when signing expires. Distribution follows Apple’s separate requirements.
+
 ### Platform differences
 
-- On Windows, select a local KataGo executable, model, and configuration in Settings. Android uses built-in backends and an internal configuration, so no executable or configuration path is required. Android can also import a standard external `.bin.gz` or `.txt.gz` analysis model through the system file picker and switch back to the embedded model at any time. Human-like play uses a separate Human SL model and independent automatic performance-test results; it cannot directly reuse the performance configuration of the regular analysis model.
-- On Android, SGF files can be loaded through the in-app system file picker, pasted as complete SGF text from the system clipboard, or opened directly from a file manager or another application that supports the system Open With action.
-- Android PPTX export supports SVG board images only; PNG mode is currently unavailable. The SVG edition can be viewed and edited with the official Microsoft PowerPoint app. WPS and some other compatible applications may not display embedded SVG images.
+- Windows and macOS use a local KataGo executable, model, and configuration selected in Settings. Android and iOS use built-in backends and internal configurations, with no executable or configuration path to select. Both can import standard external `.bin.gz` or `.txt.gz` analysis models through the system file picker and switch back to the built-in model. Mobile editions validate the model type; import Human SL models under human-like play, which uses a built-in 10b main model and a separate performance configuration.
+- Android and iOS can load SGF through the system file picker, paste complete SGF text, or open records from other apps. iOS imports a copy of the source file and uses the system file interface to select save and export locations; reopening the same source file switches to its existing tab.
+- PPTX export supports SVG or PNG board images. PNG mode has been re-enabled on Android but still needs device testing; switch to SVG if export hangs. SVG files can be viewed and edited with the official Microsoft PowerPoint app, while WPS and some other applications may not display embedded SVG images.
 - The first OpenCL backend run must tune itself for the current GPU and can take noticeably longer than subsequent runs. Continuous analysis increases power consumption and heat.
 
 ## License

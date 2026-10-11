@@ -360,6 +360,7 @@ func enter_territory_mode() -> bool:
 	set_playback_playing_(false)
 	clear_analysis_candidates()
 	territory_mode_ = true
+	refresh_stones_()
 	territory_marks_ = PackedInt32Array()
 	territory_confidence_ = PackedFloat32Array()
 	set_note_board_controls_visible_(false)
@@ -390,6 +391,7 @@ func exit_territory_mode() -> void:
 	if not territory_mode_:
 		return
 	territory_mode_ = false
+	refresh_stones_()
 	territory_marks_ = PackedInt32Array()
 	territory_confidence_ = PackedFloat32Array()
 	if territory_ownership_overlay_ != null:
@@ -3154,7 +3156,8 @@ func refresh_stones_() -> void:
 
 		update_stone_(stone, state, row, column, cell_size)
 		var move_number: int = move_numbers_[index]
-		if move_number >= first_displayed_move and move_number > 0:
+		if not territory_mode_ \
+				and move_number >= first_displayed_move and move_number > 0:
 			update_move_number_label_(
 				label, state, move_number, row, column, cell_size,
 				index == last_move_position_index_

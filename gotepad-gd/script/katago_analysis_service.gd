@@ -17,6 +17,8 @@ var query_serial_: int = 0
 func _ready() -> void:
 	if OS.get_name() == "Android":
 		set_transport(KataGoAndroidTransport.new())
+	elif OS.get_name() == "iOS":
+		set_transport(KataGoEmbeddedTransport.new())
 	else:
 		set_transport(KataGoLocalTransport.new())
 

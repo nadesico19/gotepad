@@ -24,6 +24,11 @@
 #include <utility>
 #include <vector>
 
+#if defined(__ANDROID__) && defined(GOTEPAD_PPTX_DIAGNOSTICS)
+#include <android/log.h>
+#include <chrono>
+#endif
+
 namespace nd::go {
 namespace {
 constexpr char kNoNotesMessage[] = "[GNE0025] no notes to export";
@@ -34,6 +39,40 @@ constexpr char kPptxRasterizeMessage[] =
     "[GNE0034] cannot rasterize board image";
 constexpr double kCommentPageUnits = 500.0;
 constexpr int kPngBoardSize = 1600;
+
+// Enabled only in an explicitly configured Android diagnostic build.
+class PptxDiagnosticScope {
+public:
+  explicit PptxDiagnosticScope(const char *stage, size_t value = 0);
+  ~PptxDiagnosticScope();
+private:
+#if defined(__ANDROID__) && defined(GOTEPAD_PPTX_DIAGNOSTICS)
+  const char *stage_;
+  size_t value_;
+  std::chrono::steady_clock::time_point started_;
+#endif
+};
+
+inline PptxDiagnosticScope::PptxDiagnosticScope(const char *stage, size_t value) {
+#if defined(__ANDROID__) && defined(GOTEPAD_PPTX_DIAGNOSTICS)
+  stage_ = stage;
+  value_ = value;
+  started_ = std::chrono::steady_clock::now();
+  __android_log_print(ANDROID_LOG_INFO, "GotepadPptx", "stage=%s begin value=%zu", stage_, value_);
+#else
+  (void)stage;
+  (void)value;
+#endif
+}
+
+inline PptxDiagnosticScope::~PptxDiagnosticScope() {
+#if defined(__ANDROID__) && defined(GOTEPAD_PPTX_DIAGNOSTICS)
+  const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - started_).count();
+  __android_log_print(ANDROID_LOG_INFO, "GotepadPptx", "stage=%s end value=%zu elapsed_ms=%lld",
+                      stage_, value_, static_cast<long long>(elapsed));
+#endif
+}
 
 struct ExportPage {
   uint64_t uid{};
@@ -77,16 +116,23 @@ void append_png_bytes_(void *closure, void *data, int size) noexcept {
 }
 
 bool svg_to_png_(const std::string &svg, std::vector<uint8_t> &png) {
+  PptxDiagnosticScope conversion("png.convert", svg.size());
   png.clear();
   try {
-    auto document = lunasvg::Document::loadFromData(svg);
+    auto document = [&] {
+      PptxDiagnosticScope parse("svg.parse", svg.size());
+      return lunasvg::Document::loadFromData(svg);
+    }();
     if (!document)
       return false;
-    auto bitmap =
-        document->renderToBitmap(kPngBoardSize, kPngBoardSize, 0xFFFFFFFF);
+    auto bitmap = [&] {
+      PptxDiagnosticScope rasterize("bitmap.render", kPngBoardSize);
+      return document->renderToBitmap(kPngBoardSize, kPngBoardSize, 0xFFFFFFFF);
+    }();
     if (bitmap.isNull())
       return false;
     PngWriteContext context{&png, true};
+    PptxDiagnosticScope encode("png.encode");
     return bitmap.writeToPng(append_png_bytes_, &context) && context.valid &&
            !png.empty();
   } catch (...) {
@@ -989,6 +1035,7 @@ bool GoNotes::export_pptx_file(const std::string &path,
                                PptxImageFormat image_format,
                                bool show_board_coordinates,
                                const PptxProgressCallback &progress) const {
+  PptxDiagnosticScope export_scope(image_format == PptxImageFormat::Png ? "export.png" : "export.svg");
   std::vector<uint8_t> template_data{};
   if (!read_file_(template_path, template_data)) {
     error_message = kTemplateReadMessage;
@@ -1009,7 +1056,10 @@ bool GoNotes::export_pptx_file(const std::string &path,
 
   std::vector<ExportPage> pages{};
   size_t figure_index = 0;
-  collect_pages_(*this, root, 0, figure_index, pages);
+  {
+    PptxDiagnosticScope collect("pages.collect");
+    collect_pages_(*this, root, 0, figure_index, pages);
+  }
   if (pages.empty()) {
     error_message = kNoNotesMessage;
     return false;
@@ -1019,7 +1069,11 @@ bool GoNotes::export_pptx_file(const std::string &path,
 
   std::map<std::string, std::vector<uint8_t>> parts{};
   std::string slide_template{};
-  if (!read_template_(template_data, parts, slide_template)) {
+  const bool template_read = [&] {
+    PptxDiagnosticScope read("template.read", template_data.size());
+    return read_template_(template_data, parts, slide_template);
+  }();
+  if (!template_read) {
     error_message = kTemplateInvalidMessage;
     return false;
   }
@@ -1049,6 +1103,7 @@ bool GoNotes::export_pptx_file(const std::string &path,
     return false;
   }
   for (const auto &[name, data] : parts) {
+    PptxDiagnosticScope write("template.part.write", data.size());
     if (!writer.add(name, data)) {
       error_message = kPptxWriteMessage;
       return false;
@@ -1057,8 +1112,11 @@ bool GoNotes::export_pptx_file(const std::string &path,
   parts.clear();
 
   for (size_t index = 0; index < pages.size(); ++index) {
-    const auto diagram =
-        render_board_(*this, pages[index], root, show_board_coordinates);
+    PptxDiagnosticScope page("page", index + 1);
+    const auto diagram = [&] {
+      PptxDiagnosticScope render("svg.generate", index + 1);
+      return render_board_(*this, pages[index], root, show_board_coordinates);
+    }();
     if (diagram.svg.empty()) {
       error_message = kTemplateInvalidMessage;
       return false;
@@ -1082,7 +1140,11 @@ bool GoNotes::export_pptx_file(const std::string &path,
         error_message = kPptxRasterizeMessage;
         return false;
       }
-      if (!writer.add("ppt/media/board" + number + ".png", png)) {
+      const bool png_written = [&] {
+        PptxDiagnosticScope write("png.zip.write", png.size());
+        return writer.add("ppt/media/board" + number + ".png", png);
+      }();
+      if (!png_written) {
         error_message = kPptxWriteMessage;
         return false;
       }

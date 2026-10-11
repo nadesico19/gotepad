@@ -1,7 +1,7 @@
 class_name SettingsPanel
 extends Control
 
-const kGotepadVersion: String = "0.1.18"
+const kGotepadVersion: String = "0.1.19"
 const kKatagoTestTimeoutMsec: int = 5000
 const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
@@ -270,9 +270,11 @@ var pending_katago_benchmark_batch_size_: int = 0
 var pending_katago_human_benchmark_threads_: int = 0
 var pending_katago_human_benchmark_batch_size_: int = 0
 var katago_benchmark_previous_analysis_config_path_: String = ""
-var android_katago_benchmark_prepare_: Callable
+var mobile_katago_benchmark_prepare_: Callable
 var katago_benchmark_human_mode_: bool = false
 var active_katago_file_dialog_: FileDialog
+var ios_model_picker_: IOSModelPicker
+var ios_model_source_path_: String = ""
 var katago_model_importer_: KataGoAndroidModelImporter
 var pending_imported_model_path_: String = ""
 var pending_imported_human_model_path_: String = ""
@@ -427,7 +429,7 @@ func _ready() -> void:
 	scroll_up_button_.pressed.connect(on_scroll_settings_pressed_.bind(-1))
 	scroll_down_button_.pressed.connect(on_scroll_settings_pressed_.bind(1))
 	settings_panel_.hide()
-	katago_model_use_builtin_.visible = OS.get_name() == "Android"
+	katago_model_use_builtin_.visible = OS.get_name() in ["Android", "iOS"]
 	close_button_.hide()
 	action_bar_.hide()
 	scroll_button_bar_.hide()
@@ -438,15 +440,15 @@ func _ready() -> void:
 
 
 func configure_mobile_spinbox_long_press_() -> void:
-	if OS.get_name() != "Android":
+	if not OS.has_feature("mobile"):
 		return
 	for node: Node in settings_panel_.find_children("*", "SpinBox", true, false):
 		var spin_box: SpinBox = node as SpinBox
-		configure_android_spinbox(spin_box)
+		configure_mobile_spinbox(spin_box)
 
 
-func configure_android_spinbox(spin_box: SpinBox) -> void:
-	if OS.get_name() != "Android" or spin_box == null:
+func configure_mobile_spinbox(spin_box: SpinBox) -> void:
+	if not OS.has_feature("mobile") or spin_box == null:
 		return
 	var instance_id: int = spin_box.get_instance_id()
 	if configured_mobile_spinboxes_.has(instance_id):
@@ -463,8 +465,8 @@ func configure_android_spinbox(spin_box: SpinBox) -> void:
 	)
 
 
-func reset_android_spinbox(spin_box: SpinBox) -> void:
-	if OS.get_name() != "Android" or spin_box == null:
+func reset_mobile_spinbox(spin_box: SpinBox) -> void:
+	if not OS.has_feature("mobile") or spin_box == null:
 		return
 	var line_edit: LineEdit = spin_box.get_line_edit()
 	line_edit.unedit()
@@ -542,7 +544,7 @@ func _input(event: InputEvent) -> void:
 			and should_cancel_settings_scroll_tween_(event):
 		cancel_settings_scroll_tween_()
 	# Observe releases even when a ScrollContainer takes over the gesture.
-	if OS.get_name() != "Android" or mobile_spinbox_touch_index_ < 0:
+	if not OS.has_feature("mobile") or mobile_spinbox_touch_index_ < 0:
 		return
 	if event is InputEventScreenTouch:
 		var touch: InputEventScreenTouch = event as InputEventScreenTouch
@@ -626,16 +628,17 @@ func configure_platform_option_visibility_() -> void:
 		return
 	var options: VBoxContainer = $SettingsPanel/Margin/Options
 	var hidden_node_names: Array[String] = kMobileHiddenKatagoOptionNodeNames \
-		if OS.get_name() == "Android" else kKatagoOptionNodeNames
+		if OS.get_name() in ["Android", "iOS"] else kKatagoOptionNodeNames
 	for node_name: String in hidden_node_names:
 		var option_node: CanvasItem = options.get_node_or_null(node_name) \
 			as CanvasItem
 		if option_node != null:
 			option_node.hide()
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		katago_model_path_.editable = false
 		katago_human_model_path_.editable = false
 		katago_test_button_.hide()
+
 
 
 func populate_options_() -> void:
@@ -674,7 +677,7 @@ func refresh_localized_options_() -> void:
 	katago_o3_profile_.text = tr("性能诊断（影响速度）")
 	katago_o3_profile_.tooltip_text = tr("记录分析耗时，自动性能检测不受此开关影响。")
 	katago_model_path_.placeholder_text = tr("使用内置模型") \
-		if OS.get_name() == "Android" else tr("请选择 .bin.gz 模型")
+		if OS.get_name() in ["Android", "iOS"] else tr("请选择 .bin.gz 模型")
 	katago_human_model_path_.placeholder_text = \
 		tr("请选择 Human SL .bin.gz 模型")
 	katago_config_dialog_.filters = PackedStringArray([
@@ -1134,7 +1137,7 @@ func open_panel_() -> void:
 
 func close_panel_() -> void:
 	cancel_settings_scroll_tween_()
-	if OS.get_name() == "Android":
+	if OS.has_feature("mobile"):
 		cancel_mobile_spinbox_long_press_()
 		for node: Node in settings_panel_.find_children("*", "SpinBox", true, false):
 			var line_edit: LineEdit = (node as SpinBox).get_line_edit()
@@ -1568,7 +1571,7 @@ func on_confirm_pressed_() -> void:
 			< SettingsStore.kLargeUiMultiplierMinimum \
 			or selected_large_ui_multiplier_() \
 			> SettingsStore.kLargeUiMultiplierMaximum:
-		error_label_.text = tr("大尺寸界面倍率必须在 0.7 到 2.0 之间。")
+		error_label_.text = tr("界面UI缩放倍率必须在 0.5 到 2.0 之间。")
 		error_label_.show()
 		return
 	var katago_validation_error: String = validate_selected_katago_paths_()
@@ -1858,7 +1861,7 @@ func validate_selected_katago_human_engine_paths_() -> String:
 			selected_katago_human_model_path_()
 		):
 		return tr("KataGo Human SL 模型路径无效。")
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		return ""
 	if not SettingsStore.is_katago_executable_path_valid(
 			selected_katago_executable_path_()
@@ -1872,14 +1875,14 @@ func validate_selected_katago_human_engine_paths_() -> String:
 
 
 func refresh_katago_path_status_() -> void:
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		katago_test_button_.disabled = true
 		katago_benchmark_button_.disabled = \
 			is_katago_benchmark_running_()
 		var model_path: String = selected_katago_model_path_()
 		if model_path.is_empty():
 			update_katago_path_status_(
-				tr("使用 Android 内置 KataGo 模型"), kStatusValidColor
+				tr("使用 iOS 内置 KataGo Metal 模型") if OS.get_name() == "iOS" else tr("使用 Android 内置 KataGo 模型"), kStatusValidColor
 			)
 		elif SettingsStore.is_katago_model_path_valid(model_path):
 			update_katago_path_status_(
@@ -1937,7 +1940,7 @@ func update_katago_path_status_(message: String, color: Color) -> void:
 func refresh_katago_human_path_status_() -> void:
 	var model_path: String = selected_katago_human_model_path_()
 	var model_valid: bool = SettingsStore.is_katago_model_path_valid(model_path)
-	var engine_valid: bool = OS.get_name() == "Android" or (
+	var engine_valid: bool = OS.get_name() in ["Android", "iOS"] or (
 		SettingsStore.is_katago_executable_path_valid(
 			selected_katago_executable_path_()
 		) and SettingsStore.is_katago_model_path_valid(
@@ -1980,6 +1983,9 @@ func on_katago_executable_browse_pressed_() -> void:
 
 
 func on_katago_model_browse_pressed_() -> void:
+	if OS.get_name() == "iOS":
+		open_ios_model_picker_(false)
+		return
 	if focus_active_katago_file_dialog_():
 		return
 	if OS.get_name() != "Android":
@@ -1991,6 +1997,9 @@ func on_katago_model_browse_pressed_() -> void:
 
 
 func on_katago_human_model_browse_pressed_() -> void:
+	if OS.get_name() == "iOS":
+		open_ios_model_picker_(true)
+		return
 	if focus_active_katago_file_dialog_():
 		return
 	if OS.get_name() != "Android":
@@ -2012,6 +2021,8 @@ func on_katago_config_browse_pressed_() -> void:
 
 
 func focus_active_katago_file_dialog_() -> bool:
+	if ios_model_picker_ != null:
+		return true
 	if active_katago_file_dialog_ != null:
 		active_katago_file_dialog_.grab_focus()
 		return true
@@ -2047,9 +2058,44 @@ func on_katago_executable_selected_(path: String) -> void:
 	on_option_selected_(0)
 
 
+func open_ios_model_picker_(human_model: bool) -> void:
+	if focus_active_katago_file_dialog_() or katago_model_importer_ != null:
+		return
+	ios_model_picker_ = IOSModelPicker.new()
+	add_child(ios_model_picker_)
+	ios_model_picker_.completed.connect(on_ios_model_selected_.bind(human_model))
+	if not ios_model_picker_.open_file():
+		ios_model_picker_.queue_free()
+		ios_model_picker_ = null
+		importing_human_model_ = human_model
+		update_active_model_import_status_(tr("无法打开 iOS 文件选择器。"), kStatusErrorColor)
+
+
+func on_ios_model_selected_(result: Dictionary, human_model: bool) -> void:
+	ios_model_picker_ = null
+	if bool(result.get("cancelled", false)):
+		return
+	importing_human_model_ = human_model
+	var message: String = str(result.get("error", ""))
+	if not message.is_empty():
+		update_active_model_import_status_(message, kStatusErrorColor)
+		return
+	ios_model_source_path_ = str(result.get("path", ""))
+	start_katago_model_import_(ios_model_source_path_, human_model)
+
+
+func cleanup_ios_model_source_() -> void:
+	if ios_model_source_path_.is_empty():
+		return
+	var error: Error = DirAccess.remove_absolute(ios_model_source_path_)
+	if error != OK and error != ERR_FILE_NOT_FOUND:
+		push_warning("Unable to remove temporary iOS model: %s" % error_string(error))
+	ios_model_source_path_ = ""
+
+
 func on_katago_model_selected_(path: String) -> void:
 	active_katago_file_dialog_ = null
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		start_katago_model_import_(path, false)
 		return
 	katago_model_path_.text = path
@@ -2059,7 +2105,7 @@ func on_katago_model_selected_(path: String) -> void:
 
 func on_katago_human_model_selected_(path: String) -> void:
 	active_katago_file_dialog_ = null
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		start_katago_model_import_(path, true)
 		return
 	katago_human_model_path_.text = path
@@ -2068,7 +2114,7 @@ func on_katago_human_model_selected_(path: String) -> void:
 
 
 func on_katago_model_use_builtin_pressed_() -> void:
-	if OS.get_name() != "Android" or katago_model_importer_ != null:
+	if OS.get_name() not in ["Android", "iOS"] or katago_model_importer_ != null:
 		return
 	cleanup_pending_imported_model_()
 	katago_model_path_.text = ""
@@ -2092,6 +2138,7 @@ func start_katago_model_import_(source_path: String, human_model: bool) -> void:
 	update_active_model_import_status_(tr("正在导入外置模型…"), kStatusCanceledColor)
 	if not katago_model_importer_.start_import(source_path):
 		katago_model_importer_ = null
+		cleanup_ios_model_source_()
 		set_katago_controls_enabled_(true)
 
 
@@ -2111,6 +2158,7 @@ func on_katago_model_import_completed_(
 	model_name: String,
 	message: String
 ) -> void:
+	cleanup_ios_model_source_()
 	katago_model_importer_ = null
 	set_katago_controls_enabled_(true)
 	if not succeeded:
@@ -2141,6 +2189,9 @@ func update_active_model_import_status_(message: String, color: Color) -> void:
 
 
 func cancel_katago_model_import_() -> void:
+	if ios_model_picker_ != null:
+		ios_model_picker_.queue_free()
+		ios_model_picker_ = null
 	if katago_model_importer_ == null:
 		return
 	var importer: KataGoAndroidModelImporter = katago_model_importer_
@@ -2148,6 +2199,7 @@ func cancel_katago_model_import_() -> void:
 	importer.cancel_import()
 	importing_human_model_ = false
 	set_katago_controls_enabled_(true)
+	cleanup_ios_model_source_()
 
 
 func cleanup_pending_imported_model_() -> void:
@@ -2369,7 +2421,7 @@ func prepare_katago_benchmark_(human_model: bool) -> void:
 		if not human_error.is_empty():
 			update_katago_human_path_status_(human_error, kStatusErrorColor)
 			return
-	elif OS.get_name() != "Android":
+	elif OS.get_name() not in ["Android", "iOS"]:
 		var validation_error: String = validate_selected_katago_engine_paths_()
 		if validation_error.is_empty() and not \
 				SettingsStore.is_katago_analysis_config_path_valid(
@@ -2410,10 +2462,10 @@ func start_katago_benchmark_() -> void:
 	set_katago_controls_enabled_(false)
 	update_active_benchmark_status_(tr("正在进行数值验证…") if katago_o3_validation_mode_ \
 		else tr("正在自动检测性能…"), kStatusNeutralColor)
-	if OS.get_name() == "Android" or katago_benchmark_human_mode_:
-		if OS.get_name() == "Android" \
-				and android_katago_benchmark_prepare_.is_valid():
-			android_katago_benchmark_prepare_.call()
+	if OS.get_name() in ["Android", "iOS"] or katago_benchmark_human_mode_:
+		if OS.get_name() in ["Android", "iOS"] \
+				and mobile_katago_benchmark_prepare_.is_valid():
+			mobile_katago_benchmark_prepare_.call()
 		start_embedded_katago_benchmark_()
 		return
 	var arguments: PackedStringArray = PackedStringArray([
@@ -2465,8 +2517,8 @@ func start_embedded_katago_benchmark_() -> void:
 		katago_embedded_benchmark_ = null
 
 
-func set_android_katago_benchmark_prepare_callback(callback: Callable) -> void:
-	android_katago_benchmark_prepare_ = callback
+func set_mobile_katago_benchmark_prepare_callback(callback: Callable) -> void:
+	mobile_katago_benchmark_prepare_ = callback
 
 
 func on_embedded_katago_benchmark_output_changed_(output: String) -> void:
@@ -2768,7 +2820,7 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	pptx_image_format_.disabled = not enabled
 	pptx_board_coordinates_.disabled = not enabled
 	var desktop_paths_enabled: bool = enabled and not OS.has_feature("mobile")
-	var android_model_enabled: bool = enabled and OS.get_name() == "Android"
+	var mobile_model_enabled: bool = enabled and OS.get_name() in ["Android", "iOS"]
 	katago_executable_path_.editable = desktop_paths_enabled
 	katago_model_path_.editable = desktop_paths_enabled
 	katago_human_model_path_.editable = desktop_paths_enabled
@@ -2777,10 +2829,10 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_analysis_config_path_.editable = desktop_paths_enabled
 	katago_executable_browse_.disabled = not desktop_paths_enabled
 	katago_model_browse_.disabled = \
-		not desktop_paths_enabled and not android_model_enabled
-	katago_model_use_builtin_.disabled = not android_model_enabled
+		not desktop_paths_enabled and not mobile_model_enabled
+	katago_model_use_builtin_.disabled = not enabled or OS.get_name() not in ["Android", "iOS"]
 	katago_human_model_browse_.disabled = \
-		not desktop_paths_enabled and not android_model_enabled
+		not desktop_paths_enabled and not mobile_model_enabled
 	katago_analysis_config_browse_.disabled = not desktop_paths_enabled
 	katago_o3_optimize_.disabled = not enabled
 	katago_o3_profile_.disabled = not enabled

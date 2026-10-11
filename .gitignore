@@ -5,6 +5,7 @@
 /.vscode/
 /gotepad-gd/.godot/
 /gotepad-gd/bin/
+/gotepad-gd/ios/plugins/**/*.a
 /gotepad-gd/android/
 /gotepad-model-test.keystore
 /docs/local_build_secrets.md

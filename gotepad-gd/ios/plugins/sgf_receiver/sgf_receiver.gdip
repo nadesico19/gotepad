@@ -1,0 +1,9 @@
+[config]
+name="GotepadSGFReceiver"
+binary="libgotepad_sgf_receiver.a"
+initialization="initialize_gotepad_sgf_receiver"
+deinitialization="deinitialize_gotepad_sgf_receiver"
+
+[dependencies]
+system=["Foundation.framework", "UIKit.framework"]
+linker_flags=["-ObjC"]

@@ -55,6 +55,8 @@ class DocumentState extends RefCounted:
 	var initialized: bool = false
 	var interactions_locked: bool = false
 	var source_writable: bool = true
+	var ios_save_bookmark: String = ""
+	var ios_source_path: String = ""
 
 
 @onready var board_: GoBoardView = $Board
@@ -130,6 +132,8 @@ class DocumentState extends RefCounted:
 	$KataGoAnalysisService
 @onready var katago_human_analysis_service_: KataGoHumanAnalysisService = \
 	$KataGoHumanAnalysisService
+@onready var katago_territory_analysis_service_: KataGoTerritoryAnalysisService = \
+	$KataGoTerritoryAnalysisService
 @onready var katago_analysis_button_: Button = \
 	$Interface/SafeArea/BoardToolBar/KatagoAnalysisButton
 @onready var human_play_button_: Button = \
@@ -279,6 +283,7 @@ var pending_side_panel_: int = kPendingPanelNone
 var side_panel_after_variation_: int = kPendingPanelNone
 var restore_katago_panel_after_branch_visualization_: bool = false
 var branch_popup_command_in_progress_: bool = false
+var ios_file_picker_: IOSSGFPicker
 var active_file_dialog_: FileDialog
 var export_thread_: Thread
 var export_notes_: GoNotes
@@ -293,6 +298,9 @@ var window_state_save_timer_: Timer
 var last_windowed_position_: Vector2i = Vector2i.ZERO
 var last_windowed_size_: Vector2i = Vector2i(1600, 900)
 var last_window_maximized_: bool = false
+var ios_sgf_bridge_: Object
+var ios_open_requests_: Array[Dictionary] = []
+var ios_open_action_pending_: bool = false
 var android_host_class_: Variant
 var android_open_intent_timer_: Timer
 var android_open_requests_: Array[String] = []
@@ -304,6 +312,8 @@ var windows_open_action_pending_: bool = false
 var territory_mode_active_: bool = false
 var territory_query_id_: String = ""
 var territory_side_panel_to_restore_: int = kPendingPanelNone
+var territory_restore_after_resume_: bool = false
+var application_paused_: bool = false
 var human_play_mode_active_: bool = false
 var human_play_ai_color_: int = kWhite
 var human_play_profile_: String = "rank_1d"
@@ -372,6 +382,7 @@ func _ready() -> void:
 	window_state_save_timer_.timeout.connect(save_window_state_now_)
 	add_child(window_state_save_timer_)
 	configure_android_open_intents_()
+	configure_ios_open_files_()
 	board_size_dialog_.create_requested.connect(on_create_requested_)
 	board_size_dialog_.sgf_load_requested.connect(on_sgf_load_requested_)
 	board_size_dialog_.sgf_paste_requested.connect(on_sgf_paste_requested_)
@@ -400,11 +411,11 @@ func _ready() -> void:
 	)
 	katago_analysis_button_.pressed.connect(on_katago_analysis_requested_)
 	katago_analysis_panel_.bind_service(katago_analysis_service_)
-	settings_ui_.configure_android_spinbox(human_play_visits_input_)
-	settings_ui_.configure_android_spinbox(katago_max_playouts_input_)
+	settings_ui_.configure_mobile_spinbox(human_play_visits_input_)
+	settings_ui_.configure_mobile_spinbox(katago_max_playouts_input_)
 	settings_ui_.call(
-		&"set_android_katago_benchmark_prepare_callback",
-		Callable(self, &"prepare_android_katago_benchmark_")
+		&"set_mobile_katago_benchmark_prepare_callback",
+		Callable(self, &"prepare_mobile_katago_benchmark_")
 	)
 	katago_analysis_service_.transport_starting.connect(
 		on_normal_katago_transport_starting_
@@ -466,18 +477,6 @@ func _ready() -> void:
 	katago_human_analysis_service_.service_error.connect(
 		on_human_play_service_error_
 	)
-	katago_human_analysis_service_.result_received.connect(
-		on_territory_analysis_result_
-	)
-	katago_human_analysis_service_.query_error.connect(
-		on_territory_query_error_
-	)
-	katago_human_analysis_service_.log_received.connect(
-		on_territory_log_received_
-	)
-	katago_human_analysis_service_.service_warning.connect(
-		on_territory_service_warning_
-	)
 	configure_human_play_options_()
 	territory_scoring_button_.pressed.connect(
 		on_territory_scoring_requested_
@@ -494,21 +493,22 @@ func _ready() -> void:
 	board_.territory_cancel_requested.connect(
 		exit_territory_scoring_mode_
 	)
-	katago_analysis_service_.result_received.connect(
-		on_territory_analysis_result_
-	)
-	katago_analysis_service_.query_error.connect(
-		on_territory_query_error_
-	)
-	katago_analysis_service_.log_received.connect(
-		on_territory_log_received_
-	)
-	katago_analysis_service_.service_warning.connect(
-		on_territory_service_warning_
-	)
-	katago_analysis_service_.service_error.connect(
-		on_territory_service_error_
-	)
+	if OS.get_name() in ["Android", "iOS"]:
+		katago_territory_analysis_service_.result_received.connect(on_territory_analysis_result_)
+		katago_territory_analysis_service_.query_error.connect(on_territory_query_error_)
+		katago_territory_analysis_service_.log_received.connect(on_territory_log_received_)
+		katago_territory_analysis_service_.service_warning.connect(on_territory_service_warning_)
+		katago_territory_analysis_service_.service_error.connect(on_territory_service_error_)
+	else:
+		katago_human_analysis_service_.result_received.connect(on_territory_analysis_result_)
+		katago_human_analysis_service_.query_error.connect(on_territory_query_error_)
+		katago_human_analysis_service_.log_received.connect(on_territory_log_received_)
+		katago_human_analysis_service_.service_warning.connect(on_territory_service_warning_)
+		katago_analysis_service_.result_received.connect(on_territory_analysis_result_)
+		katago_analysis_service_.query_error.connect(on_territory_query_error_)
+		katago_analysis_service_.log_received.connect(on_territory_log_received_)
+		katago_analysis_service_.service_warning.connect(on_territory_service_warning_)
+		katago_analysis_service_.service_error.connect(on_territory_service_error_)
 	notes_panel_.displayed_marks_changed.connect(
 		on_displayed_note_marks_changed_
 	)
@@ -673,6 +673,66 @@ func _ready() -> void:
 	call_deferred(&"open_startup_sgf_files_")
 	call_deferred(&"poll_android_open_intents_")
 	call_deferred(&"check_for_updates_on_startup_")
+
+
+func configure_ios_open_files_() -> void:
+	if OS.get_name() != "iOS":
+		return
+	if not ClassDB.class_exists(&"IOSSGFFileBridge"):
+		push_warning("iOS SGF file bridge is unavailable.")
+		return
+	ios_sgf_bridge_ = ClassDB.instantiate(&"IOSSGFFileBridge")
+	var timer: Timer = Timer.new()
+	timer.wait_time = 0.5
+	timer.timeout.connect(poll_ios_open_files_)
+	add_child(timer)
+	timer.start()
+
+
+func poll_ios_open_files_() -> void:
+	var results: Array = ios_sgf_bridge_.call("poll_external_files")
+	for value: Variant in results:
+		var result: Dictionary = Dictionary(value)
+		var error: String = str(result.get("error", ""))
+		if not error.is_empty():
+			board_size_dialog_.show_load_error(error)
+			continue
+		var path: String = str(result.get("path", ""))
+		if not path.is_empty():
+			ios_open_requests_.append(result)
+	dispatch_next_ios_open_request_()
+
+
+func dispatch_next_ios_open_request_() -> void:
+	if ios_file_picker_ != null or ios_open_action_pending_ or ios_open_requests_.is_empty():
+		return
+	ios_open_action_pending_ = true
+	var request: Dictionary = ios_open_requests_.pop_front()
+	request_after_note_edit_resolution_(
+		Callable(self, "continue_ios_open_request_").bind(request)
+	)
+
+
+func continue_ios_open_request_(request: Dictionary) -> void:
+	request_after_human_play_navigation_(
+		Callable(self, "open_ios_sgf_path_now_").bind(request)
+	)
+
+
+func open_ios_sgf_path_now_(request: Dictionary) -> void:
+	var path: String = str(request.get("path", ""))
+	var source_path: String = str(request.get("source_path", ""))
+	if activate_existing_ios_sgf_document_(source_path):
+		ios_open_action_pending_ = false
+		call_deferred(&"dispatch_next_ios_open_request_")
+		return
+	if active_document_index_ >= 0 \
+			and active_document_index_ < documents_.size() \
+			and documents_[active_document_index_].initialized:
+		create_new_tab_after_human_play_()
+	on_sgf_load_requested_(path, false, source_path)
+	ios_open_action_pending_ = false
+	call_deferred(&"dispatch_next_ios_open_request_")
 
 
 func configure_android_open_intents_() -> void:
@@ -1058,7 +1118,29 @@ func apply_board_width_percentage_(percentage: int) -> void:
 	call_deferred(&"on_board_layout_changed_")
 
 
+func handle_macos_fullscreen_shortcut_(event: InputEvent) -> bool:
+	if OS.get_name() != "macOS" or event is not InputEventKey:
+		return false
+	var key_event: InputEventKey = event as InputEventKey
+	if not key_event.pressed or key_event.echo \
+			or key_event.keycode != KEY_F \
+			or not key_event.ctrl_pressed or not key_event.meta_pressed \
+			or key_event.alt_pressed or key_event.shift_pressed:
+		return false
+	var window: Window = get_window()
+	if window.mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN]:
+		window.mode = Window.MODE_MAXIMIZED \
+				if last_window_maximized_ else Window.MODE_WINDOWED
+	else:
+		save_window_state_now_()
+		window.mode = Window.MODE_FULLSCREEN
+	return true
+
+
 func _input(event: InputEvent) -> void:
+	if handle_macos_fullscreen_shortcut_(event):
+		get_viewport().set_input_as_handled()
+		return
 	if export_in_progress_:
 		return
 	if export_success_dialog_.visible and event is InputEventKey:
@@ -1438,6 +1520,10 @@ func request_save_() -> void:
 			or active_document_index_ >= documents_.size():
 		return
 	var document: DocumentState = documents_[active_document_index_]
+	if OS.get_name() == "iOS" and not document.ios_save_bookmark.is_empty():
+		if not focus_active_file_dialog_():
+			request_save_confirmation_(document.file_path)
+		return
 	if document.file_path.is_empty() or not document.source_writable:
 		show_save_dialog_()
 		return
@@ -1457,6 +1543,9 @@ func request_save_as_() -> void:
 
 func show_save_dialog_() -> void:
 	if focus_active_file_dialog_():
+		return
+	if OS.get_name() == "iOS":
+		save_ios_document_(false)
 		return
 	var document: DocumentState = documents_[active_document_index_]
 	if document.file_path.is_empty() or not document.source_writable:
@@ -1501,6 +1590,8 @@ func on_save_canceled_() -> void:
 
 
 func save_document_to_(path: String) -> bool:
+	if OS.get_name() == "iOS":
+		return save_ios_document_(true)
 	if active_document_index_ < 0 \
 			or active_document_index_ >= documents_.size():
 		return false
@@ -1523,6 +1614,63 @@ func save_document_to_(path: String) -> bool:
 	)
 	refresh_document_tabs_()
 	return true
+
+
+func create_ios_output_path_(filename: String) -> String:
+	var directory: String = "user://.tmp/ios-output/%d" % Time.get_ticks_usec()
+	if DirAccess.make_dir_recursive_absolute(directory) != OK:
+		return ""
+	return ProjectSettings.globalize_path(directory.path_join(filename))
+
+
+func save_ios_document_(overwrite: bool) -> bool:
+	if focus_active_file_dialog_() or active_document_index_ < 0 \
+			or active_document_index_ >= documents_.size():
+		return false
+	var document: DocumentState = documents_[active_document_index_]
+	var filename: String = DocumentDisplayName.sanitize(document.title)
+	if filename.is_empty():
+		filename = tr("新建笔记")
+	if filename.get_extension().to_lower() != "sgf":
+		filename += ".sgf"
+	var source_path: String = create_ios_output_path_(filename)
+	if source_path.is_empty() or not bool(document.notes.call("save_sgf_file", source_path)):
+		save_error_dialog_.dialog_text = CommandMessages.localize(document.notes.get_message())
+		if source_path.is_empty():
+			save_error_dialog_.dialog_text = tr("无法创建临时文件。")
+		save_error_dialog_.popup_centered(Vector2i(480, 180))
+		return false
+	ios_file_picker_ = IOSSGFPicker.new()
+	add_child(ios_file_picker_)
+	ios_file_picker_.completed.connect(on_ios_save_completed_.bind(document, source_path))
+	var opened: bool = ios_file_picker_.overwrite_file(source_path, document.ios_save_bookmark) \
+		if overwrite and not document.ios_save_bookmark.is_empty() \
+		else ios_file_picker_.export_file(source_path)
+	if not opened:
+		ios_file_picker_.queue_free()
+		on_ios_save_completed_({"error": tr("无法打开 iOS 文件选择器。")}, document, source_path)
+	return opened
+
+
+func on_ios_save_completed_(result: Dictionary, document: DocumentState, source_path: String) -> void:
+	ios_file_picker_ = null
+	var error: String = str(result.get("error", ""))
+	if bool(result.get("cancelled", false)) or not error.is_empty():
+		DirAccess.remove_absolute(source_path)
+		if not error.is_empty():
+			save_error_dialog_.dialog_text = error
+			save_error_dialog_.popup_centered(Vector2i(480, 180))
+		return
+	var index: int = documents_.find(document)
+	if index < 0:
+		DirAccess.remove_absolute(source_path)
+		return
+	document.file_path = source_path
+	document.source_writable = false
+	document.ios_save_bookmark = str(result.get("bookmark", ""))
+	document.ios_source_path = str(result.get("source_path", ""))
+	document.title = unique_document_title_(DocumentDisplayName.from_path(str(result.get("path", source_path))), index)
+	refresh_document_tabs_()
 
 
 func on_export_requested_() -> void:
@@ -1685,15 +1833,21 @@ func on_clear_notes_confirmed_() -> void:
 
 
 func request_export_() -> void:
+	if export_in_progress_:
+		return
 	if active_document_index_ < 0 \
 			or active_document_index_ >= documents_.size():
 		return
 	if focus_active_file_dialog_():
 		return
-	if android_png_export_unavailable_():
-		show_android_png_export_unavailable_()
-		return
 	var document: DocumentState = documents_[active_document_index_]
+	if OS.get_name() == "iOS":
+		var path: String = create_ios_output_path_("%s.pptx" % DocumentDisplayName.sanitize(document.title))
+		if path.is_empty():
+			on_pptx_export_finished_(false, tr("无法创建临时文件。"))
+			return
+		start_pptx_export_(path)
+		return
 	export_file_dialog_.current_file = "%s.pptx" % document.title
 	active_file_dialog_ = export_file_dialog_
 	export_file_dialog_.popup_centered_ratio(0.72)
@@ -1710,9 +1864,6 @@ func on_export_file_selected_(path: String) -> void:
 
 func start_pptx_export_(path: String) -> void:
 	if export_in_progress_:
-		return
-	if android_png_export_unavailable_():
-		show_android_png_export_unavailable_()
 		return
 	var template_file: FileAccess = FileAccess.open(
 		kPptxTemplatePath, FileAccess.READ
@@ -1771,18 +1922,6 @@ func start_pptx_export_(path: String) -> void:
 		)
 
 
-func android_png_export_unavailable_() -> bool:
-	return OS.get_name() == "Android" \
-		and SettingsStore.get_pptx_image_format_name().to_lower() == "png"
-
-
-func show_android_png_export_unavailable_() -> void:
-	export_error_dialog_.dialog_text = tr(
-		"目前安卓端由于技术原因，不支持将棋盘导出为PNG图片，请切换至SVG模式再导出。SVG图片版的PPTX可使用Microsoft官方版Powerpoint App浏览编辑，请注意WPS可能无法显示SVG图片。"
-	)
-	export_error_dialog_.popup_centered(Vector2i(640, 240))
-
-
 func export_pptx_worker_(
 	notes: GoNotes,
 	path: String,
@@ -1799,7 +1938,7 @@ func export_pptx_worker_(
 	))
 
 
-func on_pptx_export_finished_(exported: bool, message: String) -> void:
+func on_pptx_export_finished_(exported: bool, message: String, cancelled: bool = false) -> void:
 	export_thread_ = null
 	if export_copy_source_ != null:
 		export_copy_source_.close()
@@ -1812,11 +1951,15 @@ func on_pptx_export_finished_(exported: bool, message: String) -> void:
 	export_notes_ = null
 	export_in_progress_ = false
 	set_process(false)
+	if OS.get_name() == "iOS" and not export_target_path_.is_empty():
+		DirAccess.remove_absolute(export_target_path_)
 	export_target_path_ = ""
 	export_temporary_path_ = ""
 	export_copy_total_ = 0
 	export_copy_current_ = 0
 	export_progress_dialog_.hide()
+	if cancelled:
+		return
 	if not exported:
 		export_error_dialog_.dialog_text = CommandMessages.localize(message)
 		export_error_dialog_.popup_centered(Vector2i(480, 180))
@@ -1896,6 +2039,16 @@ func copy_pptx_output_chunk_() -> void:
 		if write_error != OK:
 			on_pptx_export_finished_(false, tr("无法写入所选的 PPTX 文件。"))
 			return
+		if OS.get_name() == "iOS":
+			set_process(false)
+			export_progress_dialog_.hide()
+			ios_file_picker_ = IOSSGFPicker.new()
+			add_child(ios_file_picker_)
+			ios_file_picker_.completed.connect(on_ios_export_completed_)
+			if not ios_file_picker_.export_file(export_target_path_):
+				ios_file_picker_.queue_free()
+				on_ios_export_completed_({"error": tr("无法打开 iOS 文件选择器。")})
+			return
 		on_pptx_export_finished_(true, "")
 		return
 	var bytes_to_copy: int = mini(remaining, kPptxCopyBytesPerFrame)
@@ -1908,11 +2061,20 @@ func copy_pptx_output_chunk_() -> void:
 	export_progress_bar_.value = float(export_copy_current_)
 
 
+func on_ios_export_completed_(result: Dictionary) -> void:
+	ios_file_picker_ = null
+	var error: String = str(result.get("error", ""))
+	var cancelled: bool = bool(result.get("cancelled", false))
+	on_pptx_export_finished_(error.is_empty() and not cancelled, error, cancelled)
+
+
 func on_file_dialog_canceled_() -> void:
 	active_file_dialog_ = null
 
 
 func focus_active_file_dialog_() -> bool:
+	if ios_file_picker_ != null:
+		return true
 	if active_file_dialog_ != null:
 		active_file_dialog_.grab_focus()
 		return true
@@ -2223,7 +2385,7 @@ func on_katago_analysis_requested_() -> void:
 func on_katago_analysis_panel_visibility_changed_(opened: bool) -> void:
 	katago_analysis_button_.set_pressed_no_signal(opened)
 	if not opened:
-		settings_ui_.reset_android_spinbox(katago_max_playouts_input_)
+		settings_ui_.reset_mobile_spinbox(katago_max_playouts_input_)
 	if human_play_mode_active_ and not territory_mode_active_:
 		human_play_panel_was_open_ = opened
 	if opened:
@@ -2309,14 +2471,16 @@ func on_normal_katago_transport_starting_() -> void:
 	# 普通分析真正需要启动时再释放桌面端保温中的 Human SL 进程，
 	# 避免两套模型同时长期占用 GPU 显存。
 	katago_human_analysis_service_.shutdown()
+	katago_territory_analysis_service_.shutdown()
 
 
-func prepare_android_katago_benchmark_() -> void:
-	if OS.get_name() != "Android":
+func prepare_mobile_katago_benchmark_() -> void:
+	if OS.get_name() not in ["Android", "iOS"]:
 		return
 	katago_analysis_panel_.prepare_for_engine_shutdown()
 	katago_human_analysis_service_.shutdown()
 	katago_analysis_service_.shutdown()
+	katago_territory_analysis_service_.shutdown()
 
 
 func on_human_katago_runtime_settings_changed_() -> void:
@@ -2326,7 +2490,7 @@ func on_human_katago_runtime_settings_changed_() -> void:
 
 func on_human_play_options_visibility_changed_() -> void:
 	if not human_play_options_dialog_.visible:
-		settings_ui_.reset_android_spinbox(human_play_visits_input_)
+		settings_ui_.reset_mobile_spinbox(human_play_visits_input_)
 
 
 func on_human_play_start_requested_() -> void:
@@ -2871,6 +3035,9 @@ func on_human_play_navigation_canceled_() -> void:
 	var resume_ai: bool = human_play_navigation_paused_ai_ \
 		and human_play_mode_active_
 	clear_human_play_navigation_action_()
+	if ios_open_action_pending_:
+		ios_open_action_pending_ = false
+		call_deferred(&"dispatch_next_ios_open_request_")
 	if android_open_action_pending_:
 		android_open_action_pending_ = false
 		call_deferred(&"dispatch_next_android_open_request_")
@@ -2978,7 +3145,8 @@ func on_human_play_service_error_(message: String) -> void:
 	if not human_play_mode_active_:
 		return
 	if territory_mode_active_:
-		on_territory_service_error_(message)
+		if OS.get_name() not in ["Android", "iOS"]:
+			on_territory_service_error_(message)
 		return
 	human_play_query_id_ = ""
 	board_.set_human_play_interactions_enabled(false)
@@ -3032,6 +3200,9 @@ func enter_territory_scoring_mode_() -> void:
 		show_territory_error_(tr("无法开始终局数目模式。"))
 		restore_side_panel_after_territory_()
 		return
+	if OS.get_name() in ["Android", "iOS"]:
+		katago_analysis_service_.shutdown()
+		katago_human_analysis_service_.shutdown()
 	territory_mode_active_ = true
 	board_toolbar_.hide()
 	territory_toolbar_.show()
@@ -3041,6 +3212,8 @@ func enter_territory_scoring_mode_() -> void:
 	mobile_playback_buttons_.hide()
 	territory_accept_button_.disabled = true
 	append_territory_log_(tr("正在请求 KataGo 所属判定…"))
+	if OS.get_name() in ["Android", "iOS"]:
+		append_territory_log_(tr("移动端数目使用内置 10b 模型。"))
 	call_deferred(&"position_board_toolbar_")
 
 	var path: PackedInt64Array = board_.get_playback_path()
@@ -3194,6 +3367,8 @@ func exit_territory_scoring_mode_() -> void:
 		)
 	territory_query_id_ = ""
 	territory_mode_active_ = false
+	if OS.get_name() in ["Android", "iOS"]:
+		katago_territory_analysis_service_.shutdown()
 	board_.exit_territory_mode()
 	territory_toolbar_.hide()
 	territory_log_panel_.hide()
@@ -3203,10 +3378,15 @@ func exit_territory_scoring_mode_() -> void:
 	update_preset_button_()
 	update_mobile_playback_visibility_()
 	call_deferred(&"position_board_toolbar_")
-	restore_side_panel_after_territory_()
+	if application_paused_:
+		territory_restore_after_resume_ = true
+	else:
+		restore_side_panel_after_territory_()
 
 
 func territory_analysis_service_() -> KataGoAnalysisService:
+	if OS.get_name() in ["Android", "iOS"]:
+		return katago_territory_analysis_service_
 	return katago_human_analysis_service_ if human_play_mode_active_ \
 		else katago_analysis_service_
 
@@ -3273,9 +3453,7 @@ func update_mobile_playback_visibility_() -> void:
 	var document_initialized: bool = active_document_index_ >= 0 \
 		and active_document_index_ < documents_.size() \
 		and documents_[active_document_index_].initialized
-	mobile_playback_buttons_.visible = (OS.has_feature("android") \
-		or OS.has_feature("windows")) \
-		and document_initialized and not board_.is_preset_mode() \
+	mobile_playback_buttons_.visible = document_initialized and not board_.is_preset_mode() \
 		and not territory_mode_active_ and not human_play_mode_active_
 
 
@@ -3733,6 +3911,9 @@ func request_after_note_edit_resolution_(action: Callable) -> void:
 
 
 func on_note_edit_resolution_canceled_() -> void:
+	if ios_open_action_pending_:
+		ios_open_action_pending_ = false
+		call_deferred(&"dispatch_next_ios_open_request_")
 	if android_open_action_pending_:
 		android_open_action_pending_ = false
 		call_deferred(&"dispatch_next_android_open_request_")
@@ -3754,6 +3935,17 @@ func on_note_edit_resolution_canceled_() -> void:
 
 func _notification(what: int) -> void:
 	if not is_node_ready():
+		return
+	if what == NOTIFICATION_APPLICATION_PAUSED:
+		application_paused_ = true
+		if OS.get_name() in ["Android", "iOS"] and territory_mode_active_:
+			exit_territory_scoring_mode_()
+		return
+	if what == NOTIFICATION_APPLICATION_RESUMED:
+		application_paused_ = false
+		if territory_restore_after_resume_:
+			territory_restore_after_resume_ = false
+			call_deferred(&"restore_side_panel_after_territory_")
 		return
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
 		refresh_localized_ui_()
@@ -3956,6 +4148,7 @@ func on_image_create_requested_(
 			image_name, active_document_index_
 		)
 		document.file_path = ""
+		document.ios_source_path = ""
 		document.source_writable = true
 		document.initialized = true
 		document.interactions_locked = true
@@ -4211,7 +4404,11 @@ func position_note_mark_toolbar_() -> void:
 	)
 
 
-func on_sgf_load_requested_(path: String, source_writable: bool = true) -> void:
+func on_sgf_load_requested_(
+		path: String, source_writable: bool = true, ios_source_path: String = ""
+) -> void:
+	if OS.get_name() == "iOS" and activate_existing_ios_sgf_document_(ios_source_path):
+		return
 	if activate_existing_sgf_document_(path):
 		return
 	var load_succeeded: bool = bool(
@@ -4219,6 +4416,8 @@ func on_sgf_load_requested_(path: String, source_writable: bool = true) -> void:
 	)
 	if load_succeeded:
 		finish_sgf_load_(path, source_writable)
+		if OS.get_name() == "iOS" and active_document_index_ >= 0:
+			documents_[active_document_index_].ios_source_path = ios_source_path
 	else:
 		board_size_dialog_.show_load_error(go_notes_.get_message())
 
@@ -4246,6 +4445,8 @@ func finish_sgf_load_(path: String, source_writable: bool) -> void:
 		document.title = unique_document_title_(file_name, active_document_index_)
 		document.file_path = path
 		document.source_writable = source_writable
+		document.ios_save_bookmark = ""
+		document.ios_source_path = ""
 		document.initialized = true
 		document.interactions_locked = true
 		refresh_document_tabs_()
@@ -4296,6 +4497,18 @@ func show_sgf_import_recovery_warnings_() -> void:
 	messages.append(tr("再次保存后，相关内容将按 Gotepad 的兼容格式写出。"))
 	sgf_load_warning_dialog_.dialog_text = "\n".join(messages)
 	sgf_load_warning_dialog_.popup_centered()
+
+
+func activate_existing_ios_sgf_document_(source_path: String) -> bool:
+	if source_path.is_empty():
+		return false
+	for index: int in range(documents_.size()):
+		var document: DocumentState = documents_[index]
+		if document.initialized and document.ios_source_path == source_path:
+			if index != active_document_index_:
+				switch_document_(index)
+			return true
+	return false
 
 
 func activate_existing_sgf_document_(path: String) -> bool:

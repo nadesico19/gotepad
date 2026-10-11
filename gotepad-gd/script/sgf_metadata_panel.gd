@@ -159,7 +159,7 @@ func close_panel_immediately_() -> void:
 
 
 func configure_mobile_text_edit_long_press_() -> void:
-	if OS.get_name() != "Android":
+	if not OS.has_feature("mobile"):
 		return
 	mobile_text_edit_long_press_ = MobileTextEditLongPressController.new()
 	add_child(mobile_text_edit_long_press_)

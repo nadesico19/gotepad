@@ -11,13 +11,14 @@ func start_transport() -> bool:
 		transport_error.emit(tr("KataGo人类模仿棋模型或分析配置无效，请先打开设置检查。"))
 		return false
 	backend_ = KataGoAndroidTransport.new() if OS.get_name() == "Android" \
+		else KataGoEmbeddedTransport.new() if OS.get_name() == "iOS" \
 		else KataGoLocalTransport.new()
 	add_child(backend_)
 	backend_.line_received.connect(on_backend_line_received_)
 	backend_.log_received.connect(on_backend_log_received_)
 	backend_.transport_error.connect(on_backend_error_)
 	backend_.transport_stopped.connect(on_backend_stopped_)
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		return bool(backend_.call("start_human_transport_with_override", ""))
 	return bool(backend_.call("start_human_transport"))
 

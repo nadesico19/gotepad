@@ -102,7 +102,7 @@ func complete_copy_() -> void:
 		finish_(false, "", "", tr("写入模型文件失败：%s") %
 			error_string(write_error))
 		return
-	var validation: Dictionary = validate_model_(temporary_path_)
+	var validation: Dictionary = validate_model(temporary_path_)
 	if not bool(validation.get("valid", false)):
 		finish_(false, "", "", str(validation.get(
 			"message", tr("所选文件不是有效的 KataGo 模型。")
@@ -125,7 +125,7 @@ func complete_copy_() -> void:
 	finish_(true, final_path, str(validation.get("name", "")), "")
 
 
-func validate_model_(path: String) -> Dictionary:
+func validate_model(path: String) -> Dictionary:
 	var header_result: Dictionary = read_gzip_header_(path)
 	if not bool(header_result.get("valid", false)):
 		return {
@@ -138,7 +138,10 @@ func validate_model_(path: String) -> Dictionary:
 	if header_bytes.is_empty():
 		return {"valid": false, "message": tr("模型文件内容不完整。")}
 	var header: String = header_bytes.get_string_from_ascii()
-	var lines: PackedStringArray = header.split("\n", false)
+	# ModelDesc reads whitespace-separated tokens, regardless of line layout.
+	var lines: PackedStringArray = header.replace("\r", " ").replace(
+		"\n", " "
+	).replace("\t", " ").split(" ", false)
 	if lines.size() < 2:
 		return {"valid": false, "message": tr("模型文件头无效。")}
 	var model_name: String = lines[0].strip_edges()
@@ -148,10 +151,24 @@ func validate_model_(path: String) -> Dictionary:
 	var version: int = version_text.to_int()
 	if version < 3 or version > 99:
 		return {"valid": false, "message": tr("模型版本号无效。")}
+	var meta_encoder_version: int = 0
+	if version >= 15:
+		# Four initial fields followed by seven postprocessing parameters.
+		if lines.size() <= 11 or not lines[11].is_valid_int():
+			return {"valid": false, "message": tr("模型文件头无效。")}
+		meta_encoder_version = lines[11].to_int()
+		if meta_encoder_version < 0 or meta_encoder_version > 1:
+			return {"valid": false, "message": tr("模型文件头无效。")}
+	var requires_metadata: bool = meta_encoder_version > 0
+	if model_role_ == "analysis" and requires_metadata:
+		return {"valid": false, "message": tr("所选模型是 Human SL 仿人棋模型，请在“KataGo 人类模仿棋”中导入；普通分析请选择普通模型或内置模型。")}
+	if model_role_ == "human" and not requires_metadata:
+		return {"valid": false, "message": tr("所选模型是普通分析模型，仿人棋请选择 Human SL 模型。")}
 	return {
 		"valid": true,
 		"binary": header.contains("@BIN@"),
 		"name": model_name,
+		"requires_sgf_metadata": requires_metadata,
 	}
 
 

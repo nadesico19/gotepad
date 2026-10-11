@@ -75,8 +75,14 @@ func _init(
 	human_benchmark_visits_ = maxi(human_benchmark_visits, 1)
 
 
+func _notification(what: int) -> void:
+	if OS.get_name() == "iOS" and what == NOTIFICATION_APPLICATION_PAUSED \
+			and not finishing_:
+		finish_(false, 0, 0, tr("应用进入后台，性能检测已停止，请返回前台后重新开始。"))
+
+
 func start_benchmark() -> bool:
-	if OS.get_name() != "Android" and not human_model_:
+	if OS.get_name() not in ["Android", "iOS"] and not human_model_:
 		return false
 	if human_model_:
 		append_output_(tr("正在准备人类模仿棋端到端性能检测…"))
@@ -152,11 +158,14 @@ func on_o3_validation_response_(result: Dictionary) -> void:
 func start_regular_benchmark_() -> bool:
 	# Benchmark only the requested OpenCL backend. Falling back to Eigen here
 	# would produce a valid-looking result for the wrong implementation.
-	transport_ = KataGoOpenCLTransport.new()
+	transport_ = KataGoOpenCLTransport.new() if OS.get_name() == "Android" \
+		else KataGoEmbeddedTransport.new()
 	connect_transport_()
-	append_output_(tr("正在准备 Android 内置 KataGo 性能检测…"))
+	append_output_(tr("正在准备内置 KataGo 性能检测…"))
 	append_output_(tr("检测将分别测量纯神经网络吞吐量和真实搜索性能。"))
-	var host: Variant = JavaClassWrapper.wrap(KataGoOpenCLTransport.kAndroidHostClass)
+	var host: Variant = null
+	if OS.get_name() == "Android":
+		host = JavaClassWrapper.wrap(KataGoOpenCLTransport.kAndroidHostClass)
 	if host != null:
 		append_output_(tr("特定模型加速开关：%s（按已保存设置，实际状态将在模型加载后显示）") % (
 			tr("已开启") if SettingsStore.get_katago_o3_optimize() else tr("已关闭")
@@ -203,6 +212,7 @@ func start_human_candidate_() -> bool:
 		candidate.x, candidate.y
 	])
 	transport_ = KataGoOpenCLTransport.new() if OS.get_name() == "Android" \
+		else KataGoEmbeddedTransport.new() if OS.get_name() == "iOS" \
 		else KataGoLocalTransport.new()
 	connect_transport_()
 	var model_path: String = human_model_path_ if not human_model_path_.is_empty() \
@@ -211,7 +221,7 @@ func start_human_candidate_() -> bool:
 		"numSearchThreadsPerAnalysisThread=%d,nnMaxBatchSize=%d"
 		% [candidate.x, candidate.y]
 	)
-	var primary_model_path: String = "" if OS.get_name() == "Android" \
+	var primary_model_path: String = "" if OS.get_name() in ["Android", "iOS"] \
 		else SettingsStore.get_katago_model_path()
 	human_transport_starting_ = true
 	if OS.get_name() == "Android":
@@ -489,7 +499,7 @@ func on_regular_response_(result: Dictionary) -> void:
 		kRegularPhaseInitialStats:
 			var stats: Dictionary = Dictionary(result.get("nn", {}))
 			var acceleration: Dictionary = Dictionary(stats.get("modelAcceleration", {}))
-			if not bool(acceleration.get("available", false)):
+			if OS.get_name() == "Android" and not bool(acceleration.get("available", false)):
 				acceleration_wait_count_ += 1
 				if acceleration_wait_count_ > 120:
 					finish_(false, 0, 0, tr("无法确认模型加速状态，未开始测速。请检查后端或更新应用。"))
@@ -970,7 +980,7 @@ func on_log_received_(line: String, source: KataGoTransport) -> void:
 
 
 func on_transport_error_(message: String, source: KataGoTransport) -> void:
-	if source != transport_:
+	if finishing_ or source != transport_:
 		return
 	if human_model_ and not human_transport_starting_:
 		recover_human_candidate_(message)

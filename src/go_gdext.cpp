@@ -7,6 +7,10 @@
 #include "go_notes.hpp"
 #include "go_board_image_recognizer.hpp"
 #include "windows_single_instance_bridge.hpp"
+#ifdef GOTEPAD_IOS_FILE_PICKER
+#include "ios_model_file_picker.hpp"
+#include "ios_sgf_file_bridge.hpp"
+#endif
 
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/file_access.hpp>
@@ -33,6 +37,12 @@
 #include <utility>
 #include <vector>
 
+#ifdef __ANDROID__
+#include <godot_cpp/classes/font_file.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <lunasvg.h>
+#endif
+
 #ifdef GOTEPAD_KATAGO_MERGED
 namespace nd::go::katago::gdext {
 void initialize_katago_gdext(godot::ModuleInitializationLevel level);
@@ -42,6 +52,31 @@ void uninitialize_katago_gdext(godot::ModuleInitializationLevel level);
 
 namespace nd::go::gdext {
 inline constexpr char kInvalidBoardSizeMessage[] = "ngrids must be in [1, 52]";
+
+#ifdef __ANDROID__
+inline bool ensure_android_png_font_() {
+  static const bool ready = [] {
+    const godot::Ref<godot::FontFile> font =
+        godot::ResourceLoader::get_singleton()->load(
+            "res://assets/fonts/NotoSansCJKsc-Regular.otf", "FontFile");
+    if (font.is_null())
+      return false;
+    const auto data = font->get_data();
+    if (data.is_empty())
+      return false;
+    // LunaSVG retains this memory until the cached font face is destroyed.
+    auto bytes = std::make_unique<std::vector<uint8_t>>(
+        data.ptr(), data.ptr() + data.size());
+    const auto *buffer = bytes->data();
+    const auto length = bytes->size();
+    return lunasvg_add_font_face_from_data(
+        "Arial", false, false, buffer, length,
+        [](void *closure) { delete static_cast<std::vector<uint8_t> *>(closure); },
+        bytes.release());
+  }();
+  return ready;
+}
+#endif
 
 inline bool is_android_document_uri_(const godot::String &path) {
   return path.begins_with("content://");
@@ -433,6 +468,12 @@ inline bool GoNotes::export_pptx_file(const godot::String &path,
     native_format = nd::go::GoNotes::PptxImageFormat::Svg;
   } else if (normalized_format == "png") {
     native_format = nd::go::GoNotes::PptxImageFormat::Png;
+#ifdef __ANDROID__
+    if (!ensure_android_png_font_()) {
+      wrapper_message_ = "[GNE0034] cannot rasterize board image";
+      return false;
+    }
+#endif
   } else {
     wrapper_message_ = "[GNE0033] unsupported PPTX image format";
     return false;
@@ -497,6 +538,12 @@ inline bool GoNotes::export_pptx_local_file(
     native_format = nd::go::GoNotes::PptxImageFormat::Svg;
   } else if (normalized_format == "png") {
     native_format = nd::go::GoNotes::PptxImageFormat::Png;
+#ifdef __ANDROID__
+    if (!ensure_android_png_font_()) {
+      wrapper_message_ = "[GNE0034] cannot rasterize board image";
+      return false;
+    }
+#endif
   } else {
     wrapper_message_ = "[GNE0033] unsupported PPTX image format";
     return false;
@@ -994,6 +1041,10 @@ inline bool GoNotes::can_redo() const { return go_notes_->can_redo(); }
 void initialize_go_gdext(godot::ModuleInitializationLevel level) {
   if (level != godot::MODULE_INITIALIZATION_LEVEL_SCENE)
     return;
+#ifdef GOTEPAD_IOS_FILE_PICKER
+  GDREGISTER_CLASS(IOSModelFilePicker)
+  GDREGISTER_CLASS(IOSSGFFileBridge)
+#endif
   GDREGISTER_CLASS(GoNotes)
   GDREGISTER_CLASS(GoBoardImageRecognizer)
   GDREGISTER_CLASS(WindowsSingleInstanceBridge)

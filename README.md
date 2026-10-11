@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
-Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客户端项目。核心棋盘与棋谱逻辑使用 C++17 实现，客户端使用 Godot 4.7.1（非 .NET 版本）和 GDExtension 构建。目前可运行于 Windows x64，以及 Android 9 或更高版本的 arm64-v8a 横屏设备；Linux、macOS 和 iOS 尚处于计划适配阶段。
+Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客户端项目。核心棋盘与棋谱逻辑使用 C++17 实现，客户端使用 Godot 4.7.1（非 .NET 版本）和 GDExtension 构建。目前可运行于 Windows x64，以及 Android 9 或更高版本的 arm64-v8a 横屏设备；macOS arm64 和面向 iPhone、iPad 的 iOS 版本已完成初步适配，仍在持续完善与真机验证。Linux 尚处于计划适配阶段。
 
 项目目前仍处于开发阶段。
 
@@ -14,6 +14,8 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 
 - Windows x64 版以单文件 `Gotepad.exe` 提供，无需安装；KataGo 分析功能需要用户另外部署桌面版 KataGo、模型和配置。
 - Android 版以 arm64-v8a APK 提供，支持 Android 9 及更高版本；手动安装时可能需要按系统提示允许从当前来源安装应用。
+- macOS arm64 版已完成初步适配，可构建并导出 `.app`；预编译包是否可用，以 Releases 的实际附件为准。KataGo 使用另外部署的桌面引擎。
+- iOS 版已可开发签名并安装到设备进行测试，包含 Metal 后端和 10b 模型；不能像 APK 一样直接安装未签名包。当前构建与安装方法见 [iOS 构建指南](docs/ios_build_guidance.md)，本说明不表示已在 App Store 或 TestFlight 发布。
 - 人类模仿棋功能所必要的 KataGo 模型，以及高性能的安卓设备可能用到的模型，单独使用了一个 Release 节点发布。
 
 ## <u>本项目中为数不多来自人类的话语</u>
@@ -35,13 +37,13 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 - 变化图推演：可从任意局面建立临时变化图，浏览、回退并选择保留或放弃推演分支。
 - SGF 棋谱读写：可以从本地文件、系统剪贴板或系统“打开方式”载入棋谱，支持棋谱信息、预置节点、分支、局面标题、评论、常用棋盘标记和 Gotepad 自定义数据，并在加载异常棋谱时提供防御性校验与提示。
 - 棋局笔记：同一局面可保存多层笔记，支持顺序字母、三角、方形、圆形和叉形标记，并可为阅读及出版设置不同的棋子编号方式；“专注”模式可以按照出版导出的顺序线性浏览整份棋谱的全部笔记，并在浏览过程中直接编辑。
-- 从图片创建棋局：Windows 可选择本地图片，Android 可拍照或从相册选图；程序通过 OpenCV 识别棋盘和黑白棋子，并提供旋转、四角校正、重新识别和逐点人工修正。
-- KataGo 分析：支持单局面及持续分析、候选点与变化图、额外盘面候选数、候选标记透明度、胜率和目差曲线、快速整局分析、增加计算量和候选劣化提示。前三候选和其他候选的透明度可以分别设置。Windows 调用用户部署的外部引擎，Android 内置 OpenCL/Eigen 后端和模型，并允许导入外置权重。
+- 从图片创建棋局：Windows 和 macOS 可选择本地图片，Android 可拍照或从相册选图，iOS 可拍照或从相册、文件选图；程序通过 OpenCV 识别棋盘和黑白棋子，并提供旋转、四角校正、重新识别和逐点人工修正。
+- KataGo 分析：支持单局面及持续分析、候选点与变化图、额外盘面候选数、候选标记透明度、胜率和目差曲线、快速整局分析、增加计算量和候选劣化提示。前三候选和其他候选的透明度可以分别设置。Windows 和 macOS 调用用户部署的外部引擎；Android 内置 OpenCL/Eigen 后端，iOS 内置 Metal GPU 后端；两种移动版本均提供 10b 模型、外部标准模型导入和自动性能检测。
 - KataGo 人类模仿棋：可以选择 AI 执黑或执白、现代或 AlphaGo 前棋风、模仿棋力及每手计算量，并从当前棋谱的任意局面开始对局；临时对局可以悔棋，并可选择保留到原棋谱或放弃。
-- 终局数目：在中国规则下调用 KataGo 判断交叉点归属，允许用户按连通区域修正结果，并汇报双方子空、贴目和胜负目数。
-- PPTX 出版导出：将筛选出的棋盘、编号、标记和笔记排版为可继续编辑的 B5 横版课件，并可选择 SVG 矢量棋盘或兼容性更好的 PNG 棋盘（Android 目前仅支持 SVG）。
+- 终局数目：在中国规则下调用 KataGo 判断交叉点归属，允许用户按连通区域修正结果，并汇报双方子空、贴目和胜负目数。Android 和 iOS 固定使用内置 10b 模型及独立配置，不受普通分析选择的外部模型影响。
+- PPTX 出版导出：将筛选出的棋盘、编号、标记和笔记排版为可继续编辑的 B5 横版课件，并可选择 SVG 矢量棋盘或兼容性更好的 PNG 棋盘。Android 已重新开放 PNG 模式，稳定性仍待实机验证，导出卡住时可改用 SVG。
 - 多文档与个性化界面：提供多标签、新建、保存、另存、纹理切换、手数显示、落子音量、棋盘宽度、界面缩放及移动端安全边距等设置。
-- 跨平台交互：支持 Windows x64 和 Android arm64-v8a；Android 提供触控缩放与拖动、大尺寸界面、横屏方向跟随，以及从系统文件管理器打开 SGF。
+- 跨平台交互：Windows、Android、macOS 和 iOS 版本已可运行。移动端支持触控缩放与拖动、UI 缩放，以及通过系统文件界面加载棋谱；iOS 还支持从其他应用打开 SGF，并通过系统文件界面保存 SGF 和导出 PPTX。macOS 可用 `Control+Command+F` 切换全屏。
 - 提供中文、日本語、한국어和 English 四种界面语言。
 - 版本更新检测：按当前平台和正式版/测试版通道检查 GitHub Release，最多显示最新 5 个适用版本的更新履历，并可从系统浏览器打开 GitHub 或网盘下载页。
 - 保存 SGF 时采用临时副本保护，降低覆盖写入过程中原文件损坏的风险。
@@ -98,7 +100,7 @@ third_party/  第三方依赖的放置目录和版本说明
 docs/         项目文档
 ```
 
-核心代码尽量与具体 GUI 技术解耦，以便后续接入其他桌面端或移动端界面。当前重点维护 Windows 和 Android 客户端，Linux、macOS 和 iOS 为后续目标平台。
+核心代码尽量与具体 GUI 技术解耦，以便后续接入其他桌面端或移动端界面。当前维护 Windows、Android 客户端，并持续完善 macOS、iOS 的初步适配；Linux 为后续目标平台。
 
 ## 构建环境
 
@@ -116,7 +118,7 @@ docs/         项目文档
 - [LunaSVG](https://github.com/sammycage/lunasvg)：将 PPTX 中的棋盘图转换为兼容性更好的 PNG。
 - [OpenCV](https://github.com/opencv/opencv)：为图片棋盘的网格检测、透视校正和黑白棋子识别提供计算机视觉算法，采用 Apache License 2.0。
 - [Noto CJK](https://github.com/notofonts/noto-cjk)：PPTX 中文排版使用的黑体和宋体，字体文件按 OFL-1.1 随项目提供。
-- [KataGo](https://github.com/lightvector/KataGo)：围棋局面分析引擎；桌面端使用外部程序，Android 端编译为内置分析后端。
+- [KataGo](https://github.com/lightvector/KataGo)：围棋局面分析引擎；桌面端使用外部程序，Android 和 iOS 编译为内置分析后端。
 - [Eigen](https://gitlab.com/libeigen/eigen)：Android 内置 KataGo 的 CPU 后端。
 - [OpenCL-Headers](https://github.com/KhronosGroup/OpenCL-Headers)：Android 内置 KataGo 的 OpenCL 后端编译依赖。
 
@@ -150,11 +152,21 @@ keytool -genkeypair -v -keystore gotepad-release.jks -alias gotepad -keyalg RSA 
 
 请把生成的密钥保存在仓库以外并做好备份，在本地 Godot Android Release 导出预设中配置 keystore、alias 和密码。不要把包含签名路径或凭据的本地导出配置发布到仓库。
 
+### macOS 构建
+
+macOS arm64 已可使用 CMake 构建本机 GDExtension，再通过 Godot 的 macOS 导出模板生成 `.app`。需要 Xcode Command Line Tools、CMake、Python 3 和与 Godot 4.7.1 匹配的导出模板；第三方源码按各目录说明准备。当前桌面分析仍使用外部 KataGo，不把 iOS 内置 Metal 后端用于 macOS。
+
+### iOS 构建与真机安装
+
+iOS 真机构建需要完整 Xcode、iOS 平台支持、CMake、Ninja、Godot 4.7.1 程序和同版导出模板，以及本机 Apple Development 签名身份。先构建 macOS 宿主扩展供 Godot 导入，再交叉编译 arm64 iOS 扩展、导出 Xcode 工程并自动签名安装。设备需要配对、信任电脑并开启开发者模式。
+
+从仅有 Git 跟踪文件的新机器开始，详细步骤见 [iOS 构建与安装指南](docs/ios_build_guidance.md)。第三方源码、工具、扩展二进制和签名凭据需在本机下载或生成，不依赖原开发机的本地脚本。免费 Apple 账号的 Personal Team 可用于自己的设备测试，签名到期后需重新构建安装；正式分发另行遵循 Apple 的要求。
+
 ### 平台使用差异
 
-- Windows 版的 KataGo 通过设置面板选择本地可执行文件、模型和配置；Android 版使用内置后端和内部配置，不需要选择可执行文件或配置，也可以通过系统文件选择器导入标准 `.bin.gz` 或 `.txt.gz` 外置分析模型，并随时切回内置模型。人类模仿棋另行使用 Human SL 模型，并使用独立的自动性能检测结果，不能直接复用普通分析模型的性能配置。
-- Android 版既可以在程序内通过系统文件选择器加载 SGF，也可以粘贴系统剪贴板中的完整 SGF 文本，还可以从文件管理器或其他支持系统“打开方式”的应用直接使用 Gotepad 打开 SGF。
-- Android 版导出 PPTX 时仅支持 SVG 棋盘图片；PNG 模式目前不可用。SVG 版可使用 Microsoft PowerPoint App 浏览和编辑，WPS 等兼容软件可能无法显示其中的 SVG 图片。
+- Windows 和 macOS 的 KataGo 通过设置面板选择本地可执行文件、模型和配置；Android 和 iOS 使用内置后端和内部配置，不需要选择可执行文件或配置，也可以通过系统文件选择器导入标准 `.bin.gz` 或 `.txt.gz` 外部分析模型，并随时切回内置模型。移动端会校验模型用途，Human SL 模型需在仿人棋区域导入；仿人棋使用内置 10b 主模型和独立性能配置。
+- Android 和 iOS 均可通过系统文件选择器加载 SGF、粘贴完整 SGF 文本，或从其他应用打开 SGF。iOS 导入来源文件的副本，保存和导出通过系统文件界面选择位置；重复打开同一来源文件会切回已有标签。
+- PPTX 可选择 SVG 或 PNG 棋盘图片。Android 的 PNG 模式已重新开放，稳定性仍待实机验证；遇到卡顿可切换到 SVG。SVG 版可使用 Microsoft PowerPoint App 浏览和编辑，WPS 等兼容软件可能无法显示其中的 SVG 图片。
 - OpenCL 后端首次运行需要针对当前 GPU 调优，启动时间可能明显长于后续运行；持续分析会增加耗电和发热。
 
 ## 许可证

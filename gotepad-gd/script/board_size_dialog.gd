@@ -2,7 +2,7 @@ class_name BoardSizeDialog
 extends Control
 
 signal create_requested(board_size: int)
-signal sgf_load_requested(path: String)
+signal sgf_load_requested(path: String, source_writable: bool, ios_source_path: String)
 signal sgf_paste_requested(content: String)
 signal image_create_requested(
 	board_size: int, cells: PackedInt32Array, source_path: String
@@ -11,6 +11,8 @@ signal cancel_requested
 
 const kAndroidHostClass: String = "com.godot.game.GodotApp"
 
+var ios_image_picker_: IOSSGFPicker
+var ios_sgf_picker_: IOSSGFPicker
 var options_: Array[BaseButton] = []
 var sgf_file_dialog_open_: bool = false
 var image_file_dialog_open_: bool = false
@@ -68,11 +70,18 @@ func _ready() -> void:
 	image_import_dialog_.import_canceled.connect(on_image_import_canceled_)
 	var is_android: bool = OS.get_name() == "Android"
 	select_image_button_.visible = not is_android
-	android_image_buttons_.visible = is_android
+	android_image_buttons_.visible = is_android or OS.get_name() == "iOS"
+	gallery_button_.visible = is_android
+	if OS.get_name() == "iOS":
+		select_image_button_.reparent(android_image_buttons_)
+		android_image_buttons_.move_child(
+			select_image_button_, camera_button_.get_index() + 1
+		)
+		select_image_button_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if is_android:
 		android_host_class_ = JavaClassWrapper.wrap(kAndroidHostClass)
 	set_process(false)
-	camera_button_.disabled = android_host_class_ == null
+	camera_button_.disabled = OS.get_name() != "iOS" and android_host_class_ == null
 	gallery_button_.disabled = android_host_class_ == null
 	refresh_localized_texts()
 
@@ -103,7 +112,7 @@ func refresh_localized_texts() -> void:
 	image_description_.text = tr("从图片创建")
 	load_sgf_button_.text = tr("加载")
 	paste_sgf_button_.text = tr("粘贴")
-	select_image_button_.text = tr("选择本地图片")
+	select_image_button_.text = tr("图片") if OS.get_name() == "iOS" else tr("选择本地图片")
 	camera_button_.text = tr("拍照")
 	gallery_button_.text = tr("相册")
 	image_import_dialog_.refresh_localized_texts()
@@ -168,10 +177,21 @@ func show_load_error(message: String) -> void:
 
 func on_load_sgf_pressed_() -> void:
 	if sgf_file_dialog_open_ or sgf_file_dialog_.visible:
-		sgf_file_dialog_.grab_focus()
+		if sgf_file_dialog_.visible:
+			sgf_file_dialog_.grab_focus()
 		return
 	sgf_file_dialog_open_ = true
 	set_creation_controls_disabled_(true)
+	if OS.get_name() == "iOS":
+		ios_sgf_picker_ = IOSSGFPicker.new()
+		add_child(ios_sgf_picker_)
+		ios_sgf_picker_.completed.connect(on_ios_sgf_selected_)
+		if not ios_sgf_picker_.open_file():
+			ios_sgf_picker_.queue_free()
+			ios_sgf_picker_ = null
+			finish_sgf_file_dialog_()
+			show_load_error(tr("无法打开 iOS 文件选择器。"))
+		return
 	sgf_file_dialog_.popup_centered_ratio(0.75)
 
 
@@ -189,7 +209,21 @@ func on_paste_sgf_pressed_() -> void:
 
 func on_sgf_file_selected_(path: String) -> void:
 	finish_sgf_file_dialog_()
-	sgf_load_requested.emit(path)
+	sgf_load_requested.emit(path, true, "")
+
+
+func on_ios_sgf_selected_(result: Dictionary) -> void:
+	ios_sgf_picker_ = null
+	finish_sgf_file_dialog_()
+	if bool(result.get("cancelled", false)):
+		return
+	var error: String = str(result.get("error", ""))
+	if not error.is_empty():
+		show_load_error(error)
+		return
+	var path: String = str(result.get("path", ""))
+	if not path.is_empty():
+		sgf_load_requested.emit(path, false, str(result.get("source_path", "")))
 
 
 func on_sgf_file_dialog_canceled_() -> void:
@@ -218,6 +252,9 @@ func set_creation_controls_disabled_(disabled: bool) -> void:
 	load_sgf_button_.disabled = false
 	paste_sgf_button_.disabled = disabled
 	select_image_button_.disabled = false
+	if OS.get_name() == "iOS":
+		camera_button_.disabled = disabled
+		return
 	if OS.get_name() != "Android":
 		return
 	if android_image_request_active_:
@@ -238,13 +275,39 @@ func selected_board_size_() -> int:
 
 func on_select_image_pressed_() -> void:
 	if image_file_dialog_open_ or image_file_dialog_.visible:
-		image_file_dialog_.grab_focus()
+		if image_file_dialog_.visible:
+			image_file_dialog_.grab_focus()
 		return
 	if sgf_file_dialog_open_ or sgf_file_dialog_.visible:
 		return
 	image_file_dialog_open_ = true
 	set_creation_controls_disabled_(true)
+	if OS.get_name() == "iOS":
+		ios_image_picker_ = IOSSGFPicker.new()
+		add_child(ios_image_picker_)
+		ios_image_picker_.completed.connect(on_ios_image_selected_)
+		if not ios_image_picker_.open_image_source(
+			tr("图片"), tr("相册"), tr("文件"), tr("取消")
+		):
+			ios_image_picker_.queue_free()
+			ios_image_picker_ = null
+			finish_image_file_dialog_()
+			show_load_error(tr("无法打开 iOS 文件选择器。"))
+		return
 	image_file_dialog_.popup_centered_ratio(0.75)
+
+
+func on_ios_image_selected_(result: Dictionary) -> void:
+	ios_image_picker_ = null
+	if bool(result.get("cancelled", false)):
+		finish_image_file_dialog_()
+		return
+	var error: String = str(result.get("error", ""))
+	if not error.is_empty():
+		finish_image_file_dialog_()
+		show_load_error(error)
+		return
+	on_image_file_selected_(str(result.get("path", "")))
 
 
 func on_image_file_selected_(path: String) -> void:
@@ -283,6 +346,20 @@ func on_image_import_canceled_() -> void:
 
 
 func on_camera_pressed_() -> void:
+	if OS.get_name() == "iOS":
+		if image_file_dialog_open_ or sgf_file_dialog_open_ or image_import_dialog_.visible:
+			return
+		image_file_dialog_open_ = true
+		set_creation_controls_disabled_(true)
+		ios_image_picker_ = IOSSGFPicker.new()
+		add_child(ios_image_picker_)
+		ios_image_picker_.completed.connect(on_ios_image_selected_)
+		if not ios_image_picker_.open_camera():
+			ios_image_picker_.queue_free()
+			ios_image_picker_ = null
+			finish_image_file_dialog_()
+			show_load_error(tr("无法打开 iOS 图片选择器。"))
+		return
 	start_android_image_request_(true)
 
 

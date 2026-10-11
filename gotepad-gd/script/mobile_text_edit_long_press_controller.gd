@@ -13,7 +13,7 @@ var editing_editor_: Control
 
 
 func configure(editors: Array) -> void:
-	if OS.get_name() != "Android":
+	if not OS.has_feature("mobile"):
 		return
 	for value: Variant in editors:
 		var editor: Control = value as Control

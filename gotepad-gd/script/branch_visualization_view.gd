@@ -77,6 +77,7 @@ var mouse_drag_button_mask_: int = 0
 var last_drag_position_: Vector2 = Vector2.ZERO
 var active_touch_indices_: Dictionary = {}
 var touch_pan_index_: int = -1
+var ios_multitouch_active_: bool = false
 var suppress_emulated_mouse_until_: int = 0
 var generation_token_: int = 0
 var pending_delete_uid_: int = -1
@@ -109,6 +110,7 @@ func rebuild(go_notes: GoNotes) -> void:
 	mouse_drag_button_mask_ = 0
 	active_touch_indices_.clear()
 	touch_pan_index_ = -1
+	ios_multitouch_active_ = false
 	suppress_emulated_mouse_until_ = 0
 	generation_token_ += 1
 	loading_overlay_.show()
@@ -132,6 +134,7 @@ func cancel_generation() -> void:
 	mouse_drag_button_mask_ = 0
 	active_touch_indices_.clear()
 	touch_pan_index_ = -1
+	ios_multitouch_active_ = false
 	loading_overlay_.hide()
 	pending_texture_uids_.clear()
 	pending_texture_uid_set_.clear()
@@ -1062,9 +1065,8 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _handle_mouse_button_(event: InputEventMouseButton) -> void:
-	if OS.has_feature("android") \
-			and event.button_index == MOUSE_BUTTON_LEFT \
-			and (touch_pan_index_ >= 0 \
+	if event.button_index == MOUSE_BUTTON_LEFT \
+			and (touch_pan_index_ >= 0 or ios_multitouch_active_ \
 			or Time.get_ticks_msec() <= suppress_emulated_mouse_until_):
 		accept_event()
 		return
@@ -1123,18 +1125,23 @@ func _handle_mouse_motion_(event: InputEventMouseMotion) -> void:
 
 
 func _handle_magnify_gesture_(event: InputEventMagnifyGesture) -> void:
+	if OS.get_name() == "iOS":
+		return
 	_zoom_at_(event.position, event.factor)
 	accept_event()
 
 
 func _handle_pan_gesture_(event: InputEventPanGesture) -> void:
+	if OS.get_name() == "iOS":
+		return
 	pan_ -= event.delta
 	_apply_view_transform_()
 	accept_event()
 
 
 func _handle_screen_touch_(event: InputEventScreenTouch) -> void:
-	if not OS.has_feature("android"):
+	if OS.get_name() == "iOS":
+		_handle_ios_screen_touch_(event)
 		return
 	if event.pressed:
 		active_touch_indices_[event.index] = true
@@ -1156,12 +1163,72 @@ func _handle_screen_touch_(event: InputEventScreenTouch) -> void:
 
 
 func _handle_screen_drag_(event: InputEventScreenDrag) -> void:
-	if not OS.has_feature("android") or event.index != touch_pan_index_ \
+	if OS.get_name() == "iOS":
+		_handle_ios_screen_drag_(event)
+		return
+	if event.index != touch_pan_index_ \
 			or active_touch_indices_.size() != 1:
 		return
 	pan_ += event.relative
 	_apply_view_transform_()
 	accept_event()
+
+
+func _handle_ios_screen_touch_(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		active_touch_indices_[event.index] = event.position
+		if active_touch_indices_.size() >= 2:
+			ios_multitouch_active_ = true
+			touch_pan_index_ = -1
+			dragging_ = false
+			mouse_drag_button_mask_ = 0
+			accept_event()
+		elif not ios_multitouch_active_ \
+				and not _touch_hits_interactive_content_(event.position):
+			touch_pan_index_ = event.index
+			accept_event()
+		return
+
+	active_touch_indices_.erase(event.index)
+	if ios_multitouch_active_ or event.index == touch_pan_index_:
+		touch_pan_index_ = -1
+		suppress_emulated_mouse_until_ = Time.get_ticks_msec() \
+			+ kEmulatedMouseSuppressionMsec
+		accept_event()
+	if active_touch_indices_.is_empty():
+		ios_multitouch_active_ = false
+
+
+func _handle_ios_screen_drag_(event: InputEventScreenDrag) -> void:
+	if not active_touch_indices_.has(event.index):
+		return
+	if active_touch_indices_.size() == 2:
+		var indices: Array = active_touch_indices_.keys()
+		var old_first: Vector2 = active_touch_indices_[indices[0]]
+		var old_second: Vector2 = active_touch_indices_[indices[1]]
+		active_touch_indices_[event.index] = event.position
+		var new_first: Vector2 = active_touch_indices_[indices[0]]
+		var new_second: Vector2 = active_touch_indices_[indices[1]]
+		var old_center: Vector2 = (old_first + old_second) * 0.5
+		var new_center: Vector2 = (new_first + new_second) * 0.5
+		var old_distance: float = old_first.distance_to(old_second)
+		var new_distance: float = new_first.distance_to(new_second)
+		var world_position: Vector2 = (old_center - pan_) / zoom_
+		if old_distance > 1.0 and new_distance > 1.0:
+			zoom_ = clampf(
+				zoom_ * new_distance / old_distance, kMinimumZoom, kMaximumZoom
+			)
+		pan_ = new_center - world_position * zoom_
+		_apply_view_transform_()
+		accept_event()
+		return
+	active_touch_indices_[event.index] = event.position
+	if ios_multitouch_active_:
+		accept_event()
+	elif event.index == touch_pan_index_:
+		pan_ += event.relative
+		_apply_view_transform_()
+		accept_event()
 
 
 func _touch_hits_interactive_content_(screen_position: Vector2) -> bool:

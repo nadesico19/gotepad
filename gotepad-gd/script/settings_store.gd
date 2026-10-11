@@ -43,7 +43,7 @@ const kBoardWidthPercentageMinimum: int = 50
 const kBoardWidthPercentageMaximum: int = 100
 const kDefaultBoardWidthPercentage: int = 100
 const kDefaultLargeUiEnabled: bool = false
-const kLargeUiMultiplierMinimum: float = 0.7
+const kLargeUiMultiplierMinimum: float = 0.5
 const kLargeUiMultiplierMaximum: float = 2.0
 const kDefaultLargeUiMultiplier: float = 1.5
 const kDefaultDesktopMoveConfirmation: bool = false
@@ -77,6 +77,8 @@ const kManagedKatagoConfigPath: String = \
 	"user://katago/analysis.cfg"
 const kManagedKatagoHumanConfigPath: String = \
 	"user://katago/human_analysis.cfg"
+const kManagedKatagoTerritoryConfigPath: String = \
+	"user://katago/territory_analysis.cfg"
 const kDefaultBoardTexturePath: String = \
 	"res://assets/board/wood_light.jpg"
 const kDefaultBlackTexturePath: String = \
@@ -262,14 +264,14 @@ func get_katago_human_model_path() -> String:
 
 
 func get_android_external_katago_model_path() -> String:
-	if OS.get_name() != "Android" \
+	if OS.get_name() not in ["Android", "iOS"] \
 			or not is_katago_model_path_valid(katago_model_path_):
 		return ""
 	return katago_model_path_
 
 
 func get_android_external_katago_human_model_path() -> String:
-	if OS.get_name() != "Android" \
+	if OS.get_name() not in ["Android", "iOS"] \
 			or not is_katago_model_path_valid(katago_human_model_path_):
 		return ""
 	return katago_human_model_path_
@@ -332,7 +334,7 @@ func get_katago_game_analysis_visits() -> int:
 
 
 func get_katago_analysis_config_path() -> String:
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		return get_managed_katago_analysis_config_path()
 	return katago_analysis_config_path_
 
@@ -343,6 +345,27 @@ func get_managed_katago_analysis_config_path() -> String:
 
 func get_managed_katago_human_analysis_config_path() -> String:
 	return ProjectSettings.globalize_path(kManagedKatagoHumanConfigPath)
+
+
+func get_managed_katago_territory_config_path() -> String:
+	return ProjectSettings.globalize_path(kManagedKatagoTerritoryConfigPath)
+
+
+func write_managed_katago_territory_config() -> Error:
+	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
+		ProjectSettings.globalize_path("user://katago")
+	)
+	if directory_error != OK and directory_error != ERR_ALREADY_EXISTS:
+		return directory_error
+	var file: FileAccess = FileAccess.open(kManagedKatagoTerritoryConfigPath, FileAccess.WRITE)
+	if file == null:
+		return FileAccess.get_open_error()
+	# Small, fixed settings for the built-in 10b model, independent of benchmarks.
+	file.store_string(build_managed_katago_config_(2, 2))
+	file.flush()
+	var result: Error = file.get_error()
+	file.close()
+	return result
 
 
 func get_saved_window_state() -> Dictionary:
@@ -374,6 +397,8 @@ func save_window_state(
 
 
 func has_valid_katago_paths() -> bool:
+	if OS.get_name() == "iOS":
+		return is_katago_analysis_config_path_valid(get_managed_katago_analysis_config_path())
 	return is_katago_executable_path_valid(katago_executable_path_) \
 		and is_katago_model_path_valid(katago_model_path_) \
 		and is_katago_analysis_config_path_valid(katago_analysis_config_path_)
@@ -385,7 +410,7 @@ func has_valid_katago_human_paths() -> bool:
 				get_managed_katago_human_analysis_config_path()
 			):
 		return false
-	if OS.get_name() == "Android":
+	if OS.get_name() in ["Android", "iOS"]:
 		return true
 	return is_katago_executable_path_valid(katago_executable_path_) \
 		and is_katago_model_path_valid(katago_model_path_)
@@ -614,7 +639,7 @@ func set_settings(
 		katago_show_score_lead and katago_show_score_lead_on_board
 	katago_game_analysis_visits_ = maxi(katago_game_analysis_visits, 1)
 	katago_analysis_config_path_ = get_managed_katago_analysis_config_path() \
-		if OS.get_name() == "Android" \
+		if OS.get_name() in ["Android", "iOS"] \
 		else katago_analysis_config_path.strip_edges()
 
 	var error: Error = save_config_()
@@ -966,7 +991,7 @@ func load_config_() -> void:
 		kDefaultKatagoGameAnalysisVisits
 	)), 1)
 	katago_analysis_config_path_ = get_managed_katago_analysis_config_path() \
-		if OS.get_name() == "Android" else str(config.get_value(
+		if OS.get_name() in ["Android", "iOS"] else str(config.get_value(
 			"katago",
 			"analysis_config_path",
 			get_managed_katago_analysis_config_path()
@@ -1144,11 +1169,11 @@ func default_move_confirmation_enabled_() -> bool:
 func ensure_managed_katago_analysis_config_() -> void:
 	if FileAccess.file_exists(kManagedKatagoConfigPath):
 		var existing_default_batch_size: int = \
-			1 if OS.get_name() == "Android" else 8
+			1 if OS.get_name() in ["Android", "iOS"] else 8
 		ensure_managed_katago_batch_size_(existing_default_batch_size)
 		return
-	var default_threads: int = 1 if OS.get_name() == "Android" else 6
-	var default_batch_size: int = 1 if OS.get_name() == "Android" else 8
+	var default_threads: int = 1 if OS.get_name() in ["Android", "iOS"] else 6
+	var default_batch_size: int = 1 if OS.get_name() in ["Android", "iOS"] else 8
 	var error: Error = write_managed_katago_analysis_config(
 		default_threads, default_batch_size
 	)
@@ -1194,8 +1219,8 @@ func ensure_managed_katago_human_analysis_config_() -> void:
 	if FileAccess.file_exists(kManagedKatagoHumanConfigPath):
 		remove_deprecated_human_config_keys_()
 		return
-	var default_threads: int = 1 if OS.get_name() == "Android" else 2
-	var default_batch_size: int = 1 if OS.get_name() == "Android" else 2
+	var default_threads: int = 1 if OS.get_name() in ["Android", "iOS"] else 2
+	var default_batch_size: int = 1 if OS.get_name() in ["Android", "iOS"] else 2
 	var error: Error = write_managed_katago_human_analysis_config(
 		default_threads, default_batch_size
 	)
@@ -1233,8 +1258,8 @@ func build_managed_katago_config_(
 		search_threads: int,
 		batch_size: int
 ) -> String:
-	var cache_power: int = 16 if OS.get_name() == "Android" else 20
-	var mutex_pool_power: int = 14 if OS.get_name() == "Android" else 17
+	var cache_power: int = 16 if OS.get_name() in ["Android", "iOS"] else 20
+	var mutex_pool_power: int = 14 if OS.get_name() in ["Android", "iOS"] else 17
 	return """# Generated by Gotepad. This file may be regenerated by performance detection.
 reportAnalysisWinratesAs = BLACK
 maxVisits = 500
@@ -1254,8 +1279,8 @@ func build_managed_katago_human_config_(
 		search_threads: int,
 		batch_size: int
 ) -> String:
-	var cache_power: int = 15 if OS.get_name() == "Android" else 18
-	var mutex_pool_power: int = 13 if OS.get_name() == "Android" else 16
+	var cache_power: int = 15 if OS.get_name() in ["Android", "iOS"] else 18
+	var mutex_pool_power: int = 13 if OS.get_name() in ["Android", "iOS"] else 16
 	return """# Generated by Gotepad for KataGo Human SL. This file may be regenerated by performance detection.
 reportAnalysisWinratesAs = BLACK
 maxVisits = 40

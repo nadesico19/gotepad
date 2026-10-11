@@ -37,6 +37,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/eraser_horizontal.svg" id="40_eraser"]
 [ext_resource type="Texture2D" path="res://assets/ui/accept.svg" id="41_accept"]
 [ext_resource type="Texture2D" path="res://assets/ui/cancel.svg" id="42_cancel"]
+[ext_resource type="Script" path="res://script/katago_territory_analysis_service.gd" id="43_territory_service"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
 bg_color = Color(0.22, 0.17, 0.055, 0.82)
@@ -104,6 +105,9 @@ script = ExtResource("34_katago_service")
 
 [node name="KataGoHumanAnalysisService" type="Node" parent="."]
 script = ExtResource("37_human_service")
+
+[node name="KataGoTerritoryAnalysisService" type="Node" parent="."]
+script = ExtResource("43_territory_service")
 
 [node name="Interface" type="CanvasLayer" parent="." unique_id=97103342]
 layer = 10

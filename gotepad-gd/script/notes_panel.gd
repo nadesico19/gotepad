@@ -194,7 +194,7 @@ func close_panel_immediately_() -> void:
 
 
 func configure_mobile_text_edit_long_press_() -> void:
-	if OS.get_name() != "Android":
+	if not OS.has_feature("mobile"):
 		return
 	mobile_text_edit_long_press_ = MobileTextEditLongPressController.new()
 	add_child(mobile_text_edit_long_press_)
@@ -450,7 +450,7 @@ func on_text_editor_focus_entered_(editor: Control) -> void:
 
 
 func configure_clipboard_buttons_() -> void:
-	clipboard_buttons_.visible = OS.has_feature("android")
+	clipboard_buttons_.visible = true
 	if not clipboard_buttons_.visible:
 		return
 	title_edit_.deselect_on_focus_loss_enabled = false

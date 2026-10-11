@@ -3,7 +3,9 @@
 
 #ifdef GOTEPAD_KATAGO_EMBEDDED
 #include "main.h"
+#ifdef __ANDROID__
 #include <android/log.h>
+#endif
 #endif
 
 #include <godot_cpp/classes/ref_counted.hpp>
@@ -326,7 +328,7 @@ void KataGoEmbeddedEngine::write_line_(const std::string &line) {
 }
 
 void KataGoEmbeddedEngine::write_log_(std::string line) {
-#ifdef GOTEPAD_KATAGO_EMBEDDED
+#ifdef __ANDROID__
   __android_log_write(ANDROID_LOG_INFO, "GotepadKataGo", line.c_str());
 #endif
   const std::lock_guard<std::mutex> lock(output_mutex_);
@@ -334,7 +336,7 @@ void KataGoEmbeddedEngine::write_log_(std::string line) {
 }
 
 void KataGoEmbeddedEngine::set_error_(std::string message) {
-#ifdef GOTEPAD_KATAGO_EMBEDDED
+#ifdef __ANDROID__
   __android_log_write(ANDROID_LOG_ERROR, "GotepadKataGo", message.c_str());
 #endif
   const std::lock_guard<std::mutex> lock(error_mutex_);

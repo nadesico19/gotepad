@@ -45,11 +45,11 @@ func start_custom_transport(
 ) -> bool:
 	if is_transport_running():
 		return true
-	if OS.get_name() != "Android":
-		transport_error.emit(tr("内置 KataGo 引擎仅供安卓版使用。"))
+	if OS.get_name() not in ["Android", "iOS"]:
+		transport_error.emit(tr("内置 KataGo 引擎仅供移动版使用。"))
 		return false
 	if not ClassDB.class_exists(kEngineClass):
-		transport_error.emit(tr("安卓版未包含内置 KataGo 引擎扩展。"))
+		transport_error.emit(tr("当前版本未包含内置 KataGo 引擎扩展。"))
 		return false
 	var selected_model_path: String = selected_model_path_() \
 		if model_path_override.is_empty() else model_path_override
@@ -61,6 +61,13 @@ func start_custom_transport(
 	if not install_error.is_empty():
 		transport_error.emit(install_error)
 		return false
+	# Validate saved selections as well as newly imported files before starting.
+	if selected_model_path != kInstalledModelPath:
+		if not validate_model_role_(selected_model_path, "analysis"):
+			return false
+	if not human_model_path.is_empty():
+		if not validate_model_role_(human_model_path, "human"):
+			return false
 	if engine_ == null:
 		engine_ = ClassDB.instantiate(kEngineClass)
 	if engine_ == null:
@@ -70,6 +77,8 @@ func start_custom_transport(
 	var effective_human_model_path: String = "" if human_model_path.is_empty() \
 		else ProjectSettings.globalize_path(human_model_path)
 	var effective_override: String = "reportAnalysisWinratesAs=BLACK"
+	if OS.get_name() == "iOS":
+		effective_override += ",metalDeviceToUse=0"
 	if not override_config.strip_edges().is_empty():
 		effective_override += "," + override_config.strip_edges()
 	var started: bool = bool(engine_.call(
@@ -81,6 +90,16 @@ func start_custom_transport(
 		return false
 	stopped_emitted_ = false
 	set_process(true)
+	return true
+
+
+func validate_model_role_(path: String, role: String) -> bool:
+	var validator: KataGoAndroidModelImporter = KataGoAndroidModelImporter.new(role)
+	var result: Dictionary = validator.validate_model(path)
+	validator.free()
+	if not bool(result.get("valid", false)):
+		transport_error.emit(str(result.get("message", tr("所选文件不是有效的 KataGo 模型。"))))
+		return false
 	return true
 
 
@@ -100,6 +119,11 @@ func is_transport_running() -> bool:
 		return false
 	var state: int = int(engine_.call("get_state"))
 	return state == kStateStarting or state == kStateRunning
+
+
+func _notification(what: int) -> void:
+	if OS.get_name() == "iOS" and what == NOTIFICATION_APPLICATION_PAUSED:
+		stop_transport()
 
 
 func _process(_delta: float) -> void:
