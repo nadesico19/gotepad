@@ -56,6 +56,12 @@ Gotepad는 바둑 기보 작성, 대국 검토 및 기보 정리를 위한 크�
 
 ![기보 노트와 바둑판 표식](examples/screenshots/notes.jpg)
 
+### 분기 미리 보기
+
+트리 형태의 시각적 뷰에서 수많은 분기를 미리 보고 원하는 분기로 이동할 수 있습니다.
+
+![분기 미리 보기](examples/screenshots/branchesview.png)
+
 ### KataGo 국면 분석
 
 분석 패널에는 후보 수, 승률, 집 차이, 후보 변화도를 표시하고 전체 기보 경로의 분석 곡선을 그릴 수 있습니다.
@@ -89,6 +95,12 @@ KataGo 소유권 분석과 중국식 규칙으로 종국 국면을 계가합니�
 ### 다국어 UI
 
 ![다국어 UI](examples/screenshots/multi-language.jpg)
+
+### UI 수동 조정
+
+모바일 기기는 화면 모서리의 둥근 정도, 화면 비율, 해상도가 매우 다양하므로 화면 좌우 여백, 화면 너비 대비 바둑판 너비 비율, UI 배율을 직접 조정하여 기기에 맞게 표시할 수 있습니다. 예를 들어 아래 이미지는 11인치 iPad Pro에 가장 잘 맞는 설정을 보여 줍니다.
+
+![UI 수동 조정](examples/screenshots/ipadpro11ui.png)
 
 ## 프로젝트 구조
 

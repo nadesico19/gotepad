@@ -56,6 +56,12 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 
 ![棋局笔记与棋盘标记](examples/screenshots/notes.jpg)
 
+### 分支预览视图
+
+通过树形可视化视图，在大量分支中预览和跳转。
+
+![分支预览视图](examples/screenshots/branchesview.png)
+
 ### KataGo 局面分析
 
 分析面板可以显示候选点、胜率、目差和候选变化图，并绘制整条棋局路径的分析曲线。
@@ -89,6 +95,12 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 ### UI 多语言
 
 ![UI 多语言](examples/screenshots/multi-language.jpg)
+
+### UI 手动调节
+
+对于屏幕圆角、比例、分辨率极端碎片化的移动端，可以通过手动调节屏幕左右边距、棋盘横向宽度占比、界面 UI 缩放倍率来自行适配。例如，下图为 iPad Pro 11 寸的最佳适配参数。
+
+![UI 手动调节](examples/screenshots/ipadpro11ui.png)
 
 ## 项目结构
 

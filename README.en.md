@@ -56,6 +56,12 @@ Multiple layers of notes can be recorded for one position, with sequential lette
 
 ![Game notes and board marks](examples/screenshots/notes.jpg)
 
+### Branch preview
+
+Preview and navigate among numerous branches through a visual tree view.
+
+![Branch preview](examples/screenshots/branchesview.png)
+
 ### KataGo position analysis
 
 The analysis panel displays candidate moves, win rate, score lead, candidate variations, and an analysis curve for the complete game path.
@@ -89,6 +95,12 @@ Boards, move numbers, marks, and notes can be laid out and exported as an editab
 ### Multilingual UI
 
 ![Multilingual UI](examples/screenshots/multi-language.jpg)
+
+### Manual UI adjustments
+
+Mobile devices vary widely in screen corner shapes, aspect ratios, and resolutions. You can adapt the layout manually by adjusting the left and right screen margins, the board's width as a proportion of the screen, and the UI scale. For example, the screenshot below shows the optimal settings for an 11-inch iPad Pro.
+
+![Manual UI adjustments](examples/screenshots/ipadpro11ui.png)
 
 ## Project structure
 
