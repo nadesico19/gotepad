@@ -19,6 +19,8 @@ const kSgfRecoveryInvalidRulesDefaulted: int = 4
 const kSgfRecoveryInvalidKomiDefaulted: int = 5
 const kSgfRecoverySubunitKomiDefaulted: int = 6
 const kToolMenuGap: float = 6.0
+const kUserManualBaseUrl: String = \
+	"https://github.com/nadesico19/gotepad/blob/main/docs/"
 const kUiScaleMinimumHeight: float = 900.0
 const kUiScaleMaximumHeight: float = 2000.0
 const kUiScaleMinimum: float = 1.0
@@ -198,6 +200,8 @@ class DocumentState extends RefCounted:
 @onready var save_as_button_: Button = $Interface/SafeArea/SaveAsButton
 @onready var export_button_: Button = $Interface/SafeArea/ExportButton
 @onready var tool_button_: MenuButton = $Interface/SafeArea/ToolButton
+@onready var manual_button_: FixedWidthTextButton = \
+	$Interface/SafeArea/ManualButton
 @onready var update_button_: FixedWidthTextButton = \
 	$Interface/SafeArea/UpdateButton
 @onready var update_dialog_: UpdateDialog = $Interface/SafeArea/UpdateDialog
@@ -567,6 +571,7 @@ func _ready() -> void:
 	save_button_.pressed.connect(on_save_requested_)
 	save_as_button_.pressed.connect(on_save_as_requested_)
 	export_button_.pressed.connect(on_export_requested_)
+	manual_button_.pressed.connect(on_manual_requested_)
 	update_button_.pressed.connect(update_dialog_.check_for_updates)
 	update_dialog_.check_started.connect(on_update_check_started_)
 	update_dialog_.check_finished.connect(on_update_check_finished_)
@@ -1677,6 +1682,20 @@ func on_ios_save_completed_(result: Dictionary, document: DocumentState, source_
 
 func on_export_requested_() -> void:
 	request_after_note_edit_resolution_(Callable(self, "request_export_"))
+
+
+func on_manual_requested_() -> void:
+	var filename: String = "user_manual.md"
+	match SettingsStore.get_language():
+		SettingsStore.kLanguageEnglish:
+			filename = "user_manual.en.md"
+		SettingsStore.kLanguageJapanese:
+			filename = "user_manual.ja.md"
+		SettingsStore.kLanguageKorean:
+			filename = "user_manual.ko.md"
+	var error: Error = OS.shell_open(kUserManualBaseUrl + filename)
+	if error != OK:
+		push_warning("Failed to open user manual: %s" % error_string(error))
 
 
 func on_update_check_started_() -> void:

@@ -19,8 +19,12 @@ This manual applies to Gotepad 0.1.19. Gotepad is a cross-platform client for Go
 - [Checking for Updates](#checking-for-updates)
 - [Exporting PPTX](#exporting-pptx)
 - [KataGo Analysis](#katago-analysis)
+- [Human-like Play](#human-like-play)
+- [Endgame Scoring](#endgame-scoring)
 - [Settings](#settings)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Android and iOS Versions](#android-and-ios-versions)
+- [Data Locations and Usage Recommendations](#data-locations-and-usage-recommendations)
 
 ## Getting Started
 
@@ -36,7 +40,7 @@ Tags created directly are named "New Note" by default. When there is a tag with 
 
 ### Create a Board from an Image
 
-On Windows and macOS, you can select the board size in the new interface and click "Select Local Pictures"; for the Android version, you can select "Photography" or "Album". On iOS, tap “Camera”, or use the “Image” button to its right to choose an image from Photos or Files. The program can identify the current board position from real-life photos, Internet screenshots or book pictures, and first display the recognition and proofreading interface: for vertical pictures, you can first use "rotate clockwise" to expand the display area; drag the four yellow control points , align it with the four outermost intersections of board, and then click "Re-identify according to the current four corners"; click on any intersection to cyclically correct between empty points, black stones, and white stones. A red dot at the center marks a position where the program confidence level is low and it is recommended to focus on inspection. The stone mark will leave part of the edge of the original image to facilitate verification of the real stone below. After confirmation, the identified stone will be created as a setup stone node, and board will be locked by default.
+On desktop, you can select the board size in the new interface and click "Select Local Pictures"; for the Android version, you can select "Photography" or "Album". On iOS, tap “Camera”, or use the “Image” button to its right to choose an image from Photos or Files. The program can identify the current board position from real-life photos, Internet screenshots or book pictures, and first display the recognition and proofreading interface: for vertical pictures, you can first use "rotate clockwise" to expand the display area; drag the four yellow control points , align it with the four outermost intersections of board, and then click "Re-identify according to the current four corners"; click on any intersection to cyclically correct between empty points, black stones, and white stones. A red dot at the center marks a position where the program confidence level is low and it is recommended to focus on inspection. The stone mark will leave part of the edge of the original image to facilitate verification of the real stone below. After confirmation, the identified stone will be created as a setup stone node, and board will be locked by default.
 
 Image recognition results will be affected by shooting angle, reflection, stone texture and screen cropping. Before creation, you should check the four corners, board board size and all red-dot positions; if the position does not comply with the basic Go rules, the program will reject the creation and require correction.
 
@@ -58,10 +62,10 @@ When there is an board tag, you can click `✕` in the upper right corner of the
 - On the left are board and game playback bars.
 - Message and confirmation dialog boxes will automatically wrap according to the current window width, and the width will not exceed two-thirds of the window to prevent operation buttons from extending beyond the screen.
 - On the right side of board are the operation buttons that automatically change columns according to the height of the window.
-- The upper-right corner provides a gear-shaped Settings button followed by New, Save, Save As, Export, Tools, and Update. The Tools menu groups less frequently used game-record operations.
+- The upper-right corner provides a gear-shaped Settings button followed by New, Save, Save As, Export, Tools, Manual, and Update. The Tools menu groups less frequently used game-record operations. Clicking “Manual” opens the GitHub user manual matching the interface language selected in Settings in your browser; an Internet connection is required.
 - Notes, game record information and KataGo use the same side panel area, and opening one of them will collapse the other panels.
 
-The interface will automatically scale according to the actual vertical resolution of the window: 1.0x is used when the window height does not exceed 900 pixels, linear enlargement is between 900 and 2000 pixels, and 2.0x is used after reaching 2000 pixels. Fonts, buttons, icons, panels and pop-up windows will be enlarged simultaneously; the board camera will recalculate the remaining available space to ensure that board will not be cropped due to interface enlargement.
+The interface scales automatically with the actual window height: the base scale is 1.0× up to 900 pixels, increases linearly between 900 and 2000 pixels, and reaches 2.0× at 2000 pixels. Enabling “UI scaling” in Settings multiplies this base scale by the selected factor. Fonts, buttons, icons, panels, and dialogs scale together; the board camera recalculates the available space to keep the entire board visible.
 
 The desktop version will remember the position, size and maximized state of the normal window in `user://window_state.cfg` and restore it the next time it is started. After changing the monitor or changing the desktop layout, if the saved location is no longer within the available area of ​​any screen, the window will automatically return to the center of the home screen; the mobile version and the web version will not use this window state.
 
@@ -92,24 +96,24 @@ board will mark all the next move branches that can be entered with translucent 
 
 - If the currently selected color is the same as the existing branch move, this branch will be entered.
 - If the currently selected color is opposite to the existing branch move, a new branch of the selected color will be created at the same location.
-- You can still enter the branch by clicking on the box in the locked state, and no new move will be created.
+- While the board is locked, clicking either a square or circular branch marker still enters that branch without creating a move. If a KataGo candidate marker overlaps a branch marker, clicking it takes priority as an entry into the candidate variation.
 
 ### Taking Back Moves, Undo, and Redo
 
-- When board is not locked, right-click the mouse to request undo. After confirmation, the current last step will be cut.
+- When the board is unlocked, right-click to request a takeback. After confirmation, the current move or setup node and all its descendant branches are deleted, and the board returns to the preceding position. Taking back in the middle also deletes subsequent records; use playback controls or lock the board first if you only want to review earlier positions.
 - When board is locked, the right mouse button changes to roam to the previous position, without modifying game record.
-- undo is an game record editing command and is not equivalent to Undo.
-- `Ctrl+Z` undoes the most recent undoable command, `Ctrl+R` redoes it. Locking does not prevent Undo/Redo of roaming commands.
+- Taking back is a game-record editing command and is different from Undo.
+- `Ctrl+Z` undoes the most recent undoable command; `Ctrl+R` redoes it. Undo can restore the node and descendant branches removed by a takeback. Board lock does not prevent Undo/Redo, including undoing and redoing game-record edits.
 - When the icon has a slash, it means that the corresponding Undo or Redo cannot be executed currently.
 
 ### Board Lock
 
-After checking the board lock or pressing `Ctrl+E`, move and undo are prohibited, but still allowed:
+Enabling board lock or pressing `Ctrl+E` prevents moves and takebacks, but still allows:
 
 - Use the play bar, mouse wheel, and arrow keys to browse game;
 - Click on the next branch mark;
 - Use functions such as find a stone and branch browsing that are not directly move;
-- Perform Undo/Redo on roaming operations.
+- Use Undo/Redo, including undoing and redoing game-record edits.
 
 Lock board is enabled by default after loading SGF.
 
@@ -132,7 +136,7 @@ For game record with multiple branches, the play bar only represents the current
 
 ### Keep the Main Line
 
-Click "Tools" in the upper right corner and select "Keep main line" to delete all side branches in game record and only keep the path starting from the starting point of game and selecting the first branch at each layer until the final leaf node. The program will ask for confirmation before execution; the entire pruning is entered into the history as a command, so only one Undo can restore all deleted branches and the position where it was before the operation.
+Click “Tools” in the upper-right corner and select “Keep main line” to delete all side branches, retaining the path from the game’s start that follows the first branch at every level to the final leaf node. The program asks for confirmation, then navigates to the last position of the retained main line. The entire operation is one history command, so a single Undo restores all deleted branches and the position shown before the operation.
 
 ### Find a Stone
 
@@ -142,9 +146,9 @@ Click "Tools" in the upper right corner and select "Keep main line" to delete al
 
 1. Click the forward or backward find a stone icon, or press `Ctrl+G` or `Ctrl+F` respectively.
 2. Move the mouse to the target intersection or stone to confirm the position of the opaque magnifying glass.
-3. Left-click, the program will search for the position that last changed the position in the specified direction.
+3. Left-click to find a move played at that intersection in the selected direction and navigate to it.
 
-If it is not found, it will immediately exit the find a stone mode and prompt. Press `Esc` or right mouse button to cancel find a stone.
+Searching toward the beginning includes the current move; searching toward the end follows the current playback path and does not search other side branches. Find a Stone searches move locations, not empty-point changes caused by captures or setup-stone edits. If no match is found, the mode exits immediately and displays a message. Press `Esc` or right-click to cancel.
 
 ### Adjust or delete the next branch
 
@@ -186,27 +190,29 @@ The title of the first-level note will be displayed above the thumbnail; if a co
 Click "Preset" on the left side of the playback bar, or press `Ctrl+H` to enter preset mode. After entering, the regular buttons except black and white color switching will be temporarily hidden.
 
 - Left click on the intersection to set the current color to setup stones.
-- Right-click to clear the intersection; you can also click the `⌫` button on the right to enter the clear state, and then click on the intersection to be cleared.
-- The preset mode provides black, white and `⌫` cleaning tools respectively. Click which one to activate; the cleaning tool will display gold when activated. You can also press `Ctrl+Q` to switch between black and white. The color will not change automatically after presetting move.
-- Click the green `✓` to submit all modifications as a preset node.
+- Right-click to clear an intersection, or select the eraser button on the right and click the intersection to clear.
+- Setup mode provides black stones, white stones, and an eraser. Click a tool to activate it; the eraser is highlighted in gold when active. `Ctrl+Q` switches between black and white. Placing setup stones does not automatically change the color.
+- Click the green `✓` to submit all changes together. A move node or the empty-board start gains a new setup node; an existing setup node is edited directly without adding a node. Undo can reverse the submitted changes.
 - Click the red `✕` or press `Esc` to abandon this modification.
 
-The final disk after presetting must still comply with basic rules such as stone chainhas liberties. When the current position does not allow preset, the entrance will display an unavailable status.
+The final setup position must still satisfy basic rules, including liberties for every chain. When editing an existing setup node, the program checks whether all descendant branches can be replayed from the new position. If a conflict occurs, the changes are discarded and the first conflicting node’s UID is displayed. To proceed, back up the game record and resolve the conflicting descendant branches first. Setup mode cannot be entered while the board is locked.
 
 ## Variations
 
 ![variation](../gotepad-gd/assets/ui/variation.svg)
 
-Click the variation icon or press `Ctrl+T`, and the program will copy the current board position to a temporary game record. variation is suitable for trying, and the main game record will not be modified immediately.
+Click the variation icon or press `Ctrl+T` to copy the current board position into a temporary game record as the variation’s starting point, inheriting the original rules and komi. Earlier moves are not copied; only the starting position and subsequent variation can be browsed. Variations let you try moves without immediately changing the main record. You can play in the variation even if the original board was locked.
 
-- The original next hand color will be inherited when entering, and then the default color will alternate between black and white.
-- You can use the play bar, `<`, `>`, or scroll the mouse wheel on board and the play bar to browse the change process that has been downloaded; the wheel goes back upwards and forwards downwards, consistent with the normal game mode.
-- You can also play from a position in the middle of a variation. Playing at the position of the next recorded move takes you directly to that move. If you play elsewhere, the program asks whether to delete all existing moves after the current position and play your move instead; canceling leaves the existing record unchanged.
-- Allowed at the end or midway undo, you can use the right mouse button or the `↩` button on the right and will ask for confirmation.
-- Green `✓` means adding the new move to the main game record one by one and then exiting.
-- Red `✕` or `Esc` means discard changes and exit.
+- The next-move color is inherited on entry, then black and white alternate by default.
+- Browse recorded variation moves using the playback bar, `<`, `>`, or the mouse wheel over the board or playback bar. Scroll up to go back and down to go forward, as in normal game mode.
+- Automatic playback, regular board tools, and shortcuts (including `←`, `→`, `Ctrl+Q`, and Undo/Redo) are unavailable in variation mode. Use the playback bar, navigation buttons, or mouse wheel to browse.
+- You can also play from a position in the middle of a variation. Playing at the next recorded move’s location enters that move directly. Playing elsewhere prompts you to delete all records after the current position and play the new move; canceling keeps the existing records.
+- Right-click or click the eraser-shaped “Take back” button on the right to request confirmation. At the end, a takeback removes the last move. In the middle, it removes the current move and all subsequent variation moves, then returns to the preceding position. For example, with 10 moves recorded and move 5 displayed, taking back deletes moves 5–10 and returns to move 4. You cannot take back at the variation’s starting position or remove stones from the original record.
+- With move confirmation enabled, right-click first cancels an unconfirmed translucent stone. Right-click again afterward to request a takeback.
+- The green `✓` keeps the entire variation in the main record, starting from the original position where variation mode was entered, then exits. Recorded moves after the currently displayed position are included. Moves matching an existing branch enter that branch; different moves create new branches.
+- The red `✕` or `Esc` discards all temporary moves and returns to the original position. Exiting restores the original board lock. Discarding also restores the original next-move color; keeping leaves the main record at the end of the retained sequence.
 
-When entering from KataGo candidate variation, the candidate sequence is automatically filled in with temporary game record. After exiting variation, the side panel opened before entering will be restored.
+Entering a KataGo candidate variation fills the temporary record with the candidate sequence, stopping at a pass or resignation. You can continue playing, replace moves in the middle, or take back moves. Keeping the variation retains both the remaining candidate moves and your added moves. A KataGo analysis panel that was open before entry is temporarily hidden and reopens on exit.
 
 ## Position Notes and Board Marks
 
@@ -215,12 +221,12 @@ When entering from KataGo candidate variation, the candidate sequence is automat
 Click the note icon or press `Ctrl+M` to open the notes panel. The same position can have multiple layers of notes:
 
 - Click `+` to add a layer of notes, numbered starting from 0.
-- Only the last layer of notes with the highest number can be closed to avoid misalignment of intermediate numbers.
+- Only the highest-numbered, last note layer can be closed, so intermediate numbers remain consecutive. Closing deletes its content; Undo can restore it.
 - Note No. 0 is saved in the current move or preset node; subsequent notes are saved in independent nodes in SGF.
 
 Notes at each level include node titles, comments, board marks and move numbering methods. When a title or comment changes, use the green `✓` next to it to accept or the red `✕` to discard it. Pressing `Esc` during editing will cancel editing and release the input focus; when clicking other controls with unconfirmed content, the program will ask whether to retain it.
 
-"Focus" on the right side of the move numbering option can enter the preview mode of the entire game record note. The preview page is arranged in the order of the game record tree exported by PPTX, and the multi-layered notes of the same position are displayed in order according to the tag number; when there are notes in the current position, it starts from the selected note, when there are no notes, it is first positioned to the nearest note in the back, and then to the front when the back does not exist. During the preview, the play bar below board is used to jump between notes, `<`, `>` are used to change pages in a single step, and the play button automatically changes pages according to the playback interval in the settings; the large page navigation buttons in the lower-right corner also remain available. The note panel maintains complete editing functions. The label at the top is only used to indicate the current note layer. The playback controls are used uniformly for page changes. The "Focus" button will change to "Exit" and return to the normal note mode after clicking it. You cannot enter the preview when there are no notes in game record.
+Click “Focus” beside the move-numbering option to preview notes throughout the game record. Pages follow the game-tree order used for PPTX export, with layers at the same position shown in numerical order. If the current position has notes, preview starts at the selected layer; otherwise it starts at the next note, or the preceding note if none follows. Use the playback bar to jump between notes, `<` and `>` to change pages, or the play button to advance at the configured interval. The large navigation buttons in the lower-right corner remain available. Note content, numbering, and marks can still be edited, but `+` and `✕` cannot add or delete layers, and the top tabs cannot switch layers directly; use playback controls to change pages. “Focus” becomes “Exit”; click it to return to normal note mode. Preview is unavailable when the record has no notes.
 
 All platforms provide “Select all”, “Copy”, “Cut”, and “Paste” touch buttons in the note title and comment editing areas. Place the cursor in the text box or select some text, then click the corresponding button to exchange text with the system clipboard. Desktop versions also support system keyboard shortcuts and right-click menus.
 
@@ -233,9 +239,9 @@ When you need to remove the entire game record notes, you can click "Tools" in t
 - `SQ`: box mark.
 - `CR`: circle mark.
 - `MA`: cross mark.
-- Trash: erase mark.
+- Eraser: remove shape marks.
 
-After entering mark mode, other interfaces are temporarily hidden. The left click can add or switch marks on the empty intersection or stone; use the green `✓` on the right to submit, the red `✕` or `Esc` to give up. Use a light color for the markings on black stones, and a dark color for the markings on the intersections of white stones and empty stones.
+Other interface elements are temporarily hidden in mark mode. Left-click an empty intersection or a stone to add a mark. Letter marks follow click order; clicking an existing letter removes it and renumbers later letters. Each intersection can have one shape mark: select another shape and click to replace it, or use the eraser to remove it. Submit with the green `✓` on the right, or discard with the red `✕` or `Esc`. Marks are light on black stones and dark on white stones or empty intersections.
 
 ### Move Numbering
 
@@ -262,7 +268,7 @@ After modification, click the green `✓` at the top of the panel to submit all 
 
 - Click "Save" or press `Ctrl+S`, confirm the path and save the current game record.
 - Click "Save" or press `Ctrl+A` to select the new file.
-- The successful saving prompt can be closed with space, enter or `Esc`.
+- Saving to an existing location also asks for confirmation. Successful SGF saves do not display a success dialog. After a first save or Save As, the tab title changes to the saved file name. A failed save displays an error dialog.
 - Closing a tag currently only confirms whether it is closed, and has not yet implemented complete "unsaved modifications" status detection. Please develop the habit of proactively saving.
 
 Only one file picker can be open while loading, saving, exporting, or selecting KataGo files; repeatedly clicking the same button will not create another picker. On Windows, Gotepad cannot guarantee that a native picker hidden behind the main window will be brought forward by another click, so use the taskbar or `Alt+Tab` to return to the open picker.
@@ -284,6 +290,8 @@ Note:
 
 Gotepad automatically checks once at startup for a newer version applicable to the current platform. If an update is found, the text of the **Update** button below **Tools** on the far right changes to the same gold color as the active tab title; the startup check does not open the result window. Click **Update** to check GitHub again. When the check finishes, the window shows the current version, the newest available version, and notes for up to the five newest applicable versions in that range, ordered from newest to oldest. If a historical version has no separate GitHub Release, Gotepad attempts to use the version commit associated with its Tag. Releases prefixed for other platforms are ignored. If the current version is already the latest and its corresponding GitHub Release still exists, the window also shows that version's release notes.
 
+Stable versions appear as `i.j.k` and accept only stable updates. Test versions appear as `test/i.j.k` and accept both test and stable updates. The program selects the highest base version among general releases and releases for the current platform. At the same base version, a stable release takes priority, allowing a test version to update to its stable counterpart. Draft releases are excluded.
+
 Choose **GitHub** or **Cloud drive** in the upper-right corner, then click **Update** to open the corresponding download page in the system's default browser. Gotepad only checks for updates and opens the page; it does not download or install updates inside the application. If GitHub cannot be reached, the result window still displays the error and the Cloud drive link remains available.
 
 ## Exporting PPTX
@@ -295,6 +303,8 @@ Click "Export" in the upper right corner and select `.pptx` to save the location
 - Force export of all branch leaf nodes even if there are no notes.
 
 board uses a black and white publication style and draws notes designated move numbering, sequential letters, and TR/SQ/CR/MA graphic marks. Titles, comments, figure titles, and descriptions of repeated move numbers will be written in the layout.
+
+Export traverses the entire game tree, not just the current playback path. Long comments are split into continuation pages whose titles include “（续）”. Note Focus mode still shows one page per note layer rather than splitting it into exported continuation pages. A progress dialog appears during export; wait for completion or an error. Closing this dialog does not cancel export, and closing the desktop window is temporarily blocked. Dismiss the export success dialog with Space, Enter, or `Esc`.
 
 "Export board coordinates (left and upper sides)" in the settings can control whether the exported board has coordinates. After enabling, only the column letters are drawn on the upper side of board and the row numbers are drawn on the left side; the coordinates will be close to board and avoid the edge stone to minimize the additional space occupied. This option is off by default and applies to both SVG and PNG exports.
 
@@ -334,7 +344,7 @@ After opening the KataGo panel:
 - The play button starts the current position analysis, and the results are updated according to the set refresh interval.
 - The pause button only pauses the interface refresh, KataGo continues to calculate; when resuming, the latest results are displayed.
 - The Stop button sends a request to the engine to terminate the current analysis.
-- "Increase the amount of calculation" reanalyzes the current position according to the `maxplayouts` specified in the input box on the right. The value must be greater than 0; you can still pause the interface refresh or stop the analysis during operation.
+- “Increase analysis effort” reanalyzes the current position using the `maxplayouts` specified in the adjacent input; the value must be positive. Each up/down arrow changes the value by the saved “Analysis effort”, and saving that setting updates the step size. You can also enter any integer manually. While analysis runs, you can still pause interface updates or stop analysis.
 - After checking "Continuous Analysis", roaming to a new position automatically starts a new analysis; at this time, the play, pause, and stop buttons are controlled by continuous mode. Switching game-record tabs or closing the current game record automatically stops continuous analysis, so it will not continue running on the newly selected record.
 
 On Android, Gotepad monitors result progress for current-position, continuous, and entire-playback-path analysis. Monitoring pauses while the app is in the background and restarts its timer when the app returns to the foreground. If KataGo produces no result for an extended period, Gotepad automatically restarts the OpenCL analysis service and restores unfinished requests. If the engine still does not respond after automatic recovery, the current analysis stops and asks you to start it again.
@@ -343,11 +353,11 @@ The candidate table shows the location, current player's win rate, score lead, a
 
 ### Analyze the Entire Playback Path
 
-Click "Analyze the entire playback path" and the program will use the "calculation amount" to generate win rate and score lead curves one by one. This value is low by default and is intended to quickly observe trends and should not be taken as a precise research conclusion. The vertical line in the curve represents the current position; click elsewhere on the curve to roam there.
+Click “Analyze full playback path” to generate win-rate and score-lead curves using the “Fast full-game analysis effort” setting. Only the current path is analyzed, not other side branches. During analysis, the button becomes “Cancel full-game analysis”; click it again to stop while retaining results already received. The default effort is low for quickly spotting trends, rather than precise conclusions. The vertical line marks the current position; click elsewhere on the curve to navigate there. Closing the KataGo panel stops current-position and whole-game analysis and disables continuous analysis.
 
 KataGo’s win rate and score lead depend on the rules, komi, model, visits, and hardware. Results with few visits can fluctuate considerably; use more visits to check important conclusions. Desktop versions use the external KataGo engine configured by the user. Android prefers the device’s OpenCL GPU backend and automatically falls back to the more compatible Eigen CPU backend if OpenCL is unavailable or fails to start. iOS uses the built-in KataGo Metal GPU backend and 10b model, with no executable path to configure; analysis stops when the app enters the background and can be restarted after returning to the foreground. On Android and iOS, endgame scoring always uses the built-in 10b model and a separate configuration, rather than the external model selected for normal analysis or a Human SL model. The “Scoring visits” setting still applies. Entering scoring releases other analysis engines; subsequent analysis after leaving scoring reloads the previously selected model. Entering the background while scoring exits scoring mode. iOS also supports importing external models and running automatic performance detection for normal analysis or Human SL. After detection finishes, click “Apply” to save the suggested thread count and batch size. Keep the app in the foreground during detection; entering the background cancels it.
 
-### Human-like Play
+## Human-like Play
 
 ![human-like play](../gotepad-gd/assets/ui/katago_human_play.svg)
 
@@ -359,13 +369,13 @@ The status message of the analysis panel will be prefixed with the current Human
 
 When the AI chooses to pass, the program asks whether you also want to pass; there is no separate pass button. If you choose to continue, you can keep playing on the board. After both sides pass, you can use endgame scoring to verify the result. When "AI resignation suggestion" is enabled in Settings, the program evaluates both Black and White using consecutive win/loss evaluations together with the current score lead. Evaluations accumulate even before the minimum move count, but no prompt appears early. Reaching the internal resignation criteria only displays a notice; it never resigns for either side or ends the game. You can choose to continue, keep, or discard the game. After each notice, the accumulated evaluation windows for both sides are cleared and start over. Clicking the green `✓` prompts you to confirm that the current game will end and its moves will be recorded in the original game record; the red `✕` or `Esc` discards this game after confirmation.
 
-### Endgame Scoring
+## Endgame Scoring
 
 ![endgame scoring](../gotepad-gd/assets/ui/territory_scoring.svg)
 
 Endgame scoring currently supports only Chinese rules. Fill all dame points before clicking the endgame scoring icon at the end of the toolbar on the right side of the board. Move numbers on stones are temporarily hidden during scoring; leaving scoring restores the previous display settings. The program uses the "Final scoring effort" setting to ask KataGo which side owns each intersection. This setting defaults to 200 visits and is independent of ordinary analysis effort and human-like play visits. The result appears as translucent region markers on the board; the separate log panel beside the green `✓` and red `✕` buttons displays engine startup messages and real-time progress line by line.
 
-KataGo's life and death and region determination may be wrong. When an error is found, clicking on the corresponding intersection will switch the entire area connected to it in four directions to the other side; after confirming all the marks, click the green `✓`, and the program will remove the stone that is judged to be dead, perform regional divisions on the remaining empty points, and list the total black and white, komi, and winning and losing numbers according to the Chinese rules of "stone + empty points". Red `✕` or `Esc` will exit directly without modifying game record. The endgame scoring results are only for auxiliary verification. Complex life and death, seki and unfinished dame points should still be reviewed by the user.
+KataGo can misjudge life, death, and ownership. Click an intersection to switch its entire four-directionally connected ownership region to the other side. After checking all marks, click the green `✓`: the program removes stones judged dead from a calculation-only board, assigns the remaining empty regions, and lists each side’s stones, territory, komi, neutral points, and winning margin. White’s total includes komi. Scoring then exits and displays the result; it does not remove stones from the game record or automatically fill in the game result. The red `✕` or `Esc` exits without changing the record. Scoring is an aid; complex life and death, seki, and unfinished dame still require review.
 
 ## Settings
 
@@ -382,9 +392,9 @@ Click the gear button in the upper-right corner or press `Ctrl+O`. After modifyi
 - Screen left and right margins (for mobile): In pixels, keep board, tab bars, buttons and panels away from the left and right edges of the screen at the same time, and apply them symmetrically; the default is `0 px`. On landscape devices with rounded corners or cutouts, you can gradually increase this value until the control is fully visible. The background texture will still fill the entire screen.
 - board horizontal width ratio: Limit board to use the maximum proportion of the original available horizontal space. The allowed range is `50%~100%`, and the default is `100%`. On screens with tight horizontal space such as `4:3`, you can adjust it appropriately to reserve more space for notes and the KataGo analysis panel; board will still be fully displayed without cutting off the edges.
 - UI scaling: When enabled, the interface scale calculated linearly from the window height is multiplied by the factor specified on the right. The default is `1.5`, making touch operation easier on phones and tablets. The allowed range is `0.50–2.00`; the adjustment buttons change the value by `0.1`, and manual input supports two decimal places. Values outside the range do not take effect. This option is also available on desktop.
-- Display move number: Display the latest 1 lot, 10 hands, all move number or a custom quantity.
+- Display move numbers: show the last move, last 10 moves, all moves, or a custom count. The default is the last move; the custom range is 1–9999, initially 20.
 - Absolute move number: Use absolute movemove number from the current branch, otherwise show relative numbering.
-- Playback interval: the number of seconds to wait for each step of automatic playback, the default is 1 second.
+- Playback interval: delay between automatic playback steps, from 0.1 to 60 seconds; default 1 second.
 - move Sound effect: Use the 0–100 slider to adjust, the default is 50, and it is muted when set to 0. The program will randomly play five real Gomove recordings; it will be played when a new move is successfully created and roaming to the next move node. Loading game record, roaming to the preset node and setup stones will not be triggered.
 - Move confirmation: first displays a translucent pending stone; confirm the move with the green `✓` icon or by clicking the same intersection again. It is off by default on desktop and enabled by default on mobile platforms.
 - PPTX Board Image: Switch between SVG and PNG, default is SVG.
@@ -392,25 +402,30 @@ Click the gear button in the upper-right corner or press `Ctrl+O`. After modifyi
 
 ### KataGo
 
-- Analysis calculation amount: `maxVisits` for analyzing the current position, default 5000.
-- Final scoring effort: `maxVisits` for endgame ownership analysis, default 200; it does not change with ordinary analysis effort.
-- Analysis refresh interval: the interval for receiving intermediate results, default 1 second.
-- Candidate variationmove number: The maximum number of candidate PVs displayed is move number, and the default is 10.
+- Analysis effort: `maxVisits` for the current position, from 1 to 100000; default 5000.
+- Final scoring effort: `maxVisits` for endgame ownership, from 1 to 100000; default 200, independent of ordinary analysis effort.
+- Analysis refresh interval: interval between intermediate results, from 0.1 to 60 seconds; default 1 second.
+- Candidate variation length: maximum PV moves displayed and imported into variation mode, from 1 to 1000; default 10.
 - Number of additional board candidates: The number of board candidates displayed in addition to the top three candidates, ranging from 0 to 99, with the default value being 0.
 - Top-three candidate opacity: Opacity of the top-three board candidate markers, from 0% to 100%. The default is 70%, and each arrow press changes it by 10%.
 - Other candidate opacity: Opacity of additional board candidate markers, from 0% to 100%. The default is 30%, and each arrow press changes it by 10%.
 - Display score lead: Controls whether candidate tables and curves display score lead.
-- quick whole-game analysis Calculation amount: Analyze visits used position one by one, default 1, priority is given to speed.
+- Score lead on board candidates: available when “Display score lead” is enabled and off by default. Shows both win rate and score lead on candidate markers; disabling “Display score lead” also turns this option off.
+- Whole-game quick analysis visits: visits per position, from 1 to 100000; default 1 to prioritize speed.
 - Test path: Check if executables, models and configurations can be launched.
 - Automatic performance detection: Continues until KataGo completes the test or the user stops it, estimating suitable parameters for the current device. Benchmark output is displayed in a modal window while it runs; when finished, you can apply the result directly in that window or cancel after an additional confirmation.
 
 When analysis settings are saved, existing candidate results and the win-rate and score-lead curves are retained. Any analysis request already in progress is stopped; if continuous analysis was enabled, it restarts automatically with the new settings. Whole-game quick analysis does not restart automatically. When run again, new results progressively replace the existing curve. After changing the KataGo executable, model, or configuration, retained results still come from the previous engine configuration until they are replaced.
+
+“Apply” in the automatic performance-test results window also saves other pending changes in the settings panel; review them before applying. Human-like play effort ranges from 1 to 100000 visits, with a default of 200.
 
 When opening the settings, if the saved KataGo path becomes invalid, the interface will clear the path and require you to select it again. Automatically generated performance configurations are saved in Godot's user data directory and are not written to the installation directory to accommodate permission differences on Windows, Linux, and macOS.
 
 “KataGo Human-like Play” has its own settings area. On desktop, select a Human SL `.bin.gz` model compatible with the current KataGo executable. Android and iOS import models through the system file picker, and the app manages the imported files. A regular analysis model cannot replace a Human SL model. Normal analysis and human-like play require different model types; on mobile, importing and starting an engine checks the type marker inside the model and displays a message if the wrong type is selected. The file name does not determine the model’s purpose. On Android and iOS, human-like play always uses the built-in 10b model as its main analysis model, even if an external model is selected for normal analysis. Desktop versions continue to use the selected main analysis model. “Human-like play visits” sets both the default visits for new games and the actual workload used by automatic performance detection; rerun detection in this area after changing it. “AI resignation suggestion” is off by default; enabling it only adds resignation notices during play and never acts on the game automatically. Detection generates a separate configuration for human-like play and does not directly reuse normal-analysis detection results.
 
 When starting the human-like play performance test, the program first checks the model path in the settings panel. If the path has not been saved or differs from the currently active path, the program asks whether to save the path first and continue. After confirmation, it also checks whether the file exists, can be read, and uses a supported format. If the check fails, you need to select a valid model again. After the performance test succeeds, click "Apply" in the result window to write the newly generated performance configuration and make it take effect; the program asks for confirmation again before canceling the result.
+
+On Android and iOS, imported analysis or Human SL models must be between 1 KB and 1 GB, with at least twice the model’s size in available storage. Save settings after import; canceling settings does not activate the imported model.
 
 ## Keyboard Shortcuts
 
@@ -435,9 +450,9 @@ When starting the human-like play performance test, the program first checks the
 | `←` / `→` | Go back or forward one hand along the playback path |
 | `Esc` | Cancel the current mode, stop playing or close the current temporary interface, the specific behavior changes with the context |
 
-On macOS, `Control+Command+F` toggles fullscreen even while a text input box, such as a title or comment, has focus. Other shortcuts do not trigger while these text boxes have focus. Press `Esc` to finish or cancel text editing before using global shortcuts. In Gotepad, `Ctrl+A` and `Ctrl+W` mean “Save as” and “Branch visualization”, respectively, which differs from their defaults in some other software.
+On macOS, `Control+Command+F` toggles fullscreen even while a title, comment, or other text input has focus. In text inputs, `Ctrl+A`, `Ctrl+X`, and `Ctrl+Z` remain text-editing commands instead of Save As, branch organization, or game-record Undo; other app shortcuts can still trigger global actions. `←` and `→` do not navigate the game when a text input or list has focus. Press `Esc` to finish or cancel editing before using global shortcuts. Regular shortcuts are unavailable in variation mode, where `Esc` discards the variation and exits. In setup mode, use `Ctrl+Q` to switch colors and `Esc` to cancel. In normal game mode, `Ctrl+A` and `Ctrl+W` mean “Save As” and “Branch visualization”, unlike their defaults in some other software.
 
-## Android Version
+## Android and iOS Versions
 
 The current version of Android supports arm64-v8a devices with Android 9 and higher, and is designed for landscape use. Copy the APK file to the device to install it; if the system blocks installation, you need to follow the system prompts to allow the application to be installed from that source.
 
@@ -463,9 +478,9 @@ On iOS, tapping “Load” in the new-game screen opens the system file picker. 
 
 Android file managers or other applications that support system "open with" can open SGF directly using Gotepad. When the application is not running, it will start and load game record. When the application is already running, it will be opened in a new tab; the same game record that is already open will be switched to the existing tab. Files provided by external applications may only have read permissions. In this case, "Save" on the toolbar will automatically change to select a new location to save, and no attempt will be made to overwrite the read-only source.
 
-When saving, saving as SGF, or exporting PPTX on Android, please wait for the success or failure prompt to appear before closing the program. If the original file cannot be overwritten directly, please use "Save As" to select another location.
+When saving or saving SGF as a new file on Android, complete file selection and save confirmation before closing the app; successful saves do not display a separate success dialog. For PPTX export, wait for the success or failure dialog. If the original file cannot be overwritten, use “Save As” to select another location.
 
-Android has re-enabled PPTX export in PNG compatibility mode, although its stability still needs testing on real devices. If export hangs, switch to SVG mode. PPTX files containing SVG images can be viewed and edited with Microsoft’s official PowerPoint app; WPS may not display the SVG images.
+Android supports PPTX export in PNG compatibility mode. If your presentation software cannot display SVG board images, select PNG in Settings. PPTX files with SVG images can be viewed and edited in Microsoft’s official PowerPoint app; WPS may not display the SVG images.
 
 ## Data Locations and Usage Recommendations
 

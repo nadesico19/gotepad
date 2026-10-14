@@ -83,6 +83,7 @@ func _ready() -> void:
 		on_analysis_settings_changed_
 	)
 	cached_request_settings_signature_ = request_settings_signature_()
+	update_max_playouts_step_()
 	configure_tree_()
 	panel_.hide()
 	update_controls_()
@@ -914,7 +915,12 @@ func truncate_pv_(pv: Array) -> Array:
 	return result
 
 
+func update_max_playouts_step_() -> void:
+	max_playouts_.custom_arrow_step = float(SettingsStore.get_katago_max_visits())
+
+
 func on_analysis_settings_changed_() -> void:
+	update_max_playouts_step_()
 	pending_analysis_settings_change_ = true
 	schedule_analysis_settings_update_()
 

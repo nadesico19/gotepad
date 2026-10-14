@@ -809,7 +809,7 @@ script = ExtResource("35_fixed_width_button")
 source_text = "工具"
 flat = false
 
-[node name="UpdateButton" type="Button" parent="Interface/SafeArea"]
+[node name="ManualButton" type="Button" parent="Interface/SafeArea"]
 custom_minimum_size = Vector2(72, 36)
 anchors_preset = 1
 anchor_left = 1.0
@@ -818,6 +818,23 @@ offset_left = -84.0
 offset_top = 300.0
 offset_right = -12.0
 offset_bottom = 336.0
+grow_horizontal = 0
+tooltip_text = "打开当前语言的用户手册"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+clip_text = true
+script = ExtResource("35_fixed_width_button")
+source_text = "手册"
+
+[node name="UpdateButton" type="Button" parent="Interface/SafeArea"]
+custom_minimum_size = Vector2(72, 36)
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -84.0
+offset_top = 348.0
+offset_right = -12.0
+offset_bottom = 384.0
 grow_horizontal = 0
 tooltip_text = "检查软件更新"
 focus_mode = 0

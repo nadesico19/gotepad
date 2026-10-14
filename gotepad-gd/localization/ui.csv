@@ -81,6 +81,8 @@ keys,zh_CN,ja,ko,en
 "另存","另存","別名保存","다른 이름으로 저장","Save as"
 "导出","导出","エクスポート","내보내기","Export"
 "工具","工具","ツール","도구","Tools"
+"手册","手册","マニュアル","매뉴얼","Manual"
+"打开当前语言的用户手册","打开当前语言的用户手册","現在の言語のユーザーマニュアルを開く","현재 언어의 사용자 매뉴얼 열기","Open the user manual in the current language"
 "新建棋局标签（Ctrl+N）","新建棋局标签（Ctrl+N）","新しい棋譜タブ（Ctrl+N）","새 기보 탭(Ctrl+N)","New game tab (Ctrl+N)"
 "保存棋谱（Ctrl+S）","保存棋谱（Ctrl+S）","棋譜を保存（Ctrl+S）","기보 저장(Ctrl+S)","Save game record (Ctrl+S)"
 "另存棋谱（Ctrl+A）","另存棋谱（Ctrl+A）","棋譜を別名保存（Ctrl+A）","기보를 다른 이름으로 저장(Ctrl+A)","Save game record as (Ctrl+A)"
