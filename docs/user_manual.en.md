@@ -2,7 +2,7 @@
 
 [简体中文](user_manual.md) | [English](user_manual.en.md) | [日本語](user_manual.ja.md) | [한국어](user_manual.ko.md)
 
-This manual applies to Gotepad 0.1.19. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
+This manual applies to Gotepad 0.1.20. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
 
 ## Contents
 
@@ -206,7 +206,7 @@ Click the variation icon or press `Ctrl+T` to copy the current board position in
 - The next-move color is inherited on entry, then black and white alternate by default.
 - Browse recorded variation moves using the playback bar, `<`, `>`, the `←` and `→` keys, or the mouse wheel over the board or playback bar. Press `←` to go back and `→` to go forward; scroll up to go back and down to go forward, as in normal game mode. When a text input or list has focus, the arrow keys operate that control instead.
 - Automatic playback and other regular board tools and shortcuts (including `Ctrl+Q` and Undo/Redo) are unavailable in variation mode.
-- You can also play from a position in the middle of a variation. Playing at the next recorded move’s location enters that move directly. Playing elsewhere immediately deletes all records after the current position and plays the new move, without an additional confirmation dialog.
+- You can also play from a position in the middle of a variation. Playing at the next recorded move’s location enters that move directly. Playing elsewhere immediately deletes all records after the current position and plays the new move, without an additional confirmation dialog. With move confirmation enabled, playing a different move in the middle also shows a translucent pending stone first. Subsequent records are replaced only after confirmation using the selected method; canceling the pending move preserves them.
 - Right-click or click the eraser-shaped “Take back” button on the right to take back immediately, without an additional confirmation dialog. At the end, a takeback removes the last move. In the middle, it removes the current move and all subsequent variation moves, then returns to the preceding position. For example, with 10 moves recorded and move 5 displayed, taking back deletes moves 5–10 and returns to move 4. You cannot take back at the variation’s starting position or remove stones from the original record.
 - With move confirmation enabled, right-click first cancels an unconfirmed translucent stone. Right-click again afterward to request a takeback.
 - The green `✓` keeps the entire variation in the main record, starting from the original position where variation mode was entered, then exits. Recorded moves after the currently displayed position are included. Moves matching an existing branch enter that branch; different moves create new branches.

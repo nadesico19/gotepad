@@ -420,6 +420,9 @@ func accept_pending_move() -> bool:
 		cancel_pending_move()
 		return false
 	cancel_pending_move()
+	if variation_mode_ and not is_variation_terminal_position_():
+		request_variation_middle_move_(color, row, column, true)
+		return true
 	var outcome: Dictionary = {"completed": false, "success": true}
 	execute_place_stone_now_(color, row, column, outcome)
 	return bool(outcome.success)
@@ -2322,15 +2325,21 @@ func place_stone_at_screen_position_(
 		get_viewport().set_input_as_handled()
 
 
-func request_variation_middle_move_(color: int, row: int, column: int) -> void:
+func request_variation_middle_move_(
+		color: int, row: int, column: int, move_confirmed: bool = false
+) -> void:
 	if human_play_mode_ or go_notes_ == null or not bool(
 		go_notes_.call(&"can_place_stone", color, row, column)
 	):
 		return
-	cancel_pending_move()
 	if variation_next_move_matches_(row, column):
+		cancel_pending_move()
 		var _placed_or_roamed: bool = execute_place_stone_(color, row, column)
 		return
+	if not move_confirmed and SettingsStore.get_move_confirmation_enabled():
+		request_confirm_or_stage_pending_move_(color, row, column)
+		return
+	cancel_pending_move()
 	request_edit_sensitive_action_(
 		Callable(self, "show_variation_overwrite_confirmation_").bind(
 			go_notes_, int(go_notes_.get_current_uid()), color, row, column

@@ -1,3 +1,15 @@
+# 0.1.20
+
+- 界面右侧增加用户手册按钮。
+- 优化变化图模式的操作体验，取消二次确认，补齐键盘方向键功能。
+- 优化UI细节。
+
+Translation：
+
+- Added a user manual button on the right side of the interface.
+- Improved variation mode by removing confirmation dialogs for deleting or replacing nodes and adding left/right arrow key navigation.
+- Improved UI details.
+
 # 0.1.19
 
 - 适配macOS和iOS平台。macOS版与Windows版类似，需要自行准备KataGo环境；iOS版内置KataGo的Metal后端，以及与安卓版相同的10b模型，并支持侧载其他官方模型，人类模仿棋模型依然需要自行下载。在发布文件中，macOS目前仅构建了arm版，今后根据需要补充universal版；iOS提供ipa和构建指南，但不提供商店下载。
