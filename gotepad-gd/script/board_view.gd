@@ -152,6 +152,8 @@ var cut_branch_mode_: bool = false
 var pending_cut_branch_uid_: int = -1
 var pending_variation_overwrite_: Dictionary = {}
 var variation_mode_: bool = false
+# 控制变化图中删除节点、替换后续记录时是否需要二次确认。
+var variation_edit_confirmation_enabled_: bool = false
 var variation_original_notes_: GoNotes
 var variation_original_follow_current_: bool = true
 var variation_original_view_uid_: int = 0
@@ -1320,7 +1322,7 @@ func _input(event: InputEvent) -> void:
 		var _variation_exited: bool = exit_variation_mode()
 		get_viewport().set_input_as_handled()
 		return
-	if variation_mode_:
+	if variation_mode_ and human_play_mode_:
 		return
 	if is_note_mark_mode():
 		return
@@ -2358,6 +2360,10 @@ func show_variation_overwrite_confirmation_(
 	if variation_next_move_matches_(row, column):
 		var _placed_or_roamed: bool = execute_place_stone_(color, row, column)
 		return
+	if not variation_edit_confirmation_enabled_:
+		set_playback_playing_(false)
+		replace_variation_followups_(color, row, column)
+		return
 	pending_variation_overwrite_ = {
 		"notes": notes, "origin_uid": origin_uid,
 		"color": color, "row": row, "column": column
@@ -2540,6 +2546,9 @@ func request_takeback_() -> void:
 
 
 func show_takeback_confirmation_() -> void:
+	if variation_mode_ and not variation_edit_confirmation_enabled_:
+		on_takeback_confirmed_()
+		return
 	takeback_confirmation_.dialog_text = tr(
 		"确定要撤销当前变化及其全部后续变化吗？"
 	) if variation_mode_ and not is_variation_terminal_position_() \
