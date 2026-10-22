@@ -536,7 +536,7 @@ func _point_on_connection_(
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color("171b1a"), true)
+	draw_rect(Rect2(Vector2.ZERO, size), CafePalette.kBase, true)
 	var visible_world_rect: Rect2 = Rect2(
 		-pan_ / zoom_,
 		size / zoom_
@@ -555,7 +555,7 @@ func _draw() -> void:
 		).grow(6.0 / zoom_)
 		draw_rect(
 			selection_rect,
-			Color(1.0, 0.72, 0.22, 0.95),
+			CafePalette.kAccent,
 			false,
 			3.0 / zoom_
 		)
@@ -569,7 +569,7 @@ func _draw_selection_actions_(selection_rect: Rect2) -> void:
 	var line_width: float = 3.0 / zoom_
 	var check_center: Vector2 = selection_rect.position \
 		- Vector2.ONE * offset
-	draw_circle(check_center, radius, Color(0.035, 0.08, 0.045, 0.96))
+	draw_circle(check_center, radius, CafePalette.kSuccessBackground)
 	var check_points: PackedVector2Array = PackedVector2Array([
 		check_center + Vector2(-5.5, 0.0) / zoom_,
 		check_center + Vector2(-1.5, 4.5) / zoom_,
@@ -577,7 +577,7 @@ func _draw_selection_actions_(selection_rect: Rect2) -> void:
 	])
 	draw_polyline(
 		check_points,
-		Color(0.2, 0.92, 0.38, 1.0),
+		CafePalette.kSuccess,
 		line_width,
 		true
 	)
@@ -587,9 +587,9 @@ func _draw_selection_actions_(selection_rect: Rect2) -> void:
 		selection_rect.end.x + offset,
 		selection_rect.position.y - offset
 	)
-	draw_circle(delete_center, radius, Color(0.11, 0.035, 0.035, 0.96))
+	draw_circle(delete_center, radius, CafePalette.kErrorBackground)
 	var arm: float = 5.5 / zoom_
-	var delete_color: Color = Color(1.0, 0.27, 0.23, 1.0)
+	var delete_color: Color = CafePalette.kError
 	draw_line(
 		delete_center + Vector2(-arm, -arm),
 		delete_center + Vector2(arm, arm),
@@ -610,7 +610,7 @@ func _draw_connections_(
 	visible_world_rect: Rect2,
 	candidate_uids: Array[int]
 ) -> void:
-	var line_color: Color = Color(0.72, 0.78, 0.75, 0.82)
+	var line_color: Color = CafePalette.kMuted
 	var line_width: float = 2.0 / zoom_
 	for parent_uid: int in candidate_uids:
 		var children: Array = Array(display_children_.get(parent_uid, []))
@@ -814,10 +814,10 @@ func _acquire_title_label_() -> Label:
 			&"font_size", int(kThumbnailTitleFontSize)
 		)
 		label.add_theme_color_override(
-			&"font_color", Color(0.94, 0.93, 0.9, 1.0)
+			&"font_color", CafePalette.kText
 		)
 		label.add_theme_color_override(
-			&"font_outline_color", Color(0.04, 0.05, 0.045, 0.95)
+			&"font_outline_color", CafePalette.kInput
 		)
 		label.add_theme_constant_override(&"outline_size", 2)
 		label.add_theme_constant_override(
@@ -1283,7 +1283,7 @@ func _try_selection_action_at_(screen_position: Vector2) -> bool:
 		return true
 	if action == kSelectionActionDelete:
 		pending_delete_uid_ = selected_uid_
-		delete_branch_confirmation_.popup_centered(Vector2i(500, 190))
+		DialogLayoutManager.popup_centered(delete_branch_confirmation_, Vector2i(500, 190))
 		return true
 	return false
 

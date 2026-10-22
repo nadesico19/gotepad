@@ -10,9 +10,9 @@ const kCornerHitRadius: float = 18.0
 const kMinimumPointHitRadius: float = 10.0
 const kCornerHandleGap: float = 15.0
 const kStoneMarkerScale: float = 0.8
-const kGridColor: Color = Color(0.25, 0.9, 1.0, 0.72)
+const kGridColor: Color = Color(CafePalette.kInfo, 0.72)
 const kLowConfidenceThreshold: float = 0.58
-const kLowConfidenceColor: Color = Color(1.0, 0.16, 0.12, 1.0)
+const kLowConfidenceColor: Color = CafePalette.kError
 
 var source_image_: Image
 var source_texture_: ImageTexture
@@ -141,7 +141,7 @@ func rotate_image_point_clockwise_(point: Vector2, old_height: int) -> Vector2:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.035, 0.035, 0.035, 1.0))
+	draw_rect(Rect2(Vector2.ZERO, size), CafePalette.kInput)
 	if source_texture_ == null or source_image_ == null:
 		return
 	var display_rect: Rect2 = image_display_rect_()
@@ -160,10 +160,10 @@ func _draw() -> void:
 		)
 		var connector_end: Vector2 = handle_center - outward * 10.0
 		draw_line(connector_begin, connector_end,
-			Color(1.0, 0.72, 0.12, 0.9), 2.0, true)
-		draw_circle(handle_center, 8.0, Color(1.0, 0.72, 0.12, 1.0))
+			CafePalette.kAccent, 2.0, true)
+		draw_circle(handle_center, 8.0, CafePalette.kAccent)
 		draw_arc(handle_center, 12.0, 0.0, TAU, 24,
-			Color(0.08, 0.05, 0.01, 1.0), 3.0, true)
+			CafePalette.kOnAccent, 3.0, true)
 
 
 func draw_grid_() -> void:

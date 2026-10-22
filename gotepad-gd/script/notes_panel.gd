@@ -291,7 +291,7 @@ func rebuild_tabs_() -> void:
 			close_button.disabled = preview_mode_
 			close_button.custom_minimum_size = Vector2(30.0, 34.0)
 			close_button.add_theme_color_override(
-				&"font_color", Color(0.96, 0.3, 0.3)
+				&"font_color", CafePalette.kError
 			)
 			close_button.pressed.connect(on_remove_last_note_pressed_)
 			tab.add_child(close_button)
@@ -544,7 +544,7 @@ func refresh_clipboard_buttons_() -> void:
 func show_unsaved_confirmation_() -> void:
 	if unsaved_confirmation_.visible:
 		return
-	unsaved_confirmation_.popup_centered(Vector2i(450, 180))
+	DialogLayoutManager.popup_centered(unsaved_confirmation_, Vector2i(450, 180))
 
 
 func on_unsaved_edit_confirmed_() -> void:

@@ -4,12 +4,12 @@
 [ext_resource type="Script" path="res://script/fixed_width_text_button.gd" id="2_fixed_width_button"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
-bg_color = Color(0.075, 0.075, 0.085, 0.5)
+bg_color = Color(0.168627, 0.145098, 0.125490, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.34, 0.34, 0.38, 1)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -18,7 +18,7 @@ shadow_color = Color(0, 0, 0, 0.35)
 shadow_size = 8
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxQuickNormal"]
-bg_color = Color(0.18, 0.18, 0.2, 1)
+bg_color = Color(0.203922, 0.172549, 0.145098, 1)
 content_margin_left = 4.0
 content_margin_top = 2.0
 content_margin_right = 4.0
@@ -29,7 +29,7 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxQuickHover"]
-bg_color = Color(0.26, 0.26, 0.3, 1)
+bg_color = Color(0.250980, 0.211765, 0.176471, 1)
 content_margin_left = 4.0
 content_margin_top = 2.0
 content_margin_right = 4.0
@@ -40,7 +40,7 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxQuickPressed"]
-bg_color = Color(0.33, 0.33, 0.38, 1)
+bg_color = Color(0.349020, 0.278431, 0.180392, 1)
 content_margin_left = 4.0
 content_margin_top = 2.0
 content_margin_right = 4.0
@@ -51,7 +51,7 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxKomiQuickNormal"]
-bg_color = Color(0.18, 0.18, 0.2, 1)
+bg_color = Color(0.203922, 0.172549, 0.145098, 1)
 content_margin_left = 8.0
 content_margin_top = 2.0
 content_margin_right = 8.0
@@ -62,7 +62,7 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxKomiQuickHover"]
-bg_color = Color(0.26, 0.26, 0.3, 1)
+bg_color = Color(0.250980, 0.211765, 0.176471, 1)
 content_margin_left = 8.0
 content_margin_top = 2.0
 content_margin_right = 8.0
@@ -73,7 +73,7 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxKomiQuickPressed"]
-bg_color = Color(0.33, 0.33, 0.38, 1)
+bg_color = Color(0.349020, 0.278431, 0.180392, 1)
 content_margin_left = 8.0
 content_margin_top = 2.0
 content_margin_right = 8.0
@@ -128,7 +128,7 @@ theme_override_constants/separation = 6
 [node name="Title" type="Label" parent="Panel/Margin/Content/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
 theme_override_font_sizes/font_size = 20
 text = "棋谱信息"
 vertical_alignment = 1
@@ -148,7 +148,7 @@ custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "接受全部棋谱信息修改"
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_colors/font_color = Color(0.650980, 0.725490, 0.584314, 1)
 theme_override_font_sizes/font_size = 22
 text = "✓"
 
@@ -157,7 +157,7 @@ custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "取消全部棋谱信息修改"
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_colors/font_color = Color(0.831373, 0.603922, 0.533333, 1)
 theme_override_font_sizes/font_size = 22
 text = "✕"
 
@@ -166,9 +166,9 @@ custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "向上滚动棋谱信息"
-theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.654902, 0.584314, 0.494118, 1)
 theme_override_font_sizes/font_size = 22
 script = ExtResource("2_fixed_width_button")
 source_text = "∧"
@@ -180,9 +180,9 @@ custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "向下滚动棋谱信息"
-theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.654902, 0.584314, 0.494118, 1)
 theme_override_font_sizes/font_size = 22
 script = ExtResource("2_fixed_width_button")
 source_text = "∨"

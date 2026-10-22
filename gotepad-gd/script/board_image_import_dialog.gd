@@ -132,7 +132,7 @@ func refresh_status_() -> void:
 	if uncertain_placeholder >= 0:
 		status_template = status_template.insert(
 			uncertain_placeholder + 2, "[/color]"
-		).insert(uncertain_placeholder, "[color=#ff3b30]")
+		).insert(uncertain_placeholder, "[color=#%s]" % CafePalette.kError.to_html(false))
 	status_.text = status_template % [
 		black_count, white_count, uncertain
 	]
@@ -198,7 +198,7 @@ func resize_for_recognition_(image: Image) -> void:
 
 func show_error_(message: String) -> void:
 	error_dialog_.dialog_text = message
-	error_dialog_.popup_centered()
+	DialogLayoutManager.popup_centered(error_dialog_)
 
 
 func on_error_dialog_closed_() -> void:

@@ -302,7 +302,7 @@ func show_unsaved_after_focus_change_() -> void:
 
 func show_unsaved_confirmation_() -> void:
 	if not unsaved_confirmation_.visible:
-		unsaved_confirmation_.popup_centered(Vector2i(470, 180))
+		DialogLayoutManager.popup_centered(unsaved_confirmation_, Vector2i(470, 180))
 
 
 func on_unsaved_confirmed_() -> void:
@@ -349,7 +349,7 @@ func on_accept_pressed_() -> void:
 		error_dialog_.dialog_text = CommandMessages.localize(
 			go_notes_.get_message()
 		)
-		error_dialog_.popup_centered(Vector2i(470, 180))
+		DialogLayoutManager.popup_centered(error_dialog_, Vector2i(470, 180))
 		return
 	for field_name: String in changes:
 		saved_values_[field_name] = str(changes[field_name])

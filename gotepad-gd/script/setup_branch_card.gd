@@ -70,8 +70,8 @@ func on_gui_input_(event: InputEvent) -> void:
 
 func _draw() -> void:
 	var card_rect: Rect2 = Rect2(Vector2.ZERO, size)
-	var background: Color = Color(0.25, 0.20, 0.13, 0.96) \
-		if hovered_ else Color(0.10, 0.085, 0.065, 0.94)
+	var background: Color = CafePalette.kSelection \
+		if hovered_ else CafePalette.kRaised
 	draw_style_box(make_card_style_(background), card_rect)
 	draw_thumbnail_(Rect2(Vector2(10.0, 10.0), Vector2.ONE * kThumbnailSize))
 	var font: Font = ThemeDB.fallback_font
@@ -80,19 +80,19 @@ func _draw() -> void:
 	draw_string(
 		font, Vector2(128.0, 48.0), title_,
 		HORIZONTAL_ALIGNMENT_LEFT, 178.0, 18,
-		Color(1.0, 0.91, 0.70, 1.0)
+		CafePalette.kText
 	)
 	draw_string(
 		font, Vector2(128.0, 80.0), summary_,
 		HORIZONTAL_ALIGNMENT_LEFT, 178.0, 15,
-		Color(0.88, 0.88, 0.84, 1.0)
+		CafePalette.kSecondary
 	)
 
 
 func make_card_style_(background: Color) -> StyleBoxFlat:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = background
-	style.border_color = Color(1.0, 0.82, 0.42, 0.55 if hovered_ else 0.22)
+	style.border_color = CafePalette.kAccent if hovered_ else CafePalette.kBorder
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(8)
 	return style

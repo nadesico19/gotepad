@@ -92,6 +92,8 @@ inline constexpr char kKeepMainLineFailedMessage[] =
     "[GNE0039] keep main line failed";
 inline constexpr char kClearNotesFailedMessage[] =
     "[GNE0040] clear notes failed";
+inline constexpr char kNoNodeNotesToGenerateMessage[] =
+    "[GNE0041] no node notes to generate";
 
 inline constexpr uint8_t kNoteNumberingOptionCount = 4;
 inline constexpr uint8_t kNoteNumberingBranchRelative = 0;
@@ -184,6 +186,7 @@ class GoNotes {
 public:
   enum class PptxImageFormat : uint8_t { Svg, Png };
   using PptxProgressCallback = std::function<void(size_t, size_t)>;
+  using PptxCancelCallback = std::function<bool()>;
 
   // 定义围棋笔记支持的操作命令基类。
   class Command {
@@ -197,6 +200,7 @@ public:
     // - GoNotes::CutBranchCommand: "CUTBRANCH,42;"
     // - GoNotes::KeepMainLineCommand: "KEEPMAINLINE;"
     // - GoNotes::ClearNotesCommand: "CLEARNOTES;"
+    // - GoNotes::GenerateNodeNotesCommand: "GENERATENODENOTES;"
     // - GoNotes::RoamingCommand: "ROAMING,42;"
     // - GoNotes::FindCommand: "FIND,4,4;"或"FIND,-1,4,4;"
     // - GoNotes::FindCommand: "FIND,1,4,4;"
@@ -329,6 +333,16 @@ public:
     [[nodiscard]] int undo(GoNotes &go_notes) override;
     std::unordered_map<uint64_t, std::vector<GoNotesRecord>> original_notes_{};
     bool notes_set_{};
+  };
+
+  // 为整棵树中尚无笔记的多分支节点和叶节点生成标题为TODO的笔记，包含虚拟根节点
+  // 和预置节点。仅记录本次新增笔记的uid，使整批生成支持一次undo/redo。
+  class GenerateNodeNotesCommand final : public Command {
+  private:
+    [[nodiscard]] int execute(GoNotes &go_notes) override;
+    [[nodiscard]] int undo(GoNotes &go_notes) override;
+    std::vector<uint64_t> generated_uids_{};
+    bool targets_set_{};
   };
 
   // 调整指定父节点的直属分支顺序。首次执行时保存原始完整顺序，undo和redo均直接
@@ -600,13 +614,15 @@ public:
   // 按B5横版出版模板，将记录树中所有可达笔记导出为PPTX。每层笔记生成一组页面；
   // 评论过长时自动生成续页。template_path为模板PPTX路径；
   // show_board_coordinates为true时，仅在棋盘上侧和左侧绘制坐标。导出不改变
-  // 棋局状态及undo/redo记录。成功返回true；失败返回false并填写error_message。
+  // 棋局状态及undo/redo记录。cancel返回true时在阶段边界中止；成功返回true，
+  // 失败或取消返回false并填写error_message。
   [[nodiscard]] bool
   export_pptx_file(const std::string &path, const std::string &template_path,
                    std::string &error_message,
                    PptxImageFormat image_format = PptxImageFormat::Svg,
                    bool show_board_coordinates = false,
-                   const PptxProgressCallback &progress = {}) const;
+                   const PptxProgressCallback &progress = {},
+                   const PptxCancelCallback &cancel = {}) const;
 
   // 使用内存中的模板PPTX导出，供模板被打包在GUI资源容器中的客户端使用。
   [[nodiscard]] bool
@@ -615,7 +631,8 @@ public:
                    std::string &error_message,
                    PptxImageFormat image_format = PptxImageFormat::Svg,
                    bool show_board_coordinates = false,
-                   const PptxProgressCallback &progress = {}) const;
+                   const PptxProgressCallback &progress = {},
+                   const PptxCancelCallback &cancel = {}) const;
 
   // 执行用户指定的棋盘操作命令，成功时将命令推送到undo_stack_。
   // PlaceStoneCommand返回-100且下一手分支存在相同落子时，会转换为RoamingCommand继续执行。
@@ -828,6 +845,8 @@ GoNotes::Command::parse(std::string_view command) {
     return std::make_unique<KeepMainLineCommand>();
   } else if (fields.size() == 1 && fields[0] == "CLEARNOTES") {
     return std::make_unique<ClearNotesCommand>();
+  } else if (fields.size() == 1 && fields[0] == "GENERATENODENOTES") {
+    return std::make_unique<GenerateNodeNotesCommand>();
   } else if (fields.size() == 2 && fields[0] == "ROAMING") {
     uint64_t target_uid{};
     if (parse_integer(fields[1], target_uid))
@@ -1221,6 +1240,53 @@ inline int GoNotes::ClearNotesCommand::undo(GoNotes &go_notes) {
     return -1;
   }
   go_notes.notes_ = original_notes_;
+  done_ = false;
+  go_notes.message_.clear();
+  return 0;
+}
+
+inline int GoNotes::GenerateNodeNotesCommand::execute(GoNotes &go_notes) {
+  if (done_) {
+    go_notes.message_ = kCommandAlreadyDoneMessage;
+    return -1;
+  }
+  if (!targets_set_) {
+    const auto tree = go_notes.go_core_.record_tree();
+    std::vector<const GoCoreRecordTreeNode *> pending{&tree};
+    while (!pending.empty()) {
+      const auto *node = pending.back();
+      pending.pop_back();
+      const auto notes_it = go_notes.notes_.find(node->uid);
+      if (node->children.size() != 1 &&
+          (notes_it == go_notes.notes_.end() || notes_it->second.empty())) {
+        generated_uids_.push_back(node->uid);
+      }
+      for (const auto &child : node->children)
+        pending.push_back(&child);
+    }
+    if (generated_uids_.empty()) {
+      go_notes.message_ = kNoNodeNotesToGenerateMessage;
+      return -1;
+    }
+    targets_set_ = true;
+  }
+  for (const auto uid : generated_uids_) {
+    GoNotesRecord note{};
+    note.title = "TODO";
+    go_notes.notes_[uid].push_back(std::move(note));
+  }
+  done_ = true;
+  go_notes.message_.clear();
+  return 0;
+}
+
+inline int GoNotes::GenerateNodeNotesCommand::undo(GoNotes &go_notes) {
+  if (!done_) {
+    go_notes.message_ = kCommandCannotBeUndoneMessage;
+    return -1;
+  }
+  for (const auto uid : generated_uids_)
+    go_notes.notes_.erase(uid);
   done_ = false;
   go_notes.message_.clear();
   return 0;

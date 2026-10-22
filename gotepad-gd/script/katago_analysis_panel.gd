@@ -323,7 +323,7 @@ func on_stop_pressed_() -> void:
 func on_increase_pressed_() -> void:
 	var requested_playouts: int = roundi(max_playouts_.value)
 	if requested_playouts <= 0:
-		invalid_max_playouts_dialog_.popup_centered()
+		DialogLayoutManager.popup_centered(invalid_max_playouts_dialog_, Vector2i(460, 180))
 		return
 	if prepare_for_user_analysis_():
 		start_current_analysis_(false, requested_playouts)
@@ -565,10 +565,10 @@ func refresh_candidates_(move_infos: Array) -> void:
 				variation_column, HORIZONTAL_ALIGNMENT_CENTER
 			)
 			item.set_custom_bg_color(
-				variation_column, Color(0.18, 0.19, 0.19, 0.92)
+				variation_column, CafePalette.kRaised
 			)
 			item.set_custom_color(
-				variation_column, Color(0.96, 0.96, 0.93, 1.0)
+				variation_column, CafePalette.kText
 			)
 			item.set_tooltip_text(variation_column, tr("进入候选变化图"))
 			candidate_pvs_[index] = pv

@@ -72,7 +72,7 @@ func rebuild_rows_() -> void:
 		empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		empty_label.text = tr("当前局面没有下一手分支")
 		empty_label.add_theme_color_override(
-			&"font_color", Color(0.78, 0.76, 0.70)
+			&"font_color", CafePalette.kSecondary
 		)
 		branch_list_.add_child(empty_label)
 		return
@@ -134,9 +134,9 @@ func make_arrow_button_(text: String, tooltip: String) -> Button:
 
 func make_delete_button_() -> Button:
 	var button: Button = make_arrow_button_("✕", tr("删除这个分支"))
-	button.add_theme_color_override(&"font_color", Color(0.96, 0.24, 0.24))
-	button.add_theme_color_override(&"font_hover_color", Color(1.0, 0.4, 0.4))
-	button.add_theme_color_override(&"font_pressed_color", Color(1.0, 0.3, 0.3))
+	button.add_theme_color_override(&"font_color", CafePalette.kError)
+	button.add_theme_color_override(&"font_hover_color", CafePalette.kOnDanger)
+	button.add_theme_color_override(&"font_pressed_color", CafePalette.kError)
 	return button
 
 
@@ -144,9 +144,9 @@ func make_enter_button_() -> Button:
 	var button: Button = make_arrow_button_(tr("进入"), tr("进入这个分支"))
 	button.custom_minimum_size.x = 52.0
 	button.add_theme_font_size_override(&"font_size", 17)
-	button.add_theme_color_override(&"font_color", Color(0.62, 0.82, 1.0))
-	button.add_theme_color_override(&"font_hover_color", Color(0.76, 0.9, 1.0))
-	button.add_theme_color_override(&"font_pressed_color", Color(0.48, 0.7, 1.0))
+	button.add_theme_color_override(&"font_color", CafePalette.kInfo)
+	button.add_theme_color_override(&"font_hover_color", CafePalette.kText)
+	button.add_theme_color_override(&"font_pressed_color", CafePalette.kInfo)
 	return button
 
 
@@ -199,7 +199,7 @@ func request_delete_(branch_uid: int) -> void:
 		return
 	pending_delete_uid_ = branch_uid
 	delete_confirmation_.dialog_text = tr("DIALOG_DELETE_ORDER_BRANCH_MESSAGE")
-	delete_confirmation_.popup_centered(Vector2i(460, 180))
+	DialogLayoutManager.popup_centered(delete_confirmation_, Vector2i(460, 180))
 
 
 func request_enter_(branch_uid: int) -> void:

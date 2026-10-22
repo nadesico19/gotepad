@@ -3,12 +3,12 @@
 [ext_resource type="Script" path="res://script/setup_branch_popup.gd" id="1_script"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_popup"]
-bg_color = Color(0.075, 0.062, 0.045, 0.97)
+bg_color = Color(0.129412, 0.113725, 0.098039, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(1, 0.82, 0.42, 0.45)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -37,7 +37,7 @@ theme_override_constants/separation = 8
 
 [node name="Title" type="Label" parent="Margin/Content"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.91, 0.7, 1)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_font_sizes/font_size = 19
 text = "选择预置棋子分支"
 horizontal_alignment = 1

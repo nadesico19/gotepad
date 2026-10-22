@@ -78,6 +78,8 @@ func _ready() -> void:
 			select_image_button_, camera_button_.get_index() + 1
 		)
 		select_image_button_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		# iOS 的“拍照／图片”与 Android 的“拍照／相册”保持同样的两列宽度。
+		select_image_button_.custom_minimum_size.x = camera_button_.custom_minimum_size.x
 	if is_android:
 		android_host_class_ = JavaClassWrapper.wrap(kAndroidHostClass)
 	set_process(false)
@@ -172,7 +174,7 @@ func on_create_pressed_() -> void:
 
 func show_load_error(message: String) -> void:
 	load_error_dialog_.dialog_text = message
-	load_error_dialog_.popup_centered()
+	DialogLayoutManager.popup_centered(load_error_dialog_)
 
 
 func on_load_sgf_pressed_() -> void:

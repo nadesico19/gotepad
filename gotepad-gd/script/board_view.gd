@@ -1353,6 +1353,10 @@ func _input(event: InputEvent) -> void:
 			direction = -1
 		KEY_RIGHT:
 			direction = 1
+		KEY_PAGEUP, KEY_PAGEDOWN:
+			if not note_preview_playback_active_:
+				return
+			direction = -1 if key_event.keycode == KEY_PAGEUP else 1
 		_:
 			return
 
@@ -1360,8 +1364,11 @@ func _input(event: InputEvent) -> void:
 			or variation_overwrite_confirmation_.visible:
 		return
 	var focus_owner: Control = get_viewport().gui_get_focus_owner()
-	if focus_owner is OptionButton or focus_owner is LineEdit \
-			or focus_owner is TextEdit or focus_owner is Tree \
+	if focus_owner is LineEdit or focus_owner is TextEdit:
+		if key_event.keycode != KEY_PAGEUP \
+				and key_event.keycode != KEY_PAGEDOWN:
+			return
+	elif focus_owner is OptionButton or focus_owner is Tree \
 			or focus_owner is ItemList:
 		return
 
@@ -1729,7 +1736,7 @@ func commit_preset_draft_() -> bool:
 		preset_edit_error_dialog_.dialog_text = tr(
 			"DIALOG_PRESET_REPLAY_CONFLICT"
 		) % failed_uid
-		preset_edit_error_dialog_.popup_centered()
+		DialogLayoutManager.popup_centered(preset_edit_error_dialog_)
 		preset_edit_replay_failed.emit(failed_uid)
 		refresh_stones_()
 		return true
@@ -1796,7 +1803,7 @@ func execute_find_now_(direction: int, intersection: Vector2i) -> void:
 		if message.is_empty():
 			message = tr("没有在指定方向找到这颗棋子。")
 		find_result_dialog_.dialog_text = message
-		find_result_dialog_.popup_centered(Vector2i(420, 160))
+		DialogLayoutManager.popup_centered(find_result_dialog_, Vector2i(420, 160))
 
 func _draw() -> void:
 	var canvas_transform: Transform2D = get_global_transform_with_canvas()
@@ -1877,8 +1884,8 @@ func _draw() -> void:
 
 
 	draw_coordinates_(cell_size)
-	if not is_note_mark_mode() and not territory_mode_ \
-			and not note_preview_playback_active_:
+	if not territory_mode_ \
+			and (is_note_mark_mode() or not note_preview_playback_active_):
 		draw_branch_markers_(canvas_scale, cell_size)
 	if note_marks_overlay_ != null:
 		note_marks_overlay_.queue_redraw()
@@ -2173,7 +2180,7 @@ func try_cut_branch_at_(screen_position: Vector2) -> bool:
 func show_cut_branch_confirmation_(target_uid: int) -> void:
 	pending_cut_branch_uid_ = target_uid
 	set_playback_playing_(false)
-	cut_branch_confirmation_.popup_centered(Vector2i(460, 180))
+	DialogLayoutManager.popup_centered(cut_branch_confirmation_, Vector2i(460, 180))
 
 
 func on_cut_branch_confirmed_() -> void:
@@ -2378,7 +2385,7 @@ func show_variation_overwrite_confirmation_(
 		"color": color, "row": row, "column": column
 	}
 	set_playback_playing_(false)
-	variation_overwrite_confirmation_.popup_centered(Vector2i(480, 180))
+	DialogLayoutManager.popup_centered(variation_overwrite_confirmation_, Vector2i(480, 180))
 
 
 func on_variation_overwrite_confirmed_() -> void:
@@ -2562,7 +2569,7 @@ func show_takeback_confirmation_() -> void:
 		"确定要撤销当前变化及其全部后续变化吗？"
 	) if variation_mode_ and not is_variation_terminal_position_() \
 		else tr("确定要撤销上一手棋吗？")
-	takeback_confirmation_.popup_centered(Vector2i(360, 160))
+	DialogLayoutManager.popup_centered(takeback_confirmation_, Vector2i(360, 160))
 	get_viewport().set_input_as_handled()
 
 
@@ -2993,7 +3000,11 @@ func refresh_note_preview_playback_() -> void:
 
 
 func request_note_preview_page_(page_index: int) -> void:
+	# 换页会同步漫游到笔记所在局面，期间的 changed 信号属于播放导航。
+	var previous_navigation: bool = playback_navigation_
+	playback_navigation_ = true
 	note_preview_page_requested.emit(page_index)
+	playback_navigation_ = previous_navigation
 
 
 func update_note_preview_hover_bubble_(mouse_x: float) -> void:

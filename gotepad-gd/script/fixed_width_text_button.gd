@@ -64,7 +64,8 @@ func font_color_() -> Color:
 		DRAW_HOVER:
 			return get_theme_color(&"font_hover_color")
 		DRAW_DISABLED:
-			return get_theme_color(&"font_disabled_color")
+			return Color(get_theme_color(&"font_color"), CafePalette.kDisabledOpacity) if flat \
+				else get_theme_color(&"font_disabled_color")
 		DRAW_HOVER_PRESSED:
 			return get_theme_color(&"font_hover_pressed_color")
 		_:

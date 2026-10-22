@@ -11,12 +11,12 @@
 [ext_resource type="Script" path="res://script/territory_ownership_overlay.gd" id="11_territory_overlay"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_playback_hover"]
-bg_color = Color(0.055, 0.045, 0.035, 0.72)
+bg_color = Color(0.168627, 0.145098, 0.125490, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(1, 0.9, 0.7, 0.32)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -78,9 +78,9 @@ flat = true
 toggle_mode = true
 mouse_default_cursor_shape = 2
 tooltip_text = "预置棋子（Ctrl+H）"
-theme_override_colors/font_color = Color(0.96, 0.96, 0.92, 1)
-theme_override_colors/font_pressed_color = Color(1, 0.82, 0.32, 1)
-theme_override_colors/font_disabled_color = Color(1, 1, 1, 0.55)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_disabled_color = Color(0.541176, 0.482353, 0.411765, 1)
 theme_override_font_sizes/font_size = 28
 script = ExtResource("10_fixed_width_button")
 source_text = "预置"
@@ -109,7 +109,7 @@ offset_top = 520.0
 offset_right = -424.0
 offset_bottom = 560.0
 mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
 theme_override_font_sizes/font_size = 20
 text = "1/1"
 horizontal_alignment = 2
@@ -143,7 +143,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_playback_hover")
 [node name="Label" type="Label" parent="PlaybackHoverBubble"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(1, 0.96, 0.86, 1)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_font_sizes/font_size = 18
 text = "0"
 horizontal_alignment = 1
@@ -197,6 +197,7 @@ exclusive = true
 dialog_text = "确定要撤销上一手棋吗？"
 ok_button_text = "确定"
 cancel_button_text = "取消"
+metadata/ok_role = "danger"
 
 [node name="CutBranchConfirmation" type="ConfirmationDialog" parent="."]
 title = "确认剪切分支"
@@ -204,6 +205,7 @@ exclusive = true
 dialog_text = "DIALOG_CUT_BRANCH_MESSAGE"
 ok_button_text = "剪切"
 cancel_button_text = "取消"
+metadata/ok_role = "danger"
 
 [node name="VariationOverwriteConfirmation" type="ConfirmationDialog" parent="."]
 title = "确认覆盖变化图记录"
@@ -211,6 +213,7 @@ exclusive = true
 dialog_text = "确定要删除当前局面之后的全部已有记录，并在此处落子吗？"
 ok_button_text = "覆盖并落子"
 cancel_button_text = "取消"
+metadata/ok_role = "danger"
 
 [node name="FindResultDialog" type="AcceptDialog" parent="."]
 title = "找子"

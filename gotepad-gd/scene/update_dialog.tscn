@@ -3,12 +3,12 @@
 [ext_resource type="Script" path="res://script/update_dialog.gd" id="1_script"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
-bg_color = Color(0.055, 0.05, 0.043, 0.98)
+bg_color = Color(0.129412, 0.113725, 0.098039, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.62, 0.48, 0.18, 0.9)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -95,6 +95,7 @@ popup/item_1/text = "网盘"
 popup/item_1/id = 1
 
 [node name="Update" type="Button" parent="Center/Panel/Margin/Content/Header"]
+theme_type_variation = &"CafePrimaryButton"
 custom_minimum_size = Vector2(72, 40)
 layout_mode = 2
 focus_mode = 0
@@ -106,8 +107,8 @@ custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.92, 0.92, 0.92, 1)
-theme_override_colors/font_hover_color = Color(1, 0.35, 0.35, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_hover_color = Color(0.831373, 0.603922, 0.533333, 1)
 theme_override_font_sizes/font_size = 24
 text = "✕"
 flat = true

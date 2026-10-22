@@ -115,6 +115,11 @@ namespace {
         auto clear_notes = nd::go::GoNotes::Command::parse("CLEARNOTES;");
         assert(dynamic_cast<nd::go::GoNotes::ClearNotesCommand *>(
                    clear_notes.get()) != nullptr);
+        auto generate_node_notes =
+            nd::go::GoNotes::Command::parse("GENERATENODENOTES;");
+        assert(dynamic_cast<nd::go::GoNotes::GenerateNodeNotesCommand *>(
+                   generate_node_notes.get()) != nullptr);
+        assert(!nd::go::GoNotes::Command::parse("GENERATENODENOTES,1;"));
 
         auto place = nd::go::GoNotes::Command::parse("PLACESTONE,2,16,17;");
         assert(dynamic_cast<nd::go::GoNotes::PlaceStoneCommand *>(place.get()) != nullptr);
@@ -340,6 +345,98 @@ namespace {
         expect_eq(notes.redo(), 0,
                   "clear notes: redo clears all note content again");
         assert(notes.notes_at(noted_uid).empty());
+    }
+
+    void test_generate_node_notes_command() {
+        nd::go::GoNotes notes{19};
+        auto execute = [&notes](const std::string &command) {
+            expect_eq(notes.execute(command), 0, "generate notes: prepares tree");
+        };
+        execute("PLACESTONE,1,4,4;");
+        const auto branching_uid = notes.current_uid();
+        execute("PLACESTONE,2,4,5;");
+        const auto blank_note_uid = notes.current_uid();
+        expect_eq(notes.execute(std::make_unique<nd::go::GoNotes::AppendNote>()),
+                  0, "generate notes: existing empty page counts as a note");
+        execute("ROAMING," + std::to_string(branching_uid) + ";");
+        execute("PLACESTONE,2,5,4;");
+        const auto intermediate_uid = notes.current_uid();
+        execute("PLACESTONE,1,6,4;");
+        const auto leaf_uid = notes.current_uid();
+        execute("ROAMING,0;");
+        execute("PRESET,1,10,10;");
+        const auto preset_uid = notes.current_uid();
+        execute("ROAMING,0;");
+        execute("PLACESTONE,1,16,16;");
+        const auto existing_note_uid = notes.current_uid();
+        expect_eq(notes.execute(std::make_unique<nd::go::GoNotes::AppendNote>()),
+                  0, "generate notes: creates existing first page");
+        expect_eq(notes.execute(std::make_unique<nd::go::GoNotes::UpdateNoteText>(
+                      0, "Keep title", "Keep comment")),
+                  0, "generate notes: fills existing page");
+        expect_eq(notes.execute(std::make_unique<nd::go::GoNotes::AppendNote>()),
+                  0, "generate notes: keeps multiple existing pages");
+        const auto original_tree = notes.node_at(0);
+        assert(original_tree.has_value());
+        const std::vector<std::uint64_t> generated_uids{
+            0, branching_uid, leaf_uid, preset_uid};
+        auto check_generated = [&notes, &generated_uids]() {
+            for (const auto uid : generated_uids) {
+                const auto pages = notes.notes_at(uid);
+                assert(pages.size() == 1);
+                assert(pages.front().title == "TODO");
+                assert(pages.front().comment.empty());
+                assert(pages.front().sequential_marks.empty());
+                assert(pages.front().symbol_marks.empty());
+                assert(pages.front().numbering ==
+                       nd::go::kNoteNumberingBranchRelative);
+            }
+        };
+        auto check_existing = [&notes, blank_note_uid, existing_note_uid]() {
+            const auto blank_pages = notes.notes_at(blank_note_uid);
+            assert(blank_pages.size() == 1 && blank_pages.front().title.empty());
+            const auto pages = notes.notes_at(existing_note_uid);
+            assert(pages.size() == 2);
+            assert(pages.front().title == "Keep title");
+            assert(pages.front().comment == "Keep comment");
+            assert(pages.back().title.empty());
+        };
+
+        execute("GENERATENODENOTES;");
+        check_generated();
+        check_existing();
+        assert(notes.notes_at(intermediate_uid).empty());
+        assert(notes.current_uid() == existing_note_uid);
+        assert(same_record_tree(*original_tree, *notes.node_at(0)));
+        expect_eq(notes.execute("GENERATENODENOTES;"), -1,
+                  "generate notes: repeated generation does not add pages");
+        assert(notes.message() == nd::go::kNoNodeNotesToGenerateMessage);
+        expect_eq(notes.undo(), 0,
+                  "generate notes: one undo removes the whole batch");
+        for (const auto uid : generated_uids)
+            assert(notes.notes_at(uid).empty());
+        check_existing();
+        assert(notes.current_uid() == existing_note_uid);
+        expect_eq(notes.redo(), 0,
+                  "generate notes: redo restores exactly the generated pages");
+        check_generated();
+        check_existing();
+
+        nd::go::GoNotes empty_notes{19};
+        expect_eq(empty_notes.execute("GENERATENODENOTES;"), 0,
+                  "generate notes: empty initial board is a leaf");
+        assert(empty_notes.notes_at(0).size() == 1);
+        assert(empty_notes.notes_at(0).front().title == "TODO");
+        expect_eq(empty_notes.undo(), 0, "generate notes: undo empty board page");
+        assert(empty_notes.notes_at(0).empty());
+
+        nd::go::GoNotes linear_notes{19};
+        expect_eq(linear_notes.execute("PLACESTONE,1,4,4;"), 0,
+                  "generate notes: prepares linear tree");
+        expect_eq(linear_notes.execute("GENERATENODENOTES;"), 0,
+                  "generate notes: handles a linear tree");
+        assert(linear_notes.notes_at(0).empty());
+        assert(linear_notes.notes_at(linear_notes.current_uid()).size() == 1);
     }
 
     void test_go_notes_execute_and_undo() {
@@ -1170,6 +1267,7 @@ int main() {
     test_reorder_branches_command();
     test_keep_main_line_command();
     test_clear_notes_command();
+    test_generate_node_notes_command();
     test_go_notes_execute_and_undo();
     test_find_command_directions();
     test_preset_stone_export_and_record_tree_load();

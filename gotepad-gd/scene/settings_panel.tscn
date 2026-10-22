@@ -13,7 +13,7 @@ CheckBox/icons/unchecked = ExtResource("6_checkbox_unchecked")
 [sub_resource type="ButtonGroup" id="ButtonGroupMoveNumbers"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
-bg_color = Color(0.075, 0.075, 0.085, 0.5)
+bg_color = Color(0.168627, 0.145098, 0.125490, 1)
 content_margin_left = 64.0
 content_margin_top = 18.0
 content_margin_right = 10.0
@@ -22,7 +22,7 @@ border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.34, 0.34, 0.38, 1)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -31,12 +31,12 @@ shadow_color = Color(0, 0, 0, 0.35)
 shadow_size = 8
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxBenchmarkPanel"]
-bg_color = Color(0.055, 0.055, 0.065, 0.98)
+bg_color = Color(0.129412, 0.113725, 0.098039, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.42, 0.42, 0.48, 1)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -101,19 +101,19 @@ theme_override_constants/separation = 10
 
 [node name="Version" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.72, 0.72, 0.75, 1)
+theme_override_colors/font_color = Color(0.654902, 0.584314, 0.494118, 1)
 theme_override_font_sizes/font_size = 14
 text = "Gotepad 版本"
 
 [node name="Title" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
 theme_override_font_sizes/font_size = 20
 text = "设置"
 
 [node name="LanguageLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "界面语言（Language）"
 
 [node name="LanguageOption" type="OptionButton" parent="SettingsPanel/Margin/Options"]
@@ -125,7 +125,7 @@ layout_mode = 2
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/HorizontalSafeMarginRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "屏幕左右边距（移动端用）"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/HorizontalSafeMarginRow"]
@@ -146,7 +146,7 @@ layout_mode = 2
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/BoardWidthPercentageRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "棋盘横向宽度占比"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/BoardWidthPercentageRow"]
@@ -170,8 +170,8 @@ layout_mode = 2
 [node name="Enabled" type="CheckBox" parent="SettingsPanel/Margin/Options/LargeUiRow"]
 layout_mode = 2
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
 text = "界面UI缩放"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/LargeUiRow"]
@@ -191,7 +191,7 @@ suffix = " x"
 
 [node name="BoardLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "棋盘纹理"
 
 [node name="BoardOption" type="OptionButton" parent="SettingsPanel/Margin/Options"]
@@ -200,7 +200,7 @@ layout_mode = 2
 
 [node name="StoneLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "棋子纹理"
 
 [node name="StoneOption" type="OptionButton" parent="SettingsPanel/Margin/Options"]
@@ -212,7 +212,7 @@ layout_mode = 2
 
 [node name="MoveNumberLabel" type="Label" parent="SettingsPanel/Margin/Options/MoveNumberHeader"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "显示手数"
 
 [node name="HeaderSpacer" type="Control" parent="SettingsPanel/Margin/Options/MoveNumberHeader"]
@@ -224,9 +224,9 @@ mouse_filter = 2
 layout_mode = 2
 mouse_default_cursor_shape = 2
 tooltip_text = "勾选后使用当前分支中的绝对落子手数"
-theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
@@ -240,9 +240,9 @@ theme_override_constants/separation = 14
 layout_mode = 2
 button_pressed = true
 button_group = SubResource("ButtonGroupMoveNumbers")
-theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
@@ -255,9 +255,9 @@ text = "1手"
 [node name="TenMoves" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberOptions"]
 layout_mode = 2
 button_group = SubResource("ButtonGroupMoveNumbers")
-theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
@@ -270,9 +270,9 @@ text = "10手"
 [node name="AllMoves" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberOptions"]
 layout_mode = 2
 button_group = SubResource("ButtonGroupMoveNumbers")
-theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
@@ -289,9 +289,9 @@ theme_override_constants/separation = 8
 [node name="CustomMoves" type="CheckBox" parent="SettingsPanel/Margin/Options/CustomMoveNumberRow"]
 layout_mode = 2
 button_group = SubResource("ButtonGroupMoveNumbers")
-theme_override_colors/font_color = Color(0.95, 0.95, 0.97, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.78, 0.9, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
 theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
@@ -319,7 +319,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/PlaybackIntervalRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "播放间隔"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/PlaybackIntervalRow"]
@@ -343,7 +343,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/StoneSoundVolumeRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "落子音效"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/StoneSoundVolumeRow"]
@@ -387,7 +387,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/PptxImageFormatRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "PPTX 棋盘图片"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/PptxImageFormatRow"]
@@ -410,13 +410,13 @@ layout_mode = 2
 
 [node name="KatagoTitle" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
 theme_override_font_sizes/font_size = 18
 text = "KataGo 本地分析"
 
 [node name="KatagoExecutableLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "KataGo 可执行文件"
 
 [node name="KatagoExecutableRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
@@ -438,7 +438,7 @@ text = "浏览"
 
 [node name="KatagoModelLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "神经网络模型"
 
 [node name="KatagoModelRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
@@ -466,7 +466,7 @@ text = "内置"
 
 [node name="KatagoConfigLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "KataGo 分析配置文件"
 
 [node name="KatagoConfigRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
@@ -492,7 +492,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoMaxVisitsRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "分析计算量"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoMaxVisitsRow"]
@@ -517,7 +517,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoTerritoryVisitsRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "数目计算量"
 tooltip_text = "终局数目所属判定的 visits，独立于分析计算量"
 
@@ -543,7 +543,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoReportIntervalRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "分析刷新间隔"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoReportIntervalRow"]
@@ -567,7 +567,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "候选变化图手数"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow"]
@@ -590,7 +590,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoExtraBoardCandidatesRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "额外盘面候选数"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoExtraBoardCandidatesRow"]
@@ -609,7 +609,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoPrimaryCandidateOpacityRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "前三候选透明度"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoPrimaryCandidateOpacityRow"]
@@ -632,7 +632,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoExtraCandidateOpacityRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "其他候选透明度"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoExtraCandidateOpacityRow"]
@@ -672,7 +672,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "整局快速分析计算量"
 tooltip_text = "每个局面的 visits；1 最快，仅用于观察胜率和目差趋势"
 
@@ -712,7 +712,7 @@ tooltip_text = "测试适合当前设备的搜索线程和批量大小，可由�
 [node name="KatagoStatus" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.72, 0.72, 0.75, 1)
+theme_override_colors/font_color = Color(0.654902, 0.584314, 0.494118, 1)
 text = "尚未配置"
 autowrap_mode = 2
 
@@ -721,13 +721,13 @@ layout_mode = 2
 
 [node name="KatagoHumanTitle" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
 theme_override_font_sizes/font_size = 18
 text = "KataGo 人类模仿棋"
 
 [node name="KatagoHumanModelLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "Human SL 模型"
 
 [node name="KatagoHumanModelRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
@@ -753,7 +753,7 @@ theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoHumanMaxVisitsRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.88, 0.9, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 text = "仿人棋计算量"
 
 [node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoHumanMaxVisitsRow"]
@@ -792,7 +792,7 @@ tooltip_text = "测试适合当前设备和 Human SL 模型的搜索线程与批
 [node name="KatagoHumanStatus" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.72, 0.72, 0.75, 1)
+theme_override_colors/font_color = Color(0.654902, 0.584314, 0.494118, 1)
 text = "尚未配置"
 autowrap_mode = 2
 
@@ -803,7 +803,7 @@ mouse_filter = 2
 
 [node name="ErrorLabel" type="Label" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+theme_override_colors/font_color = Color(0.831373, 0.603922, 0.533333, 1)
 text = "保存设置失败"
 autowrap_mode = 2
 
@@ -818,9 +818,9 @@ offset_bottom = 66.0
 grow_horizontal = 0
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
+theme_override_colors/font_hover_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_pressed_color = Color(0.654902, 0.584314, 0.494118, 1)
 theme_override_font_sizes/font_size = 22
 tooltip_text = "关闭设置"
 text = "✕"
@@ -839,9 +839,9 @@ theme_override_constants/separation = 8
 [node name="ConfirmButton" type="Button" parent="ActionBar"]
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.35, 0.95, 0.5, 1)
-theme_override_colors/font_hover_color = Color(0.55, 1, 0.65, 1)
-theme_override_colors/font_pressed_color = Color(0.25, 0.8, 0.4, 1)
+theme_override_colors/font_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_hover_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_pressed_color = Color(0.650980, 0.725490, 0.584314, 1)
 theme_override_font_sizes/font_size = 22
 tooltip_text = "确认并保存设置"
 text = "✓"
@@ -849,9 +849,9 @@ text = "✓"
 [node name="RestoreButton" type="Button" parent="ActionBar"]
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.35, 0.7, 1, 1)
-theme_override_colors/font_hover_color = Color(0.55, 0.82, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.25, 0.55, 0.9, 1)
+theme_override_colors/font_color = Color(0.568627, 0.678431, 0.705882, 1)
+theme_override_colors/font_hover_color = Color(0.568627, 0.678431, 0.705882, 1)
+theme_override_colors/font_pressed_color = Color(0.568627, 0.678431, 0.705882, 1)
 theme_override_font_sizes/font_size = 22
 tooltip_text = "还原本次修改"
 text = "↺"
@@ -859,9 +859,9 @@ text = "↺"
 [node name="CancelButton" type="Button" parent="ActionBar"]
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
-theme_override_colors/font_hover_color = Color(1, 0.6, 0.6, 1)
-theme_override_colors/font_pressed_color = Color(0.85, 0.3, 0.3, 1)
+theme_override_colors/font_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_hover_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_pressed_color = Color(0.831373, 0.603922, 0.533333, 1)
 theme_override_font_sizes/font_size = 22
 tooltip_text = "取消并关闭设置"
 text = "✕"
@@ -885,9 +885,9 @@ custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.654902, 0.584314, 0.494118, 1)
 theme_override_font_sizes/font_size = 22
 tooltip_text = "向上滚动设置"
 script = ExtResource("4_fixed_width_button")
@@ -900,9 +900,9 @@ custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.82, 0.82, 0.84, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_colors/font_pressed_color = Color(0.68, 0.68, 0.7, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
+theme_override_colors/font_hover_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_pressed_color = Color(0.654902, 0.584314, 0.494118, 1)
 theme_override_font_sizes/font_size = 22
 tooltip_text = "向下滚动设置"
 script = ExtResource("4_fixed_width_button")
@@ -1033,6 +1033,7 @@ exclusive = true
 dialog_text = "DIALOG_BENCHMARK_CANCEL_RESULT"
 ok_button_text = "确认取消"
 cancel_button_text = "返回"
+metadata/ok_role = "danger"
 
 [node name="ApplyError" type="AcceptDialog" parent="KatagoBenchmarkWindow"]
 title = "应用失败"

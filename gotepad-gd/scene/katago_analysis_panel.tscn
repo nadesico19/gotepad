@@ -5,12 +5,12 @@
 [ext_resource type="Script" path="res://script/analysis_curve.gd" id="3_curve"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
-bg_color = Color(0.075, 0.075, 0.085, 0.7)
+bg_color = Color(0.168627, 0.145098, 0.125490, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.34, 0.34, 0.38, 1)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -106,7 +106,7 @@ theme_override_constants/separation = 6
 [node name="Status" type="Label" parent="Panel/Margin/Content/Controls/Secondary"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.78, 0.8, 0.82, 1)
+theme_override_colors/font_color = Color(0.772549, 0.705882, 0.615686, 1)
 theme_override_font_sizes/font_size = 13
 text = "尚未开始分析"
 vertical_alignment = 1
@@ -144,13 +144,13 @@ theme_override_constants/separation = 4
 
 [node name="WinrateLegend" type="Label" parent="Panel/Margin/Content/CurveFooter/WinrateGroup"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.28, 0.9, 0.48, 1)
+theme_override_colors/font_color = Color(0.650980, 0.725490, 0.584314, 1)
 text = "━ 黑方胜率"
 
 [node name="CurrentWinrateValue" type="Label" parent="Panel/Margin/Content/CurveFooter/WinrateGroup"]
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.28, 0.9, 0.48, 1)
+theme_override_colors/font_color = Color(0.650980, 0.725490, 0.584314, 1)
 text = "—"
 horizontal_alignment = 2
 
@@ -160,13 +160,13 @@ theme_override_constants/separation = 4
 
 [node name="ScoreLegend" type="Label" parent="Panel/Margin/Content/CurveFooter/ScoreGroup"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.78, 0.18, 1)
+theme_override_colors/font_color = Color(0.862745, 0.721569, 0.462745, 1)
 text = "━ 黑方目差"
 
 [node name="CurrentScoreValue" type="Label" parent="Panel/Margin/Content/CurveFooter/ScoreGroup"]
 custom_minimum_size = Vector2(44, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.78, 0.18, 1)
+theme_override_colors/font_color = Color(0.862745, 0.721569, 0.462745, 1)
 text = "—"
 horizontal_alignment = 2
 

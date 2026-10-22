@@ -224,6 +224,7 @@ public:
   [[nodiscard]] godot::PackedInt32Array
   get_sgf_import_recovery_codes() const;
   [[nodiscard]] godot::PackedInt64Array get_pptx_export_progress() const;
+  void request_cancel_pptx_export();
   [[nodiscard]] bool can_undo() const;
   [[nodiscard]] bool can_redo() const;
 
@@ -238,6 +239,7 @@ private:
   godot::String wrapper_message_{};
   std::atomic<int64_t> pptx_export_current_{};
   std::atomic<int64_t> pptx_export_total_{};
+  std::atomic<bool> pptx_export_cancel_requested_{};
 };
 
 inline GoNotes::GoNotes() : go_notes_(std::make_unique<nd::go::GoNotes>(19)) {}
@@ -341,6 +343,8 @@ inline void GoNotes::_bind_methods() {
       &GoNotes::get_sgf_import_recovery_codes);
   godot::ClassDB::bind_method(godot::D_METHOD("get_pptx_export_progress"),
                               &GoNotes::get_pptx_export_progress);
+  godot::ClassDB::bind_method(godot::D_METHOD("request_cancel_pptx_export"),
+                              &GoNotes::request_cancel_pptx_export);
   godot::ClassDB::bind_method(godot::D_METHOD("can_undo"), &GoNotes::can_undo);
   godot::ClassDB::bind_method(godot::D_METHOD("can_redo"), &GoNotes::can_redo);
   ADD_SIGNAL(godot::MethodInfo("changed"));
@@ -568,7 +572,10 @@ inline bool GoNotes::export_pptx_local_file(
   };
   if (!go_notes_->export_pptx_file(output_path, native_template, error_message,
                                    native_format, show_board_coordinates,
-                                   progress)) {
+                                   progress, [this] {
+                                     return pptx_export_cancel_requested_.load(
+                                         std::memory_order_relaxed);
+                                   })) {
     wrapper_message_ = godot::String::utf8(error_message.c_str());
     return false;
   }
@@ -580,6 +587,10 @@ inline godot::PackedInt64Array GoNotes::get_pptx_export_progress() const {
   result.push_back(pptx_export_current_.load(std::memory_order_relaxed));
   result.push_back(pptx_export_total_.load(std::memory_order_relaxed));
   return result;
+}
+
+inline void GoNotes::request_cancel_pptx_export() {
+  pptx_export_cancel_requested_.store(true, std::memory_order_relaxed);
 }
 
 inline int64_t GoNotes::execute_command(const godot::String &command) {

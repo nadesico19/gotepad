@@ -7,10 +7,10 @@ const kKatagoBenchmarkVisits: int = 8
 const kKatagoBenchmarkSecondsPerMove: float = 10.0
 const kKatagoBenchmarkThreads: String = \
 	"2,4,6,8,12,16,24,32,48,64,96,128"
-const kStatusNeutralColor: Color = Color(0.72, 0.72, 0.75, 1.0)
-const kStatusValidColor: Color = Color(0.4, 0.9, 0.55, 1.0)
-const kStatusErrorColor: Color = Color(1.0, 0.4, 0.4, 1.0)
-const kStatusCanceledColor: Color = Color(0.95, 0.78, 0.28, 1.0)
+const kStatusNeutralColor: Color = CafePalette.kSecondary
+const kStatusValidColor: Color = CafePalette.kSuccess
+const kStatusErrorColor: Color = CafePalette.kError
+const kStatusCanceledColor: Color = CafePalette.kWarning
 const kBenchmarkStateIdle: int = 0
 const kBenchmarkStateRunning: int = 1
 const kBenchmarkStateSucceeded: int = 2
@@ -834,6 +834,12 @@ func configure_model_acceleration_help_() -> void:
 	)
 	add_child(katago_model_acceleration_help_)
 
+	var background: Panel = Panel.new()
+	background.theme_type_variation = &"CafeDialogPanel"
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	katago_model_acceleration_help_.add_child(background)
+
 	var margin: MarginContainer = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side: StringName in [
@@ -860,8 +866,9 @@ func configure_model_acceleration_help_() -> void:
 	action_row.alignment = BoxContainer.ALIGNMENT_END
 	content.add_child(action_row)
 	katago_model_acceleration_help_close_ = Button.new()
+	katago_model_acceleration_help_close_.theme_type_variation = &"CafePrimaryButton"
 	katago_model_acceleration_help_close_.custom_minimum_size = \
-		Vector2(100.0, 36.0)
+		Vector2(112.0, 44.0)
 	katago_model_acceleration_help_close_.pressed.connect(
 		katago_model_acceleration_help_.hide
 	)
@@ -2368,7 +2375,9 @@ func on_katago_human_benchmark_pressed_() -> void:
 		katago_human_benchmark_save_confirmation_.dialog_text = tr(
 			"当前选择的人类模仿棋模型路径尚未保存。是否保存设置并继续性能检测？"
 		)
-		katago_human_benchmark_save_confirmation_.popup_centered()
+		DialogLayoutManager.popup_centered(
+			katago_human_benchmark_save_confirmation_, Vector2i(600, 210)
+		)
 		return
 	continue_katago_human_benchmark_after_path_check_()
 
@@ -2410,7 +2419,7 @@ func validate_katago_human_benchmark_model_file_(path: String) -> bool:
 
 func show_katago_human_benchmark_path_alert_(message: String) -> void:
 	katago_human_benchmark_path_alert_.dialog_text = message
-	katago_human_benchmark_path_alert_.popup_centered()
+	DialogLayoutManager.popup_centered(katago_human_benchmark_path_alert_, Vector2i(600, 210))
 
 
 func prepare_katago_benchmark_(human_model: bool) -> void:
@@ -2435,7 +2444,7 @@ func prepare_katago_benchmark_(human_model: bool) -> void:
 	katago_benchmark_confirmation_.dialog_text = tr(
 		"DIALOG_BENCHMARK_CONFIRMATION_MESSAGE"
 	)
-	katago_benchmark_confirmation_.popup_centered()
+	DialogLayoutManager.popup_centered(katago_benchmark_confirmation_, Vector2i(520, 190))
 
 
 func start_katago_benchmark_() -> void:
@@ -2673,6 +2682,12 @@ func find_best_threads_from_partial_benchmark_(output: String) -> int:
 
 func set_katago_benchmark_window_state_(state: int) -> void:
 	katago_benchmark_state_ = state
+	katago_benchmark_action_button_.theme_type_variation = \
+		&"CafePrimaryButton" if state == kBenchmarkStateSucceeded \
+		else &"CafeSecondaryButton"
+	katago_benchmark_action_button_.custom_minimum_size.y = 44.0
+	katago_benchmark_cancel_button_.theme_type_variation = &"CafeSecondaryButton"
+	katago_benchmark_cancel_button_.custom_minimum_size.y = 44.0
 	katago_benchmark_cancel_button_.visible = \
 		katago_benchmark_state_ == kBenchmarkStateSucceeded
 	match katago_benchmark_state_:
@@ -2712,7 +2727,7 @@ func apply_katago_benchmark_result_and_settings_() -> void:
 		result_still_pending = pending_katago_human_benchmark_threads_ > 0
 	if result_still_pending:
 		katago_benchmark_apply_error_.dialog_text = error_label_.text
-		katago_benchmark_apply_error_.popup_centered(Vector2i(520, 190))
+		DialogLayoutManager.popup_centered(katago_benchmark_apply_error_, Vector2i(520, 190))
 		return
 	if not human_mode and analysis_config_path_was_managed:
 		SettingsStore.notify_katago_analysis_config_changed()
@@ -2722,7 +2737,7 @@ func apply_katago_benchmark_result_and_settings_() -> void:
 func on_katago_benchmark_cancel_pressed_() -> void:
 	if katago_benchmark_state_ != kBenchmarkStateSucceeded:
 		return
-	katago_benchmark_cancel_confirmation_.popup_centered(Vector2i(560, 210))
+	DialogLayoutManager.popup_centered(katago_benchmark_cancel_confirmation_, Vector2i(560, 210))
 
 
 func on_katago_benchmark_cancel_confirmed_() -> void:

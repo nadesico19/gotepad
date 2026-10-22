@@ -61,6 +61,7 @@ When there is an board tag, you can click `✕` in the upper right corner of the
 - At the top is the game record tab bar. Click the label to switch game record, click `✕` on the label to close. A new note is automatically created after closing the last tab.
 - On the left are board and game playback bars.
 - Message and confirmation dialog boxes will automatically wrap according to the current window width, and the width will not exceed two-thirds of the window to prevent operation buttons from extending beyond the screen.
+- The interface uses a “Hazelwood and Cream” palette: dark coffee-colored panels with cream-colored text, caramel gold for primary actions or selected states, and dark red buttons for actions such as deleting or clearing that require careful confirmation. Buttons in message and confirmation dialogs provide feedback on hover, press, and keyboard focus; button labels also identify each action independently of color. The board and background retain their original appearance, while system file pickers use the device’s own style.
 - On the right side of board are the operation buttons that automatically change columns according to the height of the window.
 - The upper-right corner provides a gear-shaped Settings button followed by New, Save, Save As, Export, Tools, Manual, and Update. The Tools menu groups less frequently used game-record operations. Clicking “Manual” opens the GitHub user manual matching the interface language selected in Settings in your browser; an Internet connection is required.
 - Notes, game record information and KataGo use the same side panel area, and opening one of them will collapse the other panels.
@@ -134,9 +135,9 @@ For game record with multiple branches, the play bar only represents the current
 
 ## Branch Operations
 
-### Keep the Main Line
+### Keep the Main Branch
 
-Click “Tools” in the upper-right corner and select “Keep main line” to delete all side branches, retaining the path from the game’s start that follows the first branch at every level to the final leaf node. The program asks for confirmation, then navigates to the last position of the retained main line. The entire operation is one history command, so a single Undo restores all deleted branches and the position shown before the operation.
+Click “Tools” in the upper-right corner and select “Keep main branch” to delete all side branches, retaining the path from the game’s start that follows the first branch at every level to the final leaf node. The program asks for confirmation, then navigates to the last position of the retained main line. The entire operation is one history command, so a single Undo restores all deleted branches and the position shown before the operation.
 
 ### Find a Stone
 
@@ -230,9 +231,13 @@ Click “Focus” beside the move-numbering option to preview notes throughout t
 
 All platforms provide “Select all”, “Copy”, “Cut”, and “Paste” touch buttons in the note title and comment editing areas. Place the cursor in the text box or select some text, then click the corresponding button to exchange text with the system clipboard. Desktop versions also support system keyboard shortcuts and right-click menus.
 
-When you need to remove the entire game record notes, you can click "Tools" in the upper right corner and select "Clear Notes". After confirmation, all position titles, comments, move numbering methods and board marks will be cleared; the entire operation only takes up one history step and can be fully restored through an Undo.
+After completing a move tree, choose “Tools” → “Generate node notes” in the upper-right corner to prepare it for note-taking. The program first displays a summary of the feature; click “Generate” to proceed or “Cancel” to leave the notes unchanged. It traverses the entire game record and creates one note page for each node with two or more direct branches and each leaf node with no further branches. Each new page has the title `TODO`, an empty comment, no board marks, and the default move-numbering mode. The same rules apply to the initial empty board and setup nodes. Nodes that already have note pages are skipped, even if those pages are empty. Generation keeps the current position unchanged. A single Undo removes the entire batch, and Redo restores it.
+
+To remove notes from the entire game record, choose “Tools” → “Clear all notes” in the upper-right corner. After confirmation, this clears titles, comments, move-numbering modes, and board marks from every position. The whole operation takes one history step and can be fully restored with a single Undo.
 
 ### Board Marks
+
+`ABC` letter marks can coexist with shape marks at the same position. Shape marks—triangles, squares, circles, and crosses—are mutually exclusive: each position can contain only one shape mark, and adding a different shape replaces the existing one.
 
 - `ABC`: Add letter marks in the order of A-Z, a-z.
 - `TR`: triangle mark.
@@ -241,7 +246,7 @@ When you need to remove the entire game record notes, you can click "Tools" in t
 - `MA`: cross mark.
 - Eraser: remove shape marks.
 
-Other interface elements are temporarily hidden in mark mode. Left-click an empty intersection or a stone to add a mark. Letter marks follow click order; clicking an existing letter removes it and renumbers later letters. Each intersection can have one shape mark: select another shape and click to replace it, or use the eraser to remove it. Submit with the green `✓` on the right, or discard with the red `✕` or `Esc`. Marks are light on black stones and dark on white stones or empty intersections.
+Other interface elements are temporarily hidden in mark mode, while the square and circular hints for existing next-move branches remain visible to help you mark those positions. These hints also appear when entering mark mode from note preview. Clicking a hint adds or edits a note mark instead of entering the branch. Left-click an empty intersection or a stone to add a mark. Letter marks follow click order; clicking an existing letter removes it and renumbers later letters. Each intersection can have one shape mark: select another shape and click to replace it, or use the eraser to remove it. Submit with the green `✓` on the right, or discard with the red `✕` or `Esc`. Marks are light on black stones and dark on white stones or empty intersections.
 
 ### Move Numbering
 
@@ -304,7 +309,7 @@ Click "Export" in the upper right corner and select `.pptx` to save the location
 
 board uses a black and white publication style and draws notes designated move numbering, sequential letters, and TR/SQ/CR/MA graphic marks. Titles, comments, figure titles, and descriptions of repeated move numbers will be written in the layout.
 
-Export traverses the entire game tree, not just the current playback path. Long comments are split into continuation pages whose titles include “（续）”. Note Focus mode still shows one page per note layer rather than splitting it into exported continuation pages. A progress dialog appears during export; wait for completion or an error. Closing this dialog does not cancel export, and closing the desktop window is temporarily blocked. Dismiss the export success dialog with Space, Enter, or `Esc`.
+Export traverses the entire game tree, not just the current playback path. Long comments are split into continuation pages whose titles include “（续）”. Note Focus mode still shows one page per note layer rather than splitting it into exported continuation pages. Both SVG and PNG exports show a page count, progress bar, and Cancel button. During generation, click Cancel, press `Esc`, or close the progress dialog to request cancellation. The dialog shows “Canceling export…” until the current rendering operation or other step finishes and the background task exits; it then closes, and you can export again. Cancel is temporarily disabled during the final write to the output file; wait for that write to finish. Closing the main desktop window is also temporarily blocked during export. Dismiss the export success dialog with Space, Enter, or `Esc`.
 
 "Export board coordinates (left and upper sides)" in the settings can control whether the exported board has coordinates. After enabling, only the column letters are drawn on the upper side of board and the row numbers are drawn on the left side; the coordinates will be close to board and avoid the edge stone to minimize the additional space occupied. This option is off by default and applies to both SVG and PNG exports.
 
@@ -448,6 +453,7 @@ On Android and iOS, imported analysis or Human SL models must be between 1 KB an
 | `Ctrl+M` | Open or close the notes panel |
 | `Ctrl+W` | Open branch visualization view |
 | `←` / `→` | Go back or forward one hand along the playback path |
+| `Page Up` / `Page Down` | In note focus mode only: previous or next page, even while a text input has focus; `←` / `→` move the text cursor instead |
 | `Esc` | Cancel the current mode, stop playing or close the current temporary interface, the specific behavior changes with the context |
 
 On macOS, `Control+Command+F` toggles fullscreen even while a title, comment, or other text input has focus. In text inputs, `Ctrl+A`, `Ctrl+X`, and `Ctrl+Z` remain text-editing commands instead of Save As, branch organization, or game-record Undo; other app shortcuts can still trigger global actions. `←` and `→` do not navigate the game when a text input or list has focus. Press `Esc` to finish or cancel editing before using global shortcuts. In variation mode, use `←` and `→` to browse backward and forward; other regular shortcuts are unavailable, and `Esc` discards the variation and exits. In setup mode, use `Ctrl+Q` to switch colors and `Esc` to cancel. In normal game mode, `Ctrl+A` and `Ctrl+W` mean “Save As” and “Branch visualization”, unlike their defaults in some other software.

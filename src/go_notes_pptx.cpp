@@ -37,6 +37,7 @@ constexpr char kTemplateInvalidMessage[] = "[GNE0027] invalid PPTX template";
 constexpr char kPptxWriteMessage[] = "[GNE0028] cannot write PPTX file";
 constexpr char kPptxRasterizeMessage[] =
     "[GNE0034] cannot rasterize board image";
+constexpr char kPptxCancelledMessage[] = "PPTX export cancelled";
 constexpr double kCommentPageUnits = 500.0;
 constexpr int kPngBoardSize = 1600;
 
@@ -115,7 +116,8 @@ void append_png_bytes_(void *closure, void *data, int size) noexcept {
   }
 }
 
-bool svg_to_png_(const std::string &svg, std::vector<uint8_t> &png) {
+bool svg_to_png_(const std::string &svg, std::vector<uint8_t> &png,
+                 const GoNotes::PptxCancelCallback &cancel) {
   PptxDiagnosticScope conversion("png.convert", svg.size());
   png.clear();
   try {
@@ -123,13 +125,13 @@ bool svg_to_png_(const std::string &svg, std::vector<uint8_t> &png) {
       PptxDiagnosticScope parse("svg.parse", svg.size());
       return lunasvg::Document::loadFromData(svg);
     }();
-    if (!document)
+    if (!document || (cancel && cancel()))
       return false;
     auto bitmap = [&] {
       PptxDiagnosticScope rasterize("bitmap.render", kPngBoardSize);
       return document->renderToBitmap(kPngBoardSize, kPngBoardSize, 0xFFFFFFFF);
     }();
-    if (bitmap.isNull())
+    if (bitmap.isNull() || (cancel && cancel()))
       return false;
     PngWriteContext context{&png, true};
     PptxDiagnosticScope encode("png.encode");
@@ -1034,7 +1036,8 @@ bool GoNotes::export_pptx_file(const std::string &path,
                                std::string &error_message,
                                PptxImageFormat image_format,
                                bool show_board_coordinates,
-                               const PptxProgressCallback &progress) const {
+                               const PptxProgressCallback &progress,
+                               const PptxCancelCallback &cancel) const {
   PptxDiagnosticScope export_scope(image_format == PptxImageFormat::Png ? "export.png" : "export.svg");
   std::vector<uint8_t> template_data{};
   if (!read_file_(template_path, template_data)) {
@@ -1042,7 +1045,7 @@ bool GoNotes::export_pptx_file(const std::string &path,
     return false;
   }
   return export_pptx_file(path, template_data, error_message, image_format,
-                          show_board_coordinates, progress);
+                          show_board_coordinates, progress, cancel);
 }
 
 bool GoNotes::export_pptx_file(const std::string &path,
@@ -1050,8 +1053,17 @@ bool GoNotes::export_pptx_file(const std::string &path,
                                std::string &error_message,
                                PptxImageFormat image_format,
                                bool show_board_coordinates,
-                               const PptxProgressCallback &progress) const {
+                               const PptxProgressCallback &progress,
+                               const PptxCancelCallback &cancel) const {
   error_message.clear();
+  const auto cancelled = [&] {
+    if (!cancel || !cancel())
+      return false;
+    error_message = kPptxCancelledMessage;
+    return true;
+  };
+  if (cancelled())
+    return false;
   const auto root = go_core_.record_tree();
 
   std::vector<ExportPage> pages{};
@@ -1060,6 +1072,8 @@ bool GoNotes::export_pptx_file(const std::string &path,
     PptxDiagnosticScope collect("pages.collect");
     collect_pages_(*this, root, 0, figure_index, pages);
   }
+  if (cancelled())
+    return false;
   if (pages.empty()) {
     error_message = kNoNotesMessage;
     return false;
@@ -1077,6 +1091,8 @@ bool GoNotes::export_pptx_file(const std::string &path,
     error_message = kTemplateInvalidMessage;
     return false;
   }
+  if (cancelled())
+    return false;
 
   parts["[Content_Types].xml"] =
       bytes_(content_types_(pages.size(), image_format));
@@ -1103,6 +1119,8 @@ bool GoNotes::export_pptx_file(const std::string &path,
     return false;
   }
   for (const auto &[name, data] : parts) {
+    if (cancelled())
+      return false;
     PptxDiagnosticScope write("template.part.write", data.size());
     if (!writer.add(name, data)) {
       error_message = kPptxWriteMessage;
@@ -1112,11 +1130,15 @@ bool GoNotes::export_pptx_file(const std::string &path,
   parts.clear();
 
   for (size_t index = 0; index < pages.size(); ++index) {
+    if (cancelled())
+      return false;
     PptxDiagnosticScope page("page", index + 1);
     const auto diagram = [&] {
       PptxDiagnosticScope render("svg.generate", index + 1);
       return render_board_(*this, pages[index], root, show_board_coordinates);
     }();
+    if (cancelled())
+      return false;
     if (diagram.svg.empty()) {
       error_message = kTemplateInvalidMessage;
       return false;
@@ -1136,10 +1158,14 @@ bool GoNotes::export_pptx_file(const std::string &path,
     }
     if (image_format == PptxImageFormat::Png) {
       std::vector<uint8_t> png{};
-      if (!svg_to_png_(diagram.svg, png)) {
+      if (!svg_to_png_(diagram.svg, png, cancel)) {
+        if (cancelled())
+          return false;
         error_message = kPptxRasterizeMessage;
         return false;
       }
+      if (cancelled())
+        return false;
       const bool png_written = [&] {
         PptxDiagnosticScope write("png.zip.write", png.size());
         return writer.add("ppt/media/board" + number + ".png", png);
@@ -1159,10 +1185,12 @@ bool GoNotes::export_pptx_file(const std::string &path,
       progress(index + 1, pages.size());
   }
 
+  if (cancelled())
+    return false;
   if (!writer.finish()) {
     error_message = kPptxWriteMessage;
     return false;
   }
-  return true;
+  return !cancelled();
 }
 } // namespace nd::go

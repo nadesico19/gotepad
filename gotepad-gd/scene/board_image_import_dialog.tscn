@@ -4,12 +4,12 @@
 [ext_resource type="Script" path="res://script/board_image_review.gd" id="2_review"]
 
 [sub_resource type="StyleBoxFlat" id="StylePanel"]
-bg_color = Color(0.075, 0.068, 0.055, 0.98)
+bg_color = Color(0.129412, 0.113725, 0.098039, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.72, 0.57, 0.31, 1)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -64,7 +64,7 @@ theme_override_constants/separation = 9
 [node name="Title" type="Label" parent="Margin/Panel/InnerMargin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.96, 0.86, 0.64, 1)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
 theme_override_font_sizes/font_size = 22
 text = "从图片创建棋盘"
 
@@ -85,7 +85,7 @@ script = ExtResource("2_review")
 [node name="Status" type="RichTextLabel" parent="Margin/Panel/InnerMargin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/default_color = Color(0.78, 0.88, 0.9, 1)
+theme_override_colors/default_color = Color(0.568627, 0.678431, 0.705882, 1)
 text = "正在识别棋盘图片…"
 bbcode_enabled = true
 fit_content = true
@@ -119,6 +119,7 @@ layout_mode = 2
 text = "✕ 取消"
 
 [node name="AcceptButton" type="Button" parent="Margin/Panel/InnerMargin/Content/Actions"]
+theme_type_variation = &"CafePrimaryButton"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(110, 42)
 layout_mode = 2

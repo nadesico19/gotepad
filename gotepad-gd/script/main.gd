@@ -12,6 +12,7 @@ const kPendingPanelSgfMetadata: int = 2
 const kPendingPanelKatago: int = 3
 const kToolKeepMainLine: int = 0
 const kToolClearNotes: int = 1
+const kToolGenerateNodeNotes: int = 2
 const kSgfRecoveryIdentifierSanitized: int = 1
 const kSgfRecoveryEmptyIdentifierDiscarded: int = 2
 const kSgfRecoveryIdentifierCollisionDiscarded: int = 3
@@ -216,6 +217,8 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/KeepMainLineConfirmation
 @onready var clear_notes_confirmation_: ConfirmationDialog = \
 	$Interface/SafeArea/ClearNotesConfirmation
+@onready var generate_node_notes_confirmation_: ConfirmationDialog = \
+	$Interface/SafeArea/GenerateNodeNotesConfirmation
 @onready var tool_error_dialog_: AcceptDialog = $Interface/SafeArea/ToolErrorDialog
 @onready var sgf_load_warning_dialog_: AcceptDialog = \
 	$Interface/SafeArea/SgfLoadWarningDialog
@@ -237,7 +240,9 @@ class DocumentState extends RefCounted:
 @onready var export_progress_dialog_: AcceptDialog = \
 	$Interface/SafeArea/ExportProgressDialog
 @onready var export_progress_bar_: ProgressBar = \
-	$Interface/SafeArea/ExportProgressDialog/ProgressBar
+	$Interface/SafeArea/ExportProgressDialog/Content/ProgressBar
+@onready var export_progress_label_: Label = \
+	$Interface/SafeArea/ExportProgressDialog/Content/Status
 @onready var close_tab_confirmation_: ConfirmationDialog = \
 	$Interface/SafeArea/CloseTabConfirmation
 @onready var human_play_options_dialog_: Window = \
@@ -293,6 +298,7 @@ var active_file_dialog_: FileDialog
 var export_thread_: Thread
 var export_notes_: GoNotes
 var export_in_progress_: bool = false
+var export_cancel_requested_: bool = false
 var export_target_path_: String = ""
 var export_temporary_path_: String = ""
 var export_copy_source_: FileAccess
@@ -365,7 +371,8 @@ func _ready() -> void:
 		return
 	set_process(false)
 	get_tree().auto_accept_quit = false
-	export_progress_dialog_.get_ok_button().hide()
+	export_progress_dialog_.confirmed.connect(request_cancel_pptx_export_)
+	export_progress_dialog_.window_input.connect(on_export_progress_input_)
 	export_progress_dialog_.close_requested.connect(
 		on_export_progress_close_requested_
 	)
@@ -589,6 +596,7 @@ func _ready() -> void:
 		on_keep_main_line_confirmed_
 	)
 	clear_notes_confirmation_.confirmed.connect(on_clear_notes_confirmed_)
+	generate_node_notes_confirmation_.confirmed.connect(generate_node_notes_)
 	save_file_dialog_.file_selected.connect(on_save_file_selected_)
 	save_file_dialog_.canceled.connect(on_file_dialog_canceled_)
 	save_confirmation_.confirmed.connect(on_save_confirmed_)
@@ -1149,6 +1157,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if export_in_progress_:
+		on_export_progress_input_(event)
 		return
 	if export_success_dialog_.visible and event is InputEventKey:
 		var success_key_event: InputEventKey = event as InputEventKey
@@ -1581,7 +1590,7 @@ func request_save_confirmation_(path: String) -> void:
 	if display_path.is_empty():
 		display_path = path
 	save_confirmation_.dialog_text = tr("DIALOG_SAVE_TO_PATH") % display_path
-	save_confirmation_.popup_centered(Vector2i(520, 190))
+	DialogLayoutManager.popup_centered(save_confirmation_, Vector2i(520, 190))
 
 
 func on_save_confirmed_() -> void:
@@ -1607,7 +1616,7 @@ func save_document_to_(path: String) -> bool:
 		save_error_dialog_.dialog_text = CommandMessages.localize(
 			go_notes_.get_message()
 		)
-		save_error_dialog_.popup_centered(Vector2i(480, 180))
+		DialogLayoutManager.popup_centered(save_error_dialog_, Vector2i(480, 180))
 		return false
 
 	var document: DocumentState = documents_[active_document_index_]
@@ -1645,7 +1654,7 @@ func save_ios_document_(overwrite: bool) -> bool:
 		save_error_dialog_.dialog_text = CommandMessages.localize(document.notes.get_message())
 		if source_path.is_empty():
 			save_error_dialog_.dialog_text = tr("无法创建临时文件。")
-		save_error_dialog_.popup_centered(Vector2i(480, 180))
+		DialogLayoutManager.popup_centered(save_error_dialog_, Vector2i(480, 180))
 		return false
 	ios_file_picker_ = IOSSGFPicker.new()
 	add_child(ios_file_picker_)
@@ -1666,7 +1675,7 @@ func on_ios_save_completed_(result: Dictionary, document: DocumentState, source_
 		DirAccess.remove_absolute(source_path)
 		if not error.is_empty():
 			save_error_dialog_.dialog_text = error
-			save_error_dialog_.popup_centered(Vector2i(480, 180))
+			DialogLayoutManager.popup_centered(save_error_dialog_, Vector2i(480, 180))
 		return
 	var index: int = documents_.find(document)
 	if index < 0:
@@ -1745,12 +1754,17 @@ func on_tool_menu_id_pressed_(item_id: int) -> void:
 			request_after_note_edit_resolution_(
 				Callable(self, "request_clear_notes_")
 			)
+		kToolGenerateNodeNotes:
+			request_after_note_edit_resolution_(
+				Callable(self, "request_generate_node_notes_")
+			)
 
 
 func refresh_tool_menu_() -> void:
 	tool_menu_.clear()
-	tool_menu_.add_item(tr("保留主干"), kToolKeepMainLine)
-	tool_menu_.add_item(tr("清除笔记"), kToolClearNotes)
+	tool_menu_.add_item(tr("保留棋谱主干"), kToolKeepMainLine)
+	tool_menu_.add_item(tr("生成节点笔记"), kToolGenerateNodeNotes)
+	tool_menu_.add_item(tr("清除所有笔记"), kToolClearNotes)
 
 
 func refresh_file_dialog_filters_() -> void:
@@ -1826,7 +1840,7 @@ func position_tool_menu_() -> void:
 
 
 func request_keep_main_line_() -> void:
-	keep_main_line_confirmation_.popup_centered(Vector2i(560, 220))
+	DialogLayoutManager.popup_centered(keep_main_line_confirmation_, Vector2i(560, 220))
 
 
 func on_keep_main_line_confirmed_() -> void:
@@ -1836,11 +1850,25 @@ func on_keep_main_line_confirmed_() -> void:
 	tool_error_dialog_.dialog_text = CommandMessages.localize(
 		str(go_notes_.get_message())
 	)
-	tool_error_dialog_.popup_centered(Vector2i(440, 170))
+	DialogLayoutManager.popup_centered(tool_error_dialog_, Vector2i(440, 170))
+
+
+func request_generate_node_notes_() -> void:
+	DialogLayoutManager.popup_centered(generate_node_notes_confirmation_, Vector2i(560, 280))
+
+
+func generate_node_notes_() -> void:
+	var result: int = int(go_notes_.execute_command("GENERATENODENOTES;"))
+	if result == 0:
+		return
+	tool_error_dialog_.dialog_text = CommandMessages.localize(
+		str(go_notes_.get_message())
+	)
+	DialogLayoutManager.popup_centered(tool_error_dialog_, Vector2i(440, 170))
 
 
 func request_clear_notes_() -> void:
-	clear_notes_confirmation_.popup_centered(Vector2i(560, 220))
+	DialogLayoutManager.popup_centered(clear_notes_confirmation_, Vector2i(560, 220))
 
 
 func on_clear_notes_confirmed_() -> void:
@@ -1850,7 +1878,7 @@ func on_clear_notes_confirmed_() -> void:
 	tool_error_dialog_.dialog_text = CommandMessages.localize(
 		str(go_notes_.get_message())
 	)
-	tool_error_dialog_.popup_centered(Vector2i(440, 170))
+	DialogLayoutManager.popup_centered(tool_error_dialog_, Vector2i(440, 170))
 
 
 func request_export_() -> void:
@@ -1919,13 +1947,16 @@ func start_pptx_export_(path: String) -> void:
 		on_pptx_export_finished_(false, tr("无法创建 PPTX 导出快照。"))
 		return
 	export_in_progress_ = true
+	export_cancel_requested_ = false
 	set_process(true)
 	export_target_path_ = path
+	export_progress_dialog_.get_ok_button().disabled = false
+	export_progress_dialog_.get_ok_button().text = tr("取消")
 	export_progress_bar_.min_value = 0.0
 	export_progress_bar_.max_value = 1.0
 	export_progress_bar_.value = 0.0
-	export_progress_dialog_.dialog_text = tr("正在准备导出…")
-	export_progress_dialog_.popup_centered(Vector2i(520, 190))
+	export_progress_label_.text = tr("正在准备导出…")
+	DialogLayoutManager.popup_centered(export_progress_dialog_, Vector2i(520, 190))
 	export_thread_ = Thread.new()
 	var start_error: Error = export_thread_.start(
 		Callable(self, "export_pptx_worker_").bind(
@@ -1971,6 +2002,7 @@ func on_pptx_export_finished_(exported: bool, message: String, cancelled: bool =
 		DirAccess.remove_absolute(export_temporary_path_)
 	export_notes_ = null
 	export_in_progress_ = false
+	export_cancel_requested_ = false
 	set_process(false)
 	if OS.get_name() == "iOS" and not export_target_path_.is_empty():
 		DirAccess.remove_absolute(export_target_path_)
@@ -1983,16 +2015,42 @@ func on_pptx_export_finished_(exported: bool, message: String, cancelled: bool =
 		return
 	if not exported:
 		export_error_dialog_.dialog_text = CommandMessages.localize(message)
-		export_error_dialog_.popup_centered(Vector2i(480, 180))
+		DialogLayoutManager.popup_centered(export_error_dialog_, Vector2i(480, 180))
 		return
-	export_success_dialog_.popup_centered(Vector2i(360, 150))
+	DialogLayoutManager.popup_centered(export_success_dialog_, Vector2i(360, 150))
 
 
 func on_export_progress_close_requested_() -> void:
 	if export_in_progress_:
-		export_progress_dialog_.call_deferred(
-			&"popup_centered", Vector2i(520, 190)
-		)
+		request_cancel_pptx_export_()
+		call_deferred(&"restore_export_progress_dialog_")
+
+
+func restore_export_progress_dialog_() -> void:
+	if export_in_progress_ and not export_progress_dialog_.visible:
+		DialogLayoutManager.popup_centered(export_progress_dialog_, Vector2i(520, 190))
+
+
+func on_export_progress_input_(event: InputEvent) -> void:
+	if not export_in_progress_ or event is not InputEventKey:
+		return
+	var key_event: InputEventKey = event as InputEventKey
+	if key_event.pressed and not key_event.echo \
+			and key_event.keycode == KEY_ESCAPE:
+		request_cancel_pptx_export_()
+		export_progress_dialog_.set_input_as_handled()
+
+
+func request_cancel_pptx_export_() -> void:
+	# 写入目标文件是最后的提交阶段，不在中途截断，避免损坏已有文件。
+	if not export_in_progress_ or export_cancel_requested_ \
+			or export_thread_ == null:
+		return
+	export_cancel_requested_ = true
+	export_progress_dialog_.get_ok_button().disabled = true
+	export_progress_label_.text = tr("正在取消导出…")
+	if export_notes_ != null:
+		export_notes_.call(&"request_cancel_pptx_export")
 
 
 func _process(_delta: float) -> void:
@@ -2004,6 +2062,9 @@ func _process(_delta: float) -> void:
 	if export_thread_ != null and not export_thread_.is_alive():
 		var exported: bool = bool(export_thread_.wait_to_finish())
 		export_thread_ = null
+		if export_cancel_requested_:
+			on_pptx_export_finished_(false, "", true)
+			return
 		var message: String = "" if exported \
 			else str(export_notes_.get_message())
 		if not exported:
@@ -2012,6 +2073,8 @@ func _process(_delta: float) -> void:
 		begin_pptx_output_copy_()
 		return
 	if export_notes_ == null:
+		return
+	if export_cancel_requested_:
 		return
 	var progress: PackedInt64Array = PackedInt64Array(
 		export_notes_.call(&"get_pptx_export_progress")
@@ -2023,14 +2086,15 @@ func _process(_delta: float) -> void:
 	export_progress_bar_.max_value = float(maxi(total, 1))
 	export_progress_bar_.value = float(current)
 	if total > 0:
-		export_progress_dialog_.dialog_text = tr(
+		export_progress_label_.text = tr(
 			"正在导出第 %d / %d 页…"
-		) % [current, total]
+		) % [mini(current + 1, total), total]
 	else:
-		export_progress_dialog_.dialog_text = tr("正在准备导出…")
+		export_progress_label_.text = tr("正在准备导出…")
 
 
 func begin_pptx_output_copy_() -> void:
+	export_progress_dialog_.get_ok_button().disabled = true
 	export_copy_source_ = FileAccess.open(
 		export_temporary_path_, FileAccess.READ
 	)
@@ -2045,7 +2109,7 @@ func begin_pptx_output_copy_() -> void:
 	export_copy_current_ = 0
 	export_progress_bar_.max_value = float(maxi(export_copy_total_, 1))
 	export_progress_bar_.value = 0.0
-	export_progress_dialog_.dialog_text = tr("正在写入目标文件…")
+	export_progress_label_.text = tr("正在写入目标文件…")
 
 
 func copy_pptx_output_chunk_() -> void:
@@ -2119,7 +2183,7 @@ func request_document_tab_close_(index: int) -> void:
 	pending_close_index_ = index
 	close_tab_confirmation_.dialog_text = tr("是否关闭标签“%s”？") \
 		% documents_[index].title
-	close_tab_confirmation_.popup_centered()
+	DialogLayoutManager.popup_centered(close_tab_confirmation_)
 
 
 func on_close_tab_confirmed_() -> void:
@@ -2235,7 +2299,7 @@ func enter_note_preview_mode_(selected_note_index: int) -> void:
 	if pages.is_empty():
 		tool_error_dialog_.title = tr("无法预览")
 		tool_error_dialog_.dialog_text = tr("当前棋谱没有可预览的笔记。")
-		tool_error_dialog_.popup_centered(Vector2i(480, 180))
+		DialogLayoutManager.popup_centered(tool_error_dialog_, Vector2i(480, 180))
 		return
 
 	var current_uid: int = board_.get_view_uid()
@@ -2640,7 +2704,7 @@ func on_human_play_analysis_result_(result: Dictionary) -> void:
 		on_human_play_service_error_(tr("无法取得Human SL落子策略。"))
 		return
 	if bool(selected.get("pass", false)):
-		human_play_pass_dialog_.popup_centered(Vector2i(560, 230))
+		DialogLayoutManager.popup_centered(human_play_pass_dialog_, Vector2i(560, 230))
 		return
 	var row: int = int(selected.get("row", 0))
 	var column: int = int(selected.get("column", 0))
@@ -2932,7 +2996,7 @@ func show_pending_human_play_resign_suggestion_() -> void:
 	human_play_resign_suggestion_dialog_.dialog_text = tr(
 		"AI认为%s可以认输。程序不会自动结束对局，是否继续由您决定。"
 	) % color_name
-	human_play_resign_suggestion_dialog_.popup_centered(Vector2i(620, 220))
+	DialogLayoutManager.popup_centered(human_play_resign_suggestion_dialog_, Vector2i(620, 220))
 
 
 func set_human_play_waiting_for_human_() -> void:
@@ -3007,7 +3071,7 @@ func on_human_play_accept_requested_() -> void:
 	if not human_play_mode_active_ or not human_play_query_id_.is_empty() \
 			or human_play_accept_dialog_.visible:
 		return
-	human_play_accept_dialog_.popup_centered(Vector2i(600, 240))
+	DialogLayoutManager.popup_centered(human_play_accept_dialog_, Vector2i(600, 240))
 
 
 func keep_human_play_() -> bool:
@@ -3032,7 +3096,7 @@ func request_after_human_play_navigation_(action: Callable) -> void:
 	human_play_navigation_paused_ai_ = not human_play_query_id_.is_empty()
 	if human_play_navigation_paused_ai_:
 		stop_human_play_query_()
-	human_play_navigation_dialog_.popup_centered(Vector2i(640, 250))
+	DialogLayoutManager.popup_centered(human_play_navigation_dialog_, Vector2i(640, 250))
 
 
 func on_human_play_navigation_keep_requested_() -> void:
@@ -3098,7 +3162,7 @@ func on_human_play_cancel_requested_() -> void:
 		human_play_discard_paused_ai_ = not human_play_query_id_.is_empty()
 		if human_play_discard_paused_ai_:
 			stop_human_play_query_()
-		human_play_discard_dialog_.popup_centered(Vector2i(560, 230))
+		DialogLayoutManager.popup_centered(human_play_discard_dialog_, Vector2i(560, 230))
 
 
 func on_human_play_discard_canceled_() -> void:
@@ -3179,7 +3243,7 @@ func on_human_play_service_error_(message: String) -> void:
 
 func show_human_play_error_(message: String) -> void:
 	human_play_error_dialog_.dialog_text = message
-	human_play_error_dialog_.popup_centered(Vector2i(600, 240))
+	DialogLayoutManager.popup_centered(human_play_error_dialog_, Vector2i(600, 240))
 
 
 func on_territory_scoring_requested_() -> void:
@@ -3195,7 +3259,7 @@ func show_territory_scoring_confirmation_() -> void:
 	territory_mode_confirmation_.dialog_text = tr(
 		"终局数目目前只支持中国规则。请先收完所有单官，再开始所属判定。"
 	)
-	territory_mode_confirmation_.popup_centered(Vector2i(620, 220))
+	DialogLayoutManager.popup_centered(territory_mode_confirmation_, Vector2i(620, 220))
 
 
 func enter_territory_scoring_mode_() -> void:
@@ -3376,7 +3440,7 @@ func on_territory_scoring_accept_requested_() -> void:
 		lines.append(tr("结果：和棋"))
 	exit_territory_scoring_mode_()
 	territory_result_dialog_.dialog_text = "\n".join(lines)
-	territory_result_dialog_.popup_centered(Vector2i(560, 280))
+	DialogLayoutManager.popup_centered(territory_result_dialog_, Vector2i(560, 280))
 
 
 func exit_territory_scoring_mode_() -> void:
@@ -3429,7 +3493,7 @@ func restore_side_panel_after_territory_() -> void:
 
 func show_territory_error_(message: String) -> void:
 	territory_error_dialog_.dialog_text = message
-	territory_error_dialog_.popup_centered(Vector2i(560, 220))
+	DialogLayoutManager.popup_centered(territory_error_dialog_, Vector2i(560, 220))
 
 
 func on_board_position_changed_(uid: int) -> void:
@@ -4517,7 +4581,7 @@ func show_sgf_import_recovery_warnings_() -> void:
 		return
 	messages.append(tr("再次保存后，相关内容将按 Gotepad 的兼容格式写出。"))
 	sgf_load_warning_dialog_.dialog_text = "\n".join(messages)
-	sgf_load_warning_dialog_.popup_centered()
+	DialogLayoutManager.popup_centered(sgf_load_warning_dialog_)
 
 
 func activate_existing_ios_sgf_document_(source_path: String) -> bool:

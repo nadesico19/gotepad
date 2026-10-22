@@ -3,10 +3,10 @@ extends Control
 
 signal position_requested(uid: int)
 
-const kWinrateColor: Color = Color(0.28, 0.9, 0.48, 1.0)
-const kScoreColor: Color = Color(1.0, 0.78, 0.18, 1.0)
-const kGridColor: Color = Color(1.0, 1.0, 1.0, 0.12)
-const kCurrentPositionColor: Color = Color(0.92, 0.95, 1.0, 0.82)
+const kWinrateColor: Color = CafePalette.kSuccess
+const kScoreColor: Color = CafePalette.kWarning
+const kGridColor: Color = CafePalette.kDivider
+const kCurrentPositionColor: Color = CafePalette.kText
 
 var path_: PackedInt64Array = PackedInt64Array()
 var results_by_uid_: Dictionary = {}
@@ -31,7 +31,7 @@ func _draw() -> void:
 	var plot: Rect2 = plot_rect_()
 	if plot.size.x <= 1.0 or plot.size.y <= 1.0:
 		return
-	draw_rect(plot, Color(0.03, 0.035, 0.035, 0.72), true)
+	draw_rect(plot, CafePalette.kInput, true)
 	for fraction: float in [0.0, 0.25, 0.5, 0.75, 1.0]:
 		var y: float = plot.position.y + plot.size.y * fraction
 		draw_line(

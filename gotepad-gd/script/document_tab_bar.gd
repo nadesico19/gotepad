@@ -10,7 +10,7 @@ const kMaximumTabWidth: float = 280.0
 const kTitlePadding: float = 20.0
 const kCloseButtonWidth: float = 28.0
 const kTitleFontSizeReduction: int = 2
-const kActiveTitleColor: Color = Color(1.0, 0.88, 0.56)
+const kActiveTitleColor: Color = CafePalette.kAccent
 
 var titles_: PackedStringArray = PackedStringArray()
 var buttons_: Array[Button] = []
@@ -27,7 +27,7 @@ func _ready() -> void:
 func _draw() -> void:
 	draw_rect(
 		Rect2(Vector2.ZERO, size),
-		Color(0.08, 0.07, 0.055, 0.72)
+		CafePalette.kPanel
 	)
 	if selected_index_ < 0 or selected_index_ >= buttons_.size():
 		return
@@ -36,11 +36,15 @@ func _draw() -> void:
 	var selected_width: float = close_button.position.x \
 		+ close_button.size.x - selected_button.position.x
 	draw_rect(
+		Rect2(Vector2(selected_button.position.x, 0.0), Vector2(selected_width, size.y)),
+		CafePalette.kSelection
+	)
+	draw_rect(
 		Rect2(
 			Vector2(selected_button.position.x, size.y - 3.0),
 			Vector2(selected_width, 3.0)
 		),
-		Color(0.95, 0.72, 0.28, 1.0)
+		CafePalette.kAccent
 	)
 
 
@@ -73,7 +77,7 @@ func add_tab_button_() -> void:
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	button.add_theme_color_override(&"font_color", Color(0.9, 0.9, 0.86))
+	button.add_theme_color_override(&"font_color", CafePalette.kSecondary)
 	button.add_theme_color_override(
 		&"font_hover_color", kActiveTitleColor
 	)
@@ -93,10 +97,10 @@ func add_tab_button_() -> void:
 	close_button.tooltip_text = tr("关闭标签")
 	close_button.text = "✕"
 	close_button.add_theme_color_override(
-		&"font_color", Color(0.78, 0.78, 0.74)
+		&"font_color", CafePalette.kSecondary
 	)
 	close_button.add_theme_color_override(
-		&"font_hover_color", Color(1.0, 0.55, 0.45)
+		&"font_hover_color", CafePalette.kError
 	)
 	close_button.pressed.connect(on_tab_close_pressed_.bind(index))
 	close_buttons_.append(close_button)

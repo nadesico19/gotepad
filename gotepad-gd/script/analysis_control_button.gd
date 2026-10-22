@@ -5,8 +5,8 @@ extends Button
 
 
 func _draw() -> void:
-	var color: Color = Color(1.0, 1.0, 1.0, 0.35) \
-		if disabled else Color(0.95, 0.95, 0.92, 0.96)
+	CafePalette.draw_disabled_backing(self)
+	var color: Color = CafePalette.button_icon_color(self)
 	var center: Vector2 = size * 0.5
 	var extent: float = minf(size.x, size.y) * 0.25
 	match icon_kind:

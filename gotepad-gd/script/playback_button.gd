@@ -19,8 +19,8 @@ func refresh_localized_texts() -> void:
 
 
 func _draw() -> void:
-	var icon_color: Color = Color(1.0, 1.0, 1.0, 0.45) \
-		if disabled else Color(1.0, 1.0, 1.0, 0.95)
+	var icon_color: Color = Color(CafePalette.kText, CafePalette.kDisabledOpacity) \
+		if disabled else CafePalette.kText
 	var icon_extent: float = minf(size.x, size.y) * 0.38
 	var center: Vector2 = size * 0.5
 	if step_direction != 0:

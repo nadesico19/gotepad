@@ -40,24 +40,24 @@
 [ext_resource type="Script" path="res://script/katago_territory_analysis_service.gd" id="43_territory_service"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxNoteMarkSelected"]
-bg_color = Color(0.22, 0.17, 0.055, 0.82)
+bg_color = Color(0.349020, 0.278431, 0.180392, 1)
 border_width_left = 3
 border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
-border_color = Color(1, 0.78, 0.22, 1)
+border_color = Color(0.815686, 0.678431, 0.447059, 1)
 corner_radius_top_left = 9
 corner_radius_top_right = 9
 corner_radius_bottom_right = 9
 corner_radius_bottom_left = 9
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxTerritoryLog"]
-bg_color = Color(0.055, 0.055, 0.065, 0.94)
+bg_color = Color(0.098039, 0.086275, 0.070588, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.42, 0.42, 0.48, 1)
+border_color = Color(0.400000, 0.329412, 0.262745, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -146,10 +146,10 @@ layout_mode = 2
 tooltip_text = "确认落子"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
-theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
-theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
-theme_override_colors/font_outline_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_colors/font_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_pressed_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_hover_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 32
 text = "✓"
@@ -162,10 +162,10 @@ layout_mode = 2
 tooltip_text = "取消待确认落子"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
-theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
-theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
-theme_override_colors/font_outline_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_colors/font_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_pressed_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_hover_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 32
 text = "✕"
@@ -193,8 +193,8 @@ offset_top = 2.0
 offset_right = -2.0
 offset_bottom = 22.0
 grow_horizontal = 0
-theme_override_colors/font_color = Color(0.16, 0.1, 0.04, 1)
-theme_override_colors/font_outline_color = Color(1, 0.89, 0.62, 1)
+theme_override_colors/font_color = Color(0.141176, 0.105882, 0.070588, 1)
+theme_override_colors/font_outline_color = Color(0.937255, 0.890196, 0.811765, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 14
 text = "1"
@@ -207,7 +207,7 @@ layout_mode = 2
 tooltip_text = "Undo (Ctrl+Z)"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.55)
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.65)
 disabled = true
 icon = ExtResource("12_undo")
 flat = true
@@ -236,7 +236,7 @@ layout_mode = 2
 tooltip_text = "Redo (Ctrl+R)"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.55)
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.65)
 disabled = true
 icon = ExtResource("13_redo")
 flat = true
@@ -289,7 +289,7 @@ layout_mode = 2
 tooltip_text = "调整或删除下一手分支（Ctrl+X）"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.42)
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 0.65)
 disabled = true
 icon = ExtResource("27_reorder_branch")
 flat = true
@@ -375,8 +375,8 @@ offset_bottom = -2.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
-theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
-theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 24
 text = "✓"
@@ -410,8 +410,8 @@ offset_bottom = -2.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
-theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
-theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 24
 text = "✓"
@@ -472,8 +472,8 @@ offset_bottom = -2.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
-theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
-theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 24
 text = "✓"
@@ -660,10 +660,10 @@ layout_mode = 2
 tooltip_text = "确认落子"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.25, 0.92, 0.38, 1)
-theme_override_colors/font_pressed_color = Color(0.18, 0.78, 0.3, 1)
-theme_override_colors/font_hover_color = Color(0.4, 1, 0.52, 1)
-theme_override_colors/font_outline_color = Color(0.25, 0.92, 0.38, 1)
+theme_override_colors/font_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_pressed_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_hover_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 32
 text = "✓"
@@ -676,10 +676,10 @@ layout_mode = 2
 tooltip_text = "取消待确认落子"
 focus_mode = 0
 mouse_default_cursor_shape = 2
-theme_override_colors/font_color = Color(0.96, 0.24, 0.24, 1)
-theme_override_colors/font_pressed_color = Color(0.8, 0.16, 0.16, 1)
-theme_override_colors/font_hover_color = Color(1, 0.4, 0.4, 1)
-theme_override_colors/font_outline_color = Color(0.96, 0.24, 0.24, 1)
+theme_override_colors/font_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_pressed_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_hover_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 32
 text = "✕"
@@ -878,19 +878,30 @@ theme_override_font_sizes/font_size = 32
 text = "<"
 
 [node name="KeepMainLineConfirmation" type="ConfirmationDialog" parent="Interface/SafeArea"]
-title = "确认保留主干"
+title = "确认保留棋谱主干"
 transient = true
 exclusive = true
-ok_button_text = "保留主干"
+ok_button_text = "保留棋谱主干"
 dialog_text = "DIALOG_KEEP_MAIN_LINE_MESSAGE"
 cancel_button_text = "取消"
+metadata/ok_role = "danger"
 
 [node name="ClearNotesConfirmation" type="ConfirmationDialog" parent="Interface/SafeArea"]
-title = "确认清除笔记"
+title = "确认清除所有笔记"
 transient = true
 exclusive = true
-ok_button_text = "清除笔记"
+ok_button_text = "清除所有笔记"
 dialog_text = "DIALOG_CLEAR_NOTES_MESSAGE"
+cancel_button_text = "取消"
+metadata/ok_role = "danger"
+
+[node name="GenerateNodeNotesConfirmation" type="ConfirmationDialog" parent="Interface/SafeArea"]
+title = "生成节点笔记"
+transient = true
+exclusive = true
+ok_button_text = "生成"
+dialog_text = "DIALOG_GENERATE_NODE_NOTES_MESSAGE"
+dialog_autowrap = true
 cancel_button_text = "取消"
 
 [node name="ToolErrorDialog" type="AcceptDialog" parent="Interface/SafeArea"]
@@ -975,7 +986,10 @@ exclusive = true
 unresizable = true
 initial_position = 1
 size = Vector2i(520, 190)
-dialog_text = "正在准备导出…"
+dialog_hide_on_ok = false
+dialog_close_on_escape = false
+ok_button_text = "取消"
+metadata/ok_role = "secondary"
 
 [node name="HumanPlayOptionsDialog" type="Window" parent="Interface/SafeArea"]
 visible = false
@@ -985,6 +999,15 @@ exclusive = true
 unresizable = true
 initial_position = 1
 size = Vector2i(520, 450)
+
+[node name="Background" type="Panel" parent="Interface/SafeArea/HumanPlayOptionsDialog"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_type_variation = &"CafeDialogPanel"
 
 [node name="Margin" type="MarginContainer" parent="Interface/SafeArea/HumanPlayOptionsDialog"]
 anchors_preset = 15
@@ -1073,6 +1096,7 @@ layout_mode = 2
 text = "取消"
 
 [node name="Start" type="Button" parent="Interface/SafeArea/HumanPlayOptionsDialog/Margin/Content/Actions"]
+theme_type_variation = &"CafePrimaryButton"
 custom_minimum_size = Vector2(120, 42)
 layout_mode = 2
 text = "开始对局"
@@ -1092,6 +1116,7 @@ exclusive = true
 ok_button_text = "放弃对局"
 dialog_text = "确定放弃当前仿人棋对局记录吗？"
 cancel_button_text = "返回对局"
+metadata/ok_role = "danger"
 
 [node name="HumanPlayAcceptDialog" type="ConfirmationDialog" parent="Interface/SafeArea"]
 title = "保留人类模仿棋"
@@ -1121,12 +1146,23 @@ transient = true
 exclusive = true
 ok_button_text = "确定"
 
-[node name="ProgressBar" type="ProgressBar" parent="Interface/SafeArea/ExportProgressDialog"]
+[node name="Content" type="VBoxContainer" parent="Interface/SafeArea/ExportProgressDialog"]
+custom_minimum_size = Vector2(360, 100)
 layout_mode = 0
-offset_left = 32.0
-offset_top = 92.0
-offset_right = 488.0
-offset_bottom = 120.0
+theme_override_constants/separation = 16
+
+[node name="Status" type="Label" parent="Interface/SafeArea/ExportProgressDialog/Content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "正在准备导出…"
+horizontal_alignment = 1
+vertical_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="ProgressBar" type="ProgressBar" parent="Interface/SafeArea/ExportProgressDialog/Content"]
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
 show_percentage = false
 
 [node name="BoardSizeDialog" parent="Interface" unique_id=2106825246 instance=ExtResource("8_board_size_dialog")]
@@ -1152,7 +1188,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.0901961, 0.105882, 0.101961, 1)
+color = Color(0.129412, 0.113725, 0.098039, 1)
 
 [node name="SafeArea" type="Control" parent="BranchVisualizationLayer"]
 layout_mode = 3
@@ -1186,8 +1222,8 @@ theme_override_constants/separation = 8
 [node name="NextMarkLabel" type="Label" parent="NoteMarkLayer/SafeArea/NoteMarkToolBar" unique_id=1280902476]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.82, 0.24, 1)
-theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.03, 0.9)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 30
 text = "A"
@@ -1198,8 +1234,8 @@ vertical_alignment = 1
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 focus_mode = 0
-theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
-theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
 flat = true
@@ -1210,8 +1246,8 @@ symbol_code = "TR"
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 focus_mode = 0
-theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
-theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
 flat = true
@@ -1222,8 +1258,8 @@ symbol_code = "SQ"
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 focus_mode = 0
-theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
-theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
 flat = true
@@ -1234,8 +1270,8 @@ symbol_code = "CR"
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 focus_mode = 0
-theme_override_colors/font_pressed_color = Color(1, 0.84, 0.28, 1)
-theme_override_colors/font_outline_color = Color(0.08, 0.055, 0.025, 1)
+theme_override_colors/font_pressed_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_styles/pressed = SubResource("StyleBoxNoteMarkSelected")
 toggle_mode = true
 flat = true
@@ -1269,8 +1305,8 @@ offset_bottom = -2.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
-theme_override_colors/font_color = Color(1, 0.82, 0.32, 1)
-theme_override_colors/font_outline_color = Color(0.16, 0.1, 0.04, 1)
+theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_outline_color = Color(0.098039, 0.086275, 0.070588, 1)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 24
 text = "✓"
