@@ -463,6 +463,8 @@ func get_playback_path() -> PackedInt64Array:
 
 
 func can_navigate_playback(direction: int) -> bool:
+	if human_play_mode_:
+		return false
 	if note_preview_playback_active_:
 		if direction < 0:
 			return note_preview_page_index_ > 0
@@ -498,7 +500,7 @@ func restore_playback_position() -> void:
 
 
 func enter_note_preview_playback(page_count: int, page_index: int) -> bool:
-	if page_count <= 0:
+	if human_play_mode_ or page_count <= 0:
 		return false
 	set_playback_playing_(false)
 	note_preview_playback_active_ = true
@@ -553,7 +555,8 @@ func set_note_numbering_preview(
 
 
 func roam_to_playback_uid(uid: int) -> bool:
-	if go_notes_ == null or not follow_current_ or playback_path_.find(uid) < 0:
+	if human_play_mode_ or go_notes_ == null \
+			or not follow_current_ or playback_path_.find(uid) < 0:
 		return false
 	if uid == int(go_notes_.get_current_uid()):
 		return true
@@ -1150,6 +1153,7 @@ func begin_note_mark_mode_() -> void:
 
 
 func set_note_board_controls_visible_(visible: bool) -> void:
+	visible = visible and not human_play_mode_
 	preset_button_.visible = visible and not note_preview_playback_active_
 	note_preview_page_label_.visible = \
 		visible and note_preview_playback_active_
@@ -2223,6 +2227,8 @@ func branch_at_screen_position_(screen_position: Vector2) -> Dictionary:
 
 
 func execute_roaming_to_(target_uid: int) -> bool:
+	if human_play_mode_:
+		return false
 	var outcome: Dictionary = {"completed": false, "success": true}
 	request_edit_sensitive_action_(
 		Callable(self, "execute_roaming_to_now_").bind(target_uid, outcome)
@@ -2231,6 +2237,11 @@ func execute_roaming_to_(target_uid: int) -> bool:
 
 
 func execute_roaming_to_now_(target_uid: int, outcome: Dictionary) -> void:
+	# 延迟动作执行时再次检查，防止进入对弈前排队的漫游改变当前盘面。
+	if human_play_mode_:
+		outcome.completed = true
+		outcome.success = false
+		return
 	var play_move_sound: bool = not note_preview_playback_active_ \
 		and is_direct_move_child_(
 			int(go_notes_.get_current_uid()), target_uid
@@ -2727,6 +2738,15 @@ func update_playback_position_() -> void:
 
 
 func update_playback_editable_() -> void:
+	if human_play_mode_:
+		playback_bar_.editable = false
+		for button: Button in [
+			playback_previous_button_, playback_next_button_, playback_button_
+		]:
+			button.disabled = true
+			button.queue_redraw()
+		playback_navigation_changed.emit(false, false)
+		return
 	if note_preview_playback_active_:
 		playback_bar_.editable = note_preview_page_count_ > 1
 		playback_previous_button_.disabled = note_preview_page_index_ <= 0
@@ -2765,6 +2785,8 @@ func navigate_playback_by_(
 	direction: int,
 	user_initiated: bool = true
 ) -> bool:
+	if human_play_mode_:
+		return false
 	if user_initiated:
 		set_playback_playing_(false)
 	if note_preview_playback_active_:
@@ -2914,6 +2936,8 @@ func on_playback_timer_timeout_() -> void:
 
 
 func can_advance_playback_() -> bool:
+	if human_play_mode_:
+		return false
 	if note_preview_playback_active_:
 		return note_preview_page_index_ >= 0 \
 			and note_preview_page_index_ < note_preview_page_count_ - 1
@@ -2930,7 +2954,7 @@ func schedule_playback_step_() -> void:
 
 
 func set_playback_playing_(playing: bool) -> void:
-	playback_playing_ = playing
+	playback_playing_ = playing and not human_play_mode_
 	if not playback_playing_:
 		playback_timer_.stop()
 	playback_button_.call(&"set_playing", playback_playing_)
@@ -2941,7 +2965,7 @@ func on_playback_value_changed_(
 		value: float,
 		user_initiated: bool = true
 ) -> void:
-	if updating_playback_bar_:
+	if human_play_mode_ or updating_playback_bar_:
 		return
 	if note_preview_playback_active_:
 		if user_initiated:
@@ -2964,7 +2988,7 @@ func on_playback_value_changed_(
 
 
 func apply_playback_value_(value: float, user_initiated: bool) -> void:
-	if updating_playback_bar_ or not follow_current_:
+	if human_play_mode_ or updating_playback_bar_ or not follow_current_:
 		return
 	if user_initiated:
 		set_playback_playing_(false)
@@ -3000,6 +3024,8 @@ func refresh_note_preview_playback_() -> void:
 
 
 func request_note_preview_page_(page_index: int) -> void:
+	if human_play_mode_:
+		return
 	# 换页会同步漫游到笔记所在局面，期间的 changed 信号属于播放导航。
 	var previous_navigation: bool = playback_navigation_
 	playback_navigation_ = true

@@ -276,6 +276,7 @@ func rebuild_tabs_() -> void:
 		tab.add_theme_constant_override(&"separation", 0)
 		var select_button: Button = Button.new()
 		select_button.text = str(index)
+		select_button.theme_type_variation = &"CafeToggleButton"
 		select_button.toggle_mode = true
 		select_button.button_pressed = index == selected_note_index_
 		select_button.disabled = preview_mode_

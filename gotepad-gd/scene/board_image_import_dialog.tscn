@@ -9,7 +9,7 @@ border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.400000, 0.329412, 0.262745, 1)
+border_color = Color(0.639216, 0.541176, 0.407843, 1)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -64,7 +64,7 @@ theme_override_constants/separation = 9
 [node name="Title" type="Label" parent="Margin/Panel/InnerMargin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_color = Color(0.878431, 0.729412, 0.470588, 1)
 theme_override_font_sizes/font_size = 22
 text = "从图片创建棋盘"
 
@@ -85,7 +85,7 @@ script = ExtResource("2_review")
 [node name="Status" type="RichTextLabel" parent="Margin/Panel/InnerMargin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/default_color = Color(0.568627, 0.678431, 0.705882, 1)
+theme_override_colors/default_color = Color(0.658824, 0.788235, 0.819608, 1)
 text = "正在识别棋盘图片…"
 bbcode_enabled = true
 fit_content = true

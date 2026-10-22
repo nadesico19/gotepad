@@ -6,6 +6,7 @@ extends Button
 @export_range(1, 128, 1) var fixed_font_size: int = 16
 @export_range(0.0, 64.0, 1.0) var horizontal_padding: float = 14.0
 @export_range(0.0, 32.0, 1.0) var reserved_right_width: float = 0.0
+@export var fade_when_disabled: bool = false
 
 
 func _ready() -> void:
@@ -22,6 +23,8 @@ func _notification(what: int) -> void:
 
 
 func _draw() -> void:
+	if not fade_when_disabled:
+		CafePalette.draw_disabled_backing(self)
 	if source_text.is_empty():
 		return
 	var display_text: String = tr(source_text)
@@ -64,8 +67,9 @@ func font_color_() -> Color:
 		DRAW_HOVER:
 			return get_theme_color(&"font_hover_color")
 		DRAW_DISABLED:
-			return Color(get_theme_color(&"font_color"), CafePalette.kDisabledOpacity) if flat \
-				else get_theme_color(&"font_disabled_color")
+			if fade_when_disabled:
+				return Color(get_theme_color(&"font_color"), CafePalette.kDisabledOpacity)
+			return get_theme_color(&"font_disabled_color")
 		DRAW_HOVER_PRESSED:
 			return get_theme_color(&"font_hover_pressed_color")
 		_:

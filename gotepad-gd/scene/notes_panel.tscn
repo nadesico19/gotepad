@@ -10,7 +10,7 @@ border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.400000, 0.329412, 0.262745, 1)
+border_color = Color(0.639216, 0.541176, 0.407843, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -71,7 +71,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "输入节点标题"
 max_length = 256
-theme_override_colors/font_uneditable_color = Color(0.815686, 0.678431, 0.447059, 1)
+theme_override_colors/font_uneditable_color = Color(0.878431, 0.729412, 0.470588, 1)
 theme_override_font_sizes/font_size = 17
 
 [node name="ActionSlot" type="Control" parent="Panel/Margin/Content/TitleRow"]
@@ -92,7 +92,7 @@ custom_minimum_size = Vector2(38, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "接受标题和评论修改"
-theme_override_colors/font_color = Color(0.650980, 0.725490, 0.584314, 1)
+theme_override_colors/font_color = Color(0.713725, 0.807843, 0.627451, 1)
 theme_override_font_sizes/font_size = 22
 text = "✓"
 
@@ -101,7 +101,7 @@ custom_minimum_size = Vector2(38, 36)
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "取消标题和评论修改"
-theme_override_colors/font_color = Color(0.831373, 0.603922, 0.533333, 1)
+theme_override_colors/font_color = Color(0.925490, 0.690196, 0.607843, 1)
 theme_override_font_sizes/font_size = 22
 text = "✕"
 
@@ -151,7 +151,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 wrap_mode = 1
-theme_override_colors/font_readonly_color = Color(0.772549, 0.705882, 0.615686, 1)
+theme_override_colors/font_readonly_color = Color(0.843137, 0.772549, 0.666667, 1)
 
 [node name="MarkButtons" type="HBoxContainer" parent="Panel/Margin/Content"]
 layout_mode = 2
@@ -217,7 +217,7 @@ theme_override_constants/separation = 10
 
 [node name="Label" type="Label" parent="Panel/Margin/Content/NumberingRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.937255, 0.890196, 0.811765, 1)
+theme_override_colors/font_color = Color(0.964706, 0.917647, 0.835294, 1)
 theme_override_font_sizes/font_size = 16
 text = "棋子编号"
 

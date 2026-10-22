@@ -11,7 +11,7 @@ func _ready() -> void:
 
 func _draw() -> void:
 	CafePalette.draw_disabled_backing(self)
-	var color: Color = CafePalette.kSecondary \
+	var color: Color = CafePalette.kDisabledText \
 		if disabled else CafePalette.kAccent \
 		if button_pressed else CafePalette.kText
 	var extent: float = minf(size.x, size.y) * 0.29
