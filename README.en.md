@@ -54,7 +54,7 @@ Prebuilt versions are published on the repository's [GitHub Releases](../../rele
 
 Multiple layers of notes can be recorded for one position, with sequential letters, triangles, squares, circles, crosses, and other board marks.
 
-![Game notes and board marks](examples/screenshots/notes.jpg)
+![Game notes and board marks](examples/screenshots/notes.png)
 
 ### Branch preview
 
@@ -66,25 +66,25 @@ Preview and navigate among numerous branches through a visual tree view.
 
 The analysis panel displays candidate moves, win rate, score lead, candidate variations, and an analysis curve for the complete game path.
 
-![KataGo position analysis](examples/screenshots/analysing.jpg)
+![KataGo position analysis](examples/screenshots/analysing.png)
 
 ### KataGo human-like play
 
 Load a dedicated human-like-play model to play against an AI of a comparable level.
 
-![KataGo human-like play](examples/screenshots/playwithai.jpg)
+![KataGo human-like play](examples/screenshots/playwithai.png)
 
 ### Final scoring
 
 Use KataGo ownership analysis and Chinese rules to score the final position.
 
-![Final scoring](examples/screenshots/counting.jpg)
+![Final scoring](examples/screenshots/counting.png)
 
 ### Photo and image recognition
 
 Create a position from an image or a photo.
 
-![Photo and image recognition](examples/screenshots/recognition.jpg)
+![Photo and image recognition](examples/screenshots/recognition.png)
 
 ### PPTX courseware export
 
@@ -94,7 +94,7 @@ Boards, move numbers, marks, and notes can be laid out and exported as an editab
 
 ### Multilingual UI
 
-![Multilingual UI](examples/screenshots/multi-language.jpg)
+![Multilingual UI](examples/screenshots/multi-language.png)
 
 ### Manual UI adjustments
 

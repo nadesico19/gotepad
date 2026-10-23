@@ -72,7 +72,7 @@ Gotepad は、囲碁の棋譜作成、対局検討、棋譜整理を目的とし
 
 同じ局面に複数階層のノートを記録し、盤面上に連番アルファベット、三角、四角、丸、バツなどのマークを追加できます。
 
-![棋譜ノートと盤面マーク](examples/screenshots/notes.jpg)
+![棋譜ノートと盤面マーク](examples/screenshots/notes.png)
 
 ### 分岐プレビュー
 
@@ -84,25 +84,25 @@ Gotepad は、囲碁の棋譜作成、対局検討、棋譜整理を目的とし
 
 解析パネルには候補手、勝率、目差、候補変化図を表示し、棋譜全体の解析曲線を描画できます。
 
-![KataGo 局面解析](examples/screenshots/analysing.jpg)
+![KataGo 局面解析](examples/screenshots/analysing.png)
 
 ### KataGo 人間模倣対局
 
 人間模倣対局専用モデルを読み込み、自分と同程度の AI と対局できます。
 
-![KataGo 人間模倣対局](examples/screenshots/playwithai.jpg)
+![KataGo 人間模倣対局](examples/screenshots/playwithai.png)
 
 ### 終局計算
 
 KataGo の所有判定と中国ルールを利用して終局を計算します。
 
-![終局計算](examples/screenshots/counting.jpg)
+![終局計算](examples/screenshots/counting.png)
 
 ### 写真・画像認識
 
 画像または写真から局面を作成します。
 
-![写真・画像認識](examples/screenshots/recognition.jpg)
+![写真・画像認識](examples/screenshots/recognition.png)
 
 ### PPTX 教材出力
 
@@ -112,7 +112,7 @@ KataGo の所有判定と中国ルールを利用して終局を計算します�
 
 ### 多言語 UI
 
-![多言語 UI](examples/screenshots/multi-language.jpg)
+![多言語 UI](examples/screenshots/multi-language.png)
 
 ### UI の手動調整
 

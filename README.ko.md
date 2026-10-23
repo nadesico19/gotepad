@@ -54,7 +54,7 @@ Gotepad는 바둑 기보 작성, 대국 검토 및 기보 정리를 위한 크�
 
 같은 국면에 여러 단계의 노트를 기록하고 바둑판에 순서 문자, 삼각형, 사각형, 원, X 등의 표식을 추가할 수 있습니다.
 
-![기보 노트와 바둑판 표식](examples/screenshots/notes.jpg)
+![기보 노트와 바둑판 표식](examples/screenshots/notes.png)
 
 ### 분기 미리 보기
 
@@ -66,25 +66,25 @@ Gotepad는 바둑 기보 작성, 대국 검토 및 기보 정리를 위한 크�
 
 분석 패널에는 후보 수, 승률, 집 차이, 후보 변화도를 표시하고 전체 기보 경로의 분석 곡선을 그릴 수 있습니다.
 
-![KataGo 국면 분석](examples/screenshots/analysing.jpg)
+![KataGo 국면 분석](examples/screenshots/analysing.png)
 
 ### KataGo 인간 모방 대국
 
 인간 모방 대국 전용 모델을 불러와 비슷한 수준의 AI와 대국할 수 있습니다.
 
-![KataGo 인간 모방 대국](examples/screenshots/playwithai.jpg)
+![KataGo 인간 모방 대국](examples/screenshots/playwithai.png)
 
 ### 종국 계가
 
 KataGo 소유권 분석과 중국식 규칙으로 종국 국면을 계가합니다.
 
-![종국 계가](examples/screenshots/counting.jpg)
+![종국 계가](examples/screenshots/counting.png)
 
 ### 사진 및 이미지 인식
 
 이미지 또는 사진에서 국면을 만듭니다.
 
-![사진 및 이미지 인식](examples/screenshots/recognition.jpg)
+![사진 및 이미지 인식](examples/screenshots/recognition.png)
 
 ### PPTX 교재 내보내기
 
@@ -94,7 +94,7 @@ KataGo 소유권 분석과 중국식 규칙으로 종국 국면을 계가합니�
 
 ### 다국어 UI
 
-![다국어 UI](examples/screenshots/multi-language.jpg)
+![다국어 UI](examples/screenshots/multi-language.png)
 
 ### UI 수동 조정
 

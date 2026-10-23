@@ -54,7 +54,7 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 
 同一局面可以记录多层笔记，并在棋盘上添加顺序字母、三角、方形、圆形和叉形等标记。
 
-![棋局笔记与棋盘标记](examples/screenshots/notes.jpg)
+![棋局笔记与棋盘标记](examples/screenshots/notes.png)
 
 ### 分支预览视图
 
@@ -66,25 +66,25 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 
 分析面板可以显示候选点、胜率、目差和候选变化图，并绘制整条棋局路径的分析曲线。
 
-![KataGo 局面分析](examples/screenshots/analysing.jpg)
+![KataGo 局面分析](examples/screenshots/analysing.png)
 
 ### KataGo 人类模仿棋
 
 加载人类模仿棋专用模型，可以和水平相当的 AI 进行对局。
 
-![KataGo 人类模仿棋](examples/screenshots/playwithai.jpg)
+![KataGo 人类模仿棋](examples/screenshots/playwithai.png)
 
 ### 终局数目
 
 利用 KataGo 进行归属判定，使用中国规则进行数目。
 
-![终局数目](examples/screenshots/counting.jpg)
+![终局数目](examples/screenshots/counting.png)
 
 ### 拍照识图
 
 从图片或拍照创建棋局。
 
-![拍照识图](examples/screenshots/recognition.jpg)
+![拍照识图](examples/screenshots/recognition.png)
 
 ### PPTX 课件导出
 
@@ -94,7 +94,7 @@ Gotepad 是一个面向围棋记谱、棋局检讨和棋谱整理的跨平台客
 
 ### UI 多语言
 
-![UI 多语言](examples/screenshots/multi-language.jpg)
+![UI 多语言](examples/screenshots/multi-language.png)
 
 ### UI 手动调节
 
