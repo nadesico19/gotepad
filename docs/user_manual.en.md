@@ -2,7 +2,7 @@
 
 [简体中文](user_manual.md) | [English](user_manual.en.md) | [日本語](user_manual.ja.md) | [한국어](user_manual.ko.md)
 
-This manual applies to Gotepad 0.1.20. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
+This manual applies to Gotepad 0.1.21. Gotepad is a cross-platform client for Go game recording, game review, branch organization, position notes and PPTX presentation export. The program is still in the development stage, and it is recommended to save a backup before making larger-scale game record modifications.
 
 ## Contents
 
@@ -90,7 +90,7 @@ Commonly used icons are as follows:
 - A semi-transparent preview will be displayed when the mouse is hovering over the available location.
 - Use the black and white stone switch button or `Ctrl+Q` to specify the next color. After normal move, black and white alternation will be restored by default.
 
-After enabling "Move confirmation", the first click on a legal intersection only displays a translucent pending stone and does not modify the game record immediately. The confirmation method to the right of the setting can be set to "Confirm with icons" or "Click twice". "Confirm with icons" temporarily displays a green `✓` and red `✕` at the top of the toolbar on the right side of the board for confirming or canceling the move. "Click twice" does not display these temporary buttons; the move is confirmed only when you click the intersection containing the current translucent stone again. In either mode, clicking another legal intersection before confirmation moves the pending stone, and right-clicking cancels it. Entering an existing next-move branch still navigates directly without confirmation. This feature is off by default on desktop and enabled by default on mobile platforms such as Android and iOS. User-saved settings take precedence over the platform default.
+After enabling "Move confirmation", the first click on a legal intersection only displays a translucent pending stone and does not modify the game record immediately. The confirmation method to the right of the setting can be set to "Confirm with icons" or "Click twice". "Confirm with icons" temporarily displays a green `✓` and red `✕` at the top of the toolbar on the right side of the board for confirming or canceling the move. "Click twice" does not display these temporary buttons; the move is confirmed only when you click the intersection containing the current translucent stone again. In either mode, clicking another legal intersection before confirmation moves the pending stone. Click the empty background outside the board or right-click to cancel it. In human-like play, canceling the pending move makes the green `✓` for saving and exiting available again. Entering an existing next-move branch still navigates directly without confirmation. This feature is off by default on desktop and enabled by default on mobile platforms such as Android and iOS. User-saved settings take precedence over the platform default.
 - The program abides by basic rules and does not accept illegal events such as suicide.
 
 board will mark all the next move branches that can be entered with translucent graphics: the next hand on the current play path uses a square, and other branches use circles. When clicking on a marker:

@@ -102,11 +102,11 @@ const kStoneSound4: AudioStream = preload(
 @onready var playback_bar_: HSlider = $PlaybackBar
 @onready var playback_hover_bubble_: PanelContainer = $PlaybackHoverBubble
 @onready var playback_hover_label_: Label = $PlaybackHoverBubble/Label
-@onready var playback_previous_button_: Button = $PlaybackPreviousButton
-@onready var playback_next_button_: Button = $PlaybackNextButton
-@onready var playback_button_: Button = $PlaybackButton
+@onready var playback_previous_button_: PlaybackButton = $PlaybackPreviousButton
+@onready var playback_next_button_: PlaybackButton = $PlaybackNextButton
+@onready var playback_button_: PlaybackButton = $PlaybackButton
 @onready var playback_timer_: Timer = $PlaybackTimer
-@onready var preset_button_: Button = $PresetButton
+@onready var preset_button_: FixedWidthTextButton = $PresetButton
 @onready var note_preview_page_label_: Label = $NotePreviewPageLabel
 
 var coordinate_font_: FontVariation
@@ -130,6 +130,7 @@ var follow_current_: bool = true
 var playback_navigation_: bool = false
 var updating_playback_bar_: bool = false
 var playback_playing_: bool = false
+var playback_controls_bottom_: float = -1.0
 var note_preview_playback_active_: bool = false
 var note_preview_page_count_: int = 0
 var note_preview_page_index_: int = 0
@@ -1152,6 +1153,60 @@ func begin_note_mark_mode_() -> void:
 	queue_redraw()
 
 
+func align_playback_controls_bottom(screen_bottom: float) -> void:
+	if not is_node_ready():
+		return
+	playback_controls_bottom_ = screen_bottom
+	var inverse_canvas: Transform2D = \
+		get_global_transform_with_canvas().affine_inverse()
+	var local_bottom: float = (inverse_canvas * Vector2(0.0, screen_bottom)).y
+	# 对齐实际绘制的图形和文字，不以透明点击区域的底边为准。
+	for button: PlaybackButton in [
+		playback_previous_button_, playback_next_button_, playback_button_
+	]:
+		button.position.y = local_bottom - button.get_visual_bottom()
+	preset_button_.position.y = local_bottom - text_visual_bottom_(
+		preset_button_, tr(preset_button_.source_text), preset_button_.fixed_font_size
+	)
+	note_preview_page_label_.position.y = local_bottom - text_visual_bottom_(
+		note_preview_page_label_, note_preview_page_label_.text,
+		note_preview_page_label_.get_theme_font_size(&"font_size")
+	)
+	var row_center: float = playback_previous_button_.position.y \
+		+ playback_previous_button_.size.y * 0.5
+	playback_bar_.position.y = row_center - playback_bar_.size.y * 0.5
+
+
+func text_visual_bottom_(control: Control, text: String, font_size: int) -> float:
+	var font: Font = control.get_theme_font(&"font")
+	var text_size: Vector2 = font.get_string_size(
+		text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size
+	)
+	var baseline: float = (control.size.y - text_size.y) * 0.5 \
+		+ font.get_ascent(font_size)
+	var line: TextLine = TextLine.new()
+	line.add_string(text, font, font_size)
+	var text_server: TextServer = TextServerManager.get_primary_interface()
+	var ink_bottom: float = -INF
+	for glyph: Dictionary in text_server.shaped_text_get_glyphs(line.get_rid()):
+		var font_rid: RID = glyph["font_rid"]
+		if not font_rid.is_valid() or int(glyph["repeat"]) <= 0:
+			continue
+		var glyph_size_key: Vector2i = Vector2i(int(glyph["font_size"]), 0)
+		var glyph_index: int = int(glyph["index"])
+		var glyph_offset: Vector2 = text_server.font_get_glyph_offset(
+			font_rid, glyph_size_key, glyph_index
+		)
+		var glyph_size: Vector2 = text_server.font_get_glyph_size(
+			font_rid, glyph_size_key, glyph_index
+		)
+		if glyph_size.y <= 0.0:
+			continue
+		var shaping_offset: Vector2 = glyph["offset"]
+		ink_bottom = maxf(ink_bottom, shaping_offset.y + glyph_offset.y + glyph_size.y)
+	return baseline + ink_bottom if is_finite(ink_bottom) else control.size.y
+
+
 func set_note_board_controls_visible_(visible: bool) -> void:
 	visible = visible and not human_play_mode_
 	preset_button_.visible = visible and not note_preview_playback_active_
@@ -1417,8 +1472,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if note_preview_playback_active_:
 		return
-	if has_pending_move() \
-			and mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+	if has_pending_move() and (
+		mouse_event.button_index == MOUSE_BUTTON_RIGHT
+		or (mouse_event.button_index == MOUSE_BUTTON_LEFT
+			and not is_screen_position_on_board_(mouse_event.position))
+	):
 		cancel_pending_move()
 		get_viewport().set_input_as_handled()
 		return
@@ -2959,6 +3017,8 @@ func set_playback_playing_(playing: bool) -> void:
 		playback_timer_.stop()
 	playback_button_.call(&"set_playing", playback_playing_)
 	update_playback_editable_()
+	if playback_controls_bottom_ >= 0.0:
+		align_playback_controls_bottom(playback_controls_bottom_)
 
 
 func on_playback_value_changed_(
@@ -3021,6 +3081,8 @@ func refresh_note_preview_playback_() -> void:
 	playback_bar_.set_value_no_signal(float(note_preview_page_index_))
 	updating_playback_bar_ = false
 	update_playback_editable_()
+	if playback_controls_bottom_ >= 0.0:
+		align_playback_controls_bottom(playback_controls_bottom_)
 
 
 func request_note_preview_page_(page_index: int) -> void:

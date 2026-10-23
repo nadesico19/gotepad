@@ -1819,6 +1819,7 @@ func refresh_localized_ui_() -> void:
 	]:
 		if localized_node.has_method(&"refresh_localized_texts"):
 			localized_node.call(&"refresh_localized_texts")
+	call_deferred(&"position_board_toolbar_")
 
 
 func on_tool_menu_about_to_popup_() -> void:
@@ -4406,6 +4407,9 @@ func position_board_toolbar_() -> void:
 	board_toolbar_.position = toolbar_position
 	variation_toolbar_.position = toolbar_position
 	territory_toolbar_.position = toolbar_position
+	board_.align_playback_controls_bottom(
+		interface_safe_area_.global_position.y + viewport_size.y - 12.0
+	)
 	position_territory_log_panel_()
 	position_side_panels_()
 	position_note_mark_toolbar_()
