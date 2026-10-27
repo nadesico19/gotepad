@@ -603,8 +603,8 @@ icon_max_width = 56
 
 [node name="VariationToolBar" type="VBoxContainer" parent="Interface/SafeArea" unique_id=1956709426]
 visible = false
-offset_right = 72.0
-offset_bottom = 208.0
+offset_right = 56.0
+offset_bottom = 184.0
 mouse_filter = 2
 theme_override_constants/separation = 8
 
@@ -694,7 +694,7 @@ text = "✕"
 flat = true
 
 [node name="TakebackButton" type="Button" parent="Interface/SafeArea/VariationToolBar"]
-custom_minimum_size = Vector2(72, 64)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "悔棋"
 focus_mode = 0
@@ -706,7 +706,7 @@ expand_icon = true
 icon_max_width = 56
 
 [node name="KeepBranchButton" type="Button" parent="Interface/SafeArea/VariationToolBar" unique_id=819888075]
-custom_minimum_size = Vector2(72, 64)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "保留当前变化并退出"
 focus_mode = 0
@@ -718,7 +718,7 @@ expand_icon = true
 icon_max_width = 56
 
 [node name="ExitButton" type="Button" parent="Interface/SafeArea/VariationToolBar" unique_id=1379083947]
-custom_minimum_size = Vector2(72, 64)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 tooltip_text = "丢弃当前变化并退出（Esc）"
 focus_mode = 0
