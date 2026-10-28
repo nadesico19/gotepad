@@ -19,24 +19,24 @@ namespace GotepadKataGo {
 inline constexpr char kO3GemmSource[] = R"CLC(
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-inline half4 load_spatial4(__global const half* src, int base, int x) {
-  if(x + 3 < 361) return vload4(0, src + base + x);
+inline half4 load_spatial4(__global const half* src, int base, int x, int spatial) {
+  if(x + 3 < spatial) return vload4(0, src + base + x);
   half4 v = (half4)(0);
   // Explicit components avoid dynamic half-vector indexing on the O3 compiler.
-  if(x < 361) v.s0 = src[base + x];
-  if(x + 1 < 361) v.s1 = src[base + x + 1];
-  if(x + 2 < 361) v.s2 = src[base + x + 2];
-  if(x + 3 < 361) v.s3 = src[base + x + 3];
+  if(x < spatial) v.s0 = src[base + x];
+  if(x + 1 < spatial) v.s1 = src[base + x + 1];
+  if(x + 2 < spatial) v.s2 = src[base + x + 2];
+  if(x + 3 < spatial) v.s3 = src[base + x + 3];
   return v;
 }
 
-inline void store_spatial4(__global half* dst, int base, int x, half4 v) {
-  if(x + 3 < 361) vstore4(v, 0, dst + base + x);
+inline void store_spatial4(__global half* dst, int base, int x, half4 v, int spatial) {
+  if(x + 3 < spatial) vstore4(v, 0, dst + base + x);
   else {
-    if(x < 361) dst[base + x] = v.s0;
-    if(x + 1 < 361) dst[base + x + 1] = v.s1;
-    if(x + 2 < 361) dst[base + x + 2] = v.s2;
-    if(x + 3 < 361) dst[base + x + 3] = v.s3;
+    if(x < spatial) dst[base + x] = v.s0;
+    if(x + 1 < spatial) dst[base + x + 1] = v.s1;
+    if(x + 2 < spatial) dst[base + x + 2] = v.s2;
+    if(x + 3 < spatial) dst[base + x + 3] = v.s3;
   }
 }
 
@@ -47,6 +47,7 @@ __kernel void o3_projection(
   __global half* out0, __global half* out1, __global half* out2,
   int in_channels, int out_channels
 ) {
+  const int spatial = 361;
   const int lx = get_local_id(0), ly = get_local_id(1);
   const int tid = ly * 8 + lx;
   const int x0 = get_group_id(0) * 32;
@@ -64,7 +65,7 @@ __kernel void o3_projection(
     // Each lane loads two vectors; consecutive lanes access consecutive x/channels.
     for(int t = tid; t < 128; t += 64) {
       int k = t / 8, v = t % 8;
-      a[k][v] = load_spatial4(input, (batch * in_channels + kb + k) * 361, x0 + v * 4);
+      a[k][v] = load_spatial4(input, (batch * in_channels + kb + k) * spatial, x0 + v * 4, spatial);
       int wi = (kb + k) * out_channels + c0 + v * 4;
       b[0][k][v] = vload4(0, w0 + wi);
       #if GROUPS >= 2
@@ -92,18 +93,26 @@ __kernel void o3_projection(
 
   #pragma unroll
   for(int c = 0; c < 4; ++c) {
-    int base = (batch * out_channels + c0 + ly * 4 + c) * 361;
+    int base = (batch * out_channels + c0 + ly * 4 + c) * spatial;
     #if GROUPS == 2
     // Match the original half projection outputs followed by float SwiGLU.
     float4 main_value = convert_float4(acc[0][c]);
     float4 gate_value = convert_float4(acc[1][c]);
     half4 result = convert_half4_rte((main_value / (1.0f + exp(-main_value))) * gate_value);
-    store_spatial4(out0, base, x0 + lx * 4, result);
+    store_spatial4(out0, base, x0 + lx * 4, result, spatial);
     #else
-    store_spatial4(out0, base, x0 + lx * 4, acc[0][c]);
+    #if FUSE_RESIDUAL
+    // Projection is rounded to half before the residual add, as in the two-kernel path.
+    half4 projected = acc[0][c];
+    half4 residual = load_spatial4(out0, base, x0 + lx * 4, spatial);
+    half4 combined = convert_half4_rte(convert_float4(projected) + convert_float4(residual));
+    store_spatial4(out0, base, x0 + lx * 4, combined, spatial);
+    #else
+    store_spatial4(out0, base, x0 + lx * 4, acc[0][c], spatial);
+    #endif
     #if GROUPS == 3
-    store_spatial4(out1, base, x0 + lx * 4, acc[1][c]);
-    store_spatial4(out2, base, x0 + lx * 4, acc[2][c]);
+    store_spatial4(out1, base, x0 + lx * 4, acc[1][c], spatial);
+    store_spatial4(out2, base, x0 + lx * 4, acc[2][c], spatial);
     #endif
     #endif
   }
@@ -118,19 +127,20 @@ public:
   ~O3Gemm();
   void configure(cl_context context, cl_device_id device, bool enable, const ModelAccelerationStructure& structure);
   bool conv_enabled() const { return convolution_candidates_ > 0; }
-  const char* kernel_path() const { return "structure-gemm-v2"; }
+  const char* kernel_path() const { return "structure-gemm-v4"; }
   bool enabled() const { return enabled_ && !validation_bypass_; }
   const std::string& initialization_reason() const { return initialization_reason_; }
   const nlohmann::json& capability_status() const { return capability_status_; }
   void set_validation_bypass(bool bypass) { validation_bypass_ = bypass; validation_tracking_ = true; }
-  const std::array<uint64_t, 3>& validation_calls() const { return validation_calls_; }
+  const std::array<uint64_t, 4>& validation_calls() const { return validation_calls_; }
+  const char* dispatch_reason(int groups, int input, int output, int batch) const;
   bool apply(cl_command_queue queue, int groups, int in_channels, int out_channels,
              int batch, cl_mem input, cl_mem w0, cl_mem w1, cl_mem w2,
-             cl_mem out0, cl_mem out1, cl_mem out2, cl_event* event);
+             cl_mem out0, cl_mem out1, cl_mem out2, cl_event* event, bool residual = false);
 
 private:
-  std::array<cl_program, 3> programs_{};
-  std::array<cl_kernel, 3> kernels_{};
+  std::array<cl_program, 4> programs_{};
+  std::array<cl_kernel, 4> kernels_{};
   bool enabled_ = false;
   std::string initialization_reason_ = "kernel_initialization_failed";
   nlohmann::json capability_status_ = {{"checked", false}};
@@ -138,9 +148,17 @@ private:
   std::array<int, 3> candidates_{};
   bool validation_bypass_ = false;
   bool validation_tracking_ = false;
-  std::array<uint64_t, 3> validation_calls_{};
+  std::array<uint64_t, 4> validation_calls_{};
   bool failed_(cl_int error, const char* operation);
 };
+
+inline const char* O3Gemm::dispatch_reason(int groups, int input, int output, int batch) const {
+  if (!enabled()) return enabled_ ? "validation_bypass" : initialization_reason_.c_str();
+  if (batch < 1 || batch > 32) return "batch_out_of_range";
+  if (groups < 1 || groups > 3 || candidates_[groups - 1] == 0) return "no_candidate";
+  if (!accelerated_matrix_shape(input, output)) return "matrix_shape_not_supported";
+  return "candidate_selected"; // Actual execution is confirmed by the kernel event, not this decision.
+}
 
 inline O3Gemm::~O3Gemm() {
   remove_acceleration(this);
@@ -151,7 +169,7 @@ inline O3Gemm::~O3Gemm() {
 inline void O3Gemm::configure(cl_context context, cl_device_id device, bool enable, const ModelAccelerationStructure& structure) {
   convolution_candidates_ = structure.convolution_candidates;
   candidates_ = structure.candidates;
-  if (!enable) return;
+  if (!enable) { initialization_reason_ = "disabled_or_ineligible_see_model"; return; }
   try {
     // The original backend's tuning preference is not a capability test for
     // these independent kernels. Query the device, then compile our actual code.
@@ -185,11 +203,13 @@ inline void O3Gemm::configure(cl_context context, cl_device_id device, bool enab
       initialization_reason_ = "device_fp16_not_supported";
       return;
     }
-    for (int g = 1; g <= 3; ++g) {
-      if (candidates_[g - 1] == 0) continue;
+    for (int g = 1; g <= 4; ++g) {
+      if (g <= 3 ? candidates_[g - 1] == 0 : structure.nested_blocks == 0 || candidates_[0] == 0) continue;
+      const int groups = g <= 3 ? g : 1;
+      const int residual = g == 4 ? 1 : 0;
       std::string error;
       if (!OpenCLHelpers::tryCompileProgram("gotepad_o3_gemm_v1", context, {device},
-            kO3GemmSource, "-DGROUPS=" + std::to_string(g), programs_[g - 1], error)) {
+            kO3GemmSource, "-DGROUPS=" + std::to_string(groups) + " -DFUSE_RESIDUAL=" + std::to_string(residual), programs_[g - 1], error)) {
         initialization_reason_ = "kernel_compilation_failed";
         capability_status_["buildError"] = error;
         __android_log_print(ANDROID_LOG_WARN, "GotepadO3Gemm",
@@ -211,10 +231,21 @@ inline void O3Gemm::configure(cl_context context, cl_device_id device, bool enab
       status = clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(available_local), &available_local, nullptr);
       if (failed_(status, "CL_DEVICE_LOCAL_MEM_SIZE")) return;
       if (required_local > available_local) { failed_(CL_OUT_OF_RESOURCES, "local memory size"); return; }
+      size_t preferred = 0;
+      cl_ulong private_bytes = 0;
+      const cl_int preferred_status = clGetKernelWorkGroupInfo(kernels_[g - 1], device,
+        CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE, sizeof(preferred), &preferred, nullptr);
+      const cl_int private_status = clGetKernelWorkGroupInfo(kernels_[g - 1], device,
+        CL_KERNEL_PRIVATE_MEM_SIZE, sizeof(private_bytes), &private_bytes, nullptr);
+      capability_status_["kernelResources"][std::to_string(g)] = {
+        {"maxWorkgroupSize", maximum}, {"localMemoryBytes", required_local},
+        {"deviceLocalMemoryBytes", available_local},
+        {"preferredWorkgroupMultiple", preferred_status == CL_SUCCESS ? nlohmann::json(preferred) : nlohmann::json(nullptr)},
+        {"privateMemoryBytes", private_status == CL_SUCCESS ? nlohmann::json(private_bytes) : nlohmann::json(nullptr)}};
     }
     enabled_ = true;
     initialization_reason_ = "enabled";
-    __android_log_write(ANDROID_LOG_INFO, "GotepadO3Gemm", "Structure GEMM v2 enabled (FP16, 19x19)");
+    __android_log_write(ANDROID_LOG_INFO, "GotepadO3Gemm", "Structure GEMM v4 enabled (FP16, 19x19)");
   } catch (const std::exception& error) {
     enabled_ = false;
     capability_status_["initializationError"] = error.what();
@@ -226,6 +257,7 @@ inline void O3Gemm::configure(cl_context context, cl_device_id device, bool enab
 inline bool O3Gemm::failed_(cl_int error, const char* operation) {
   if (error == CL_SUCCESS) return false;
   enabled_ = false;
+  initialization_reason_ = "kernel_failed";
   capability_status_["operation"] = operation;
   capability_status_["openclError"] = error;
   fail_acceleration(this);
@@ -236,11 +268,14 @@ inline bool O3Gemm::failed_(cl_int error, const char* operation) {
 inline bool O3Gemm::apply(cl_command_queue queue, int groups, int in_channels,
                          int out_channels, int batch, cl_mem input,
                          cl_mem w0, cl_mem w1, cl_mem w2,
-                         cl_mem out0, cl_mem out1, cl_mem out2, cl_event* event) {
+                         cl_mem out0, cl_mem out1, cl_mem out2, cl_event* event, bool residual) {
   if (!enabled() || batch < 1 || batch > 32 || groups < 1 || groups > 3) return false;
+  if (residual && groups != 1) return false;
+  const int index = residual ? 3 : groups - 1;
+  if (kernels_[index] == nullptr) return false;
   const bool supported = candidates_[groups - 1] > 0 && accelerated_matrix_shape(in_channels, out_channels);
   if (!supported) return false;
-  cl_kernel kernel = kernels_[groups - 1];
+  cl_kernel kernel = kernels_[index];
   const std::array<cl_mem, 7> buffers{input, w0, w1, w2, out0, out1, out2};
   for (cl_uint i = 0; i < buffers.size(); ++i)
     if (failed_(clSetKernelArg(kernel, i, sizeof(cl_mem), &buffers[i]), "clSetKernelArg")) return false;
@@ -250,7 +285,7 @@ inline bool O3Gemm::apply(cl_command_queue queue, int groups, int in_channels,
   const size_t local[3] = {8, 8, 1};
   if (failed_(clEnqueueNDRangeKernel(queue, kernel, 3, nullptr, global, local,
                                     0, nullptr, event), "clEnqueueNDRangeKernel")) return false;
-  if (validation_tracking_) ++validation_calls_[groups - 1];
+  if (validation_tracking_) { ++validation_calls_[groups - 1]; if (residual) ++validation_calls_[index]; }
   return true;
 }
 

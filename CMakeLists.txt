@@ -372,9 +372,17 @@ if (BUILD_EMBEDDED_KATAGO)
         NOT KATAGO_OPENCL_BACKEND MATCHES "katago_o3_validation.hpp" OR
         NOT KATAGO_OPENCL_BACKEND MATCHES "O3NbtConv1x1V1" OR
         NOT KATAGO_OPENCL_BACKEND MATCHES "inspect_acceleration_structure" OR
-        NOT KATAGO_OPENCL_BACKEND MATCHES "publish_acceleration")
+        NOT KATAGO_OPENCL_BACKEND MATCHES "publish_acceleration" OR
+        NOT KATAGO_OPENCL_BACKEND MATCHES "O3_WRITE_BUFFER" OR
+        NOT KATAGO_OPENCL_BACKEND MATCHES "O3NbtProjectionResidualV4")
       message(FATAL_ERROR
           "KataGo OpenCL source needs third_party/katago/o3-profile.patch")
+    endif ()
+    file(READ "${KATAGO_CPP_DIR}/neuralnet/nneval.cpp" KATAGO_O3_NNEVAL)
+    file(READ "${KATAGO_CPP_DIR}/neuralnet/nneval.h" KATAGO_O3_NNEVAL_HEADER)
+    if (NOT KATAGO_O3_NNEVAL MATCHES "diagnosticWaitStart" OR
+        NOT KATAGO_O3_NNEVAL_HEADER MATCHES "diagnosticQueued")
+      message(FATAL_ERROR "KataGo evaluator needs the updated o3-profile.patch")
     endif ()
     file(READ "${KATAGO_CPP_DIR}/command/analysis.cpp" KATAGO_O3_ANALYSIS)
     if (NOT KATAGO_O3_ANALYSIS MATCHES "validate_o3_nn")

@@ -239,7 +239,8 @@ nlohmann::json run_o3_validation(const std::string& model_file, ConfigParser& or
         throw StringError("An expected experimental kernel variant was not exercised");
     Json result = {{"type", "complete"}, {"kernelPath", gemm.kernel_path()}, {"model", model.name}, {"batchSize", batch_size}, {"caseCount", 32},
                    {"nonfiniteComparisons", nonfinite}, {"maxAbsByComparison", aggregate},
-                   {"experimentalKernelCalls", gemm.validation_calls()}, {"structure", structure.summary()}, {"reportPath", path},
+                   {"experimentalKernelCalls", gemm.validation_calls()},
+                   {"experimentalKernelCallNames", {"singleProjectionIncludingResidual", "SwiGLU", "QKV", "projectionResidualV4"}}, {"structure", structure.summary()}, {"reportPath", path},
                    {"status", nonfinite ? "nonfinite_detected" : "completed_needs_review"},
                    {"numericalAcceptance", "not_evaluated"}};
     write(result);
