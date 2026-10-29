@@ -4,8 +4,8 @@
 - 语言和标准：C++ 17。
 - 构建系统：CMake。
   - Windows 11 开发机没有安装 WindowsApp 版 Python，需要使用  `py` 命令而非 `python` 启动解释器。
-- 第三方库统一放在 third_party 文件夹下。在库专属的子目录内，使用 gotepad_info.txt 记录了库的用途、构建、部署等信息。
-- godot 环境在 D:\godot 中。本项目不需要使用 C# ，优先用 Godot_v4.7.1-stable_win64 中的环境。
+- 第三方库统一放在 third_party 文件夹下。在库专属的子目录内，使用 gotepad_info.txt 记录了库的用途、构建、部署、patch 等信息。当项目发布到 GitHub 上时，仅上传 gotepad_info.txt 和必要的 patch 文件，用户要能够使用这两种文件重建第三方库的本地环境。
+- Winodws 11 开发机的 godot 环境在 D:\godot 中。本项目不需要使用 C# ，优先用 Godot_v4.7.1-stable_win64 中的环境。
 - 项目中涉及godot扩展的部分，如果修改了代码导致需要重新编译godot扩展时，仅限当前开发机可运行的版本，可不需要经我指示自行编译并处理编译错误。
 - 构建过程的中间文件可能会放在 .tmp 目录下，如果我要求清理 .tmp 下的临时文件，应避开会影响构建速度的缓存文件。
 - Android 发布版必须使用项目根目录下的固定签名密钥库 `gotepad-model-test.keystore`，别名为 `gotepad-model-test`，证书 SHA-256 指纹为 `128F7F8D6CAE7B5EDBF05EBD6A9E7AD50914001BC2B04ED75A0121A81A007F31`。不得改用 Godot 默认 `debug.keystore`，否则无法覆盖安装既有版本。密钥库已由根目录 `.gitignore` 排除；密钥文件和口令均不得提交到版本库。
@@ -14,8 +14,8 @@
 ## 项目构成
 
 - 核心引擎使用 C++ 在 src 目录中实现。核心引擎需要跨 Windows、Linux、MacOSX、iOS、Android 平台编译运行。
+  - 在 tests 目录中编写核心引擎的各种测试。
 - 界面部分采用多种 GUI 技术接入核心引擎。目前先使用 Godot 引擎开发桌面端，在 gotepad-gd 目录内实现。
-- 在 tests 目录中编写各种测试。
 
 ## 编码规范
 
@@ -26,6 +26,11 @@
 - 成员变量名使用 snake_case，例如：`member_1`，注意private成员在后面加 “_” 以示区分。
 - 常量使用 k 前缀 + PascalCase，例如：`const int kMaxRetries = 3;`。
 - 成员函数体超过5行时抽出到类外的 inline 函数，保持类主体精简。
+
+## KataGo 嵌入相关
+
+- 仅在安卓和 iOS 版本嵌入 KataGo 后端，不应编译到 Windows、macOS 版本。
+- 对源码的 patch 按安卓一个 patch，iOS 一个 patch，使用两个独立文件来记录。
 
 ## 文档规范
 
