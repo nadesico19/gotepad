@@ -270,14 +270,18 @@ if (BUILD_EMBEDDED_KATAGO)
     message(FATAL_ERROR
         "KataGo source is missing. Follow third_party/katago/gotepad_info.txt")
   endif ()
+  set(KATAGO_PLATFORM_PATCH "ios.patch")
+  if (ANDROID)
+    set(KATAGO_PLATFORM_PATCH "android.patch")
+  endif ()
   if (NOT EXISTS "${KATAGO_CPP_DIR}/main.h" OR
-      NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/katago/embedded-analysis-api.patch")
+      NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/katago/${KATAGO_PLATFORM_PATCH}")
     message(FATAL_ERROR "KataGo embedded analysis adapter is missing")
   endif ()
   file(READ "${KATAGO_CPP_DIR}/main.h" KATAGO_MAIN_HEADER)
   if (NOT KATAGO_MAIN_HEADER MATCHES "analysisEmbedded")
     message(FATAL_ERROR
-        "KataGo source needs embedded-analysis-api.patch; see gotepad_info.txt")
+        "KataGo source needs ${KATAGO_PLATFORM_PATCH}; see gotepad_info.txt")
   endif ()
   if (NOT EXISTS "${KATAGO_EIGEN_DIR}/Eigen/Core")
     message(FATAL_ERROR
@@ -352,7 +356,7 @@ if (BUILD_EMBEDDED_KATAGO)
     target_link_libraries(go_gdext PRIVATE log android)
     target_link_options(go_gdext PRIVATE "-Wl,-z,max-page-size=16384")
   else ()
-    target_compile_definitions(go_gdext PRIVATE USE_METAL_BACKEND)
+    target_compile_definitions(go_gdext PRIVATE USE_METAL_BACKEND GOTEPAD_IOS_METAL)
     target_include_directories(go_gdext PRIVATE
         "${KATAGO_CPP_DIR}/neuralnet" "${CMAKE_CURRENT_BINARY_DIR}/include")
     target_link_libraries(go_gdext PRIVATE KataGoSwift
@@ -376,17 +380,17 @@ if (BUILD_EMBEDDED_KATAGO)
         NOT KATAGO_OPENCL_BACKEND MATCHES "O3_WRITE_BUFFER" OR
         NOT KATAGO_OPENCL_BACKEND MATCHES "O3NbtProjectionResidualV4")
       message(FATAL_ERROR
-          "KataGo OpenCL source needs third_party/katago/o3-profile.patch")
+          "KataGo OpenCL source needs third_party/katago/android.patch")
     endif ()
     file(READ "${KATAGO_CPP_DIR}/neuralnet/nneval.cpp" KATAGO_O3_NNEVAL)
     file(READ "${KATAGO_CPP_DIR}/neuralnet/nneval.h" KATAGO_O3_NNEVAL_HEADER)
     if (NOT KATAGO_O3_NNEVAL MATCHES "diagnosticWaitStart" OR
         NOT KATAGO_O3_NNEVAL_HEADER MATCHES "diagnosticQueued")
-      message(FATAL_ERROR "KataGo evaluator needs the updated o3-profile.patch")
+      message(FATAL_ERROR "KataGo evaluator needs the updated android.patch")
     endif ()
     file(READ "${KATAGO_CPP_DIR}/command/analysis.cpp" KATAGO_O3_ANALYSIS)
     if (NOT KATAGO_O3_ANALYSIS MATCHES "validate_o3_nn")
-      message(FATAL_ERROR "KataGo analysis needs the updated o3-profile.patch")
+      message(FATAL_ERROR "KataGo analysis needs the updated android.patch")
     endif ()
     if (NOT EXISTS "${KATAGO_OPENCL_HEADERS_DIR}/CL/cl.h")
       message(FATAL_ERROR

@@ -1,0 +1,872 @@
+--- a/cpp/main.h
++++ b/cpp/main.h
+@@ -1,7 +1,18 @@
+ #include "core/global.h"
++
++#include <functional>
+ 
+ namespace MainCmds {
+   int analysis(const std::vector<std::string>& args);
++  // Gotepad embedding hook. The regular command-line entry point above keeps
++  // its behavior, while an in-process host can provide a blocking line reader
++  // and a response sink without redirecting the process-wide standard streams.
++  int analysisEmbedded(
++    const std::vector<std::string>& args,
++    const std::function<bool(std::string&)>& readLine,
++    const std::function<void(const std::string&)>& writeLine,
++    bool allowProcessExit = false
++  );
+   int benchmark(const std::vector<std::string>& args);
+   int contribute(const std::vector<std::string>& args);
+   int evalsgf(const std::vector<std::string>& args);
+--- a/cpp/core/global.cpp
++++ b/cpp/core/global.cpp
+@@ -23,13 +23,21 @@
+ void Global::fatalError(const char* s)
+ {
+   cout << "\nFATAL ERROR:\n" << s << endl;
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++  throw StringError(s);
++#else
+   quick_exit(EXIT_FAILURE);
++#endif
+ }
+ 
+ void Global::fatalError(const string& s)
+ {
+   cout << "\nFATAL ERROR:\n" << s << endl;
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++  throw StringError(s);
++#else
+   quick_exit(EXIT_FAILURE);
++#endif
+ }
+ 
+ //STRINGS---------------------------------
+--- a/cpp/command/analysis.cpp
++++ b/cpp/command/analysis.cpp
+@@ -14,6 +14,10 @@
+ 
+ #include "../external/nlohmann_json/json.hpp"
+ 
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++#include "katago_embedded_benchmark.hpp"
++#endif
++
+ using namespace std;
+ using json = nlohmann::json;
+ 
+@@ -56,10 +60,26 @@
+   std::atomic<int> status;
+ };
+ 
+-
+ int MainCmds::analysis(const vector<string>& args) {
++  return analysisEmbedded(
++    args,
++    [](string& line) { return static_cast<bool>(getline(cin,line)); },
++    [](const string& line) { cout << line << endl; },
++    true
++  );
++}
++
++int MainCmds::analysisEmbedded(
++  const vector<string>& args,
++  const std::function<bool(string&)>& readLine,
++  const std::function<void(const string&)>& writeLine,
++  bool allowProcessExit
++) {
+   Board::initHash();
+   ScoreValue::initTables();
++  struct ScoreValueTablesGuard {
++    ~ScoreValueTablesGuard() { ScoreValue::freeTables(); }
++  } scoreValueTablesGuard;
+   Rand seedRand;
+ 
+   ConfigParser cfg;
+@@ -70,6 +90,7 @@
+   bool quitWithoutWaiting;
+ 
+   KataGoCommandLine cmd("Run KataGo parallel JSON-based analysis engine.");
++  cmd.setExceptionHandling(allowProcessExit);
+   try {
+     cmd.addConfigFileArg("","analysis_example.cfg");
+     cmd.addModelFileArg();
+@@ -94,6 +115,9 @@
+   catch (TCLAP::ArgException &e) {
+     cerr << "Error: " << e.error() << " for argument " << e.argId() << endl;
+     return 1;
++  }
++  catch (TCLAP::ExitException &e) {
++    return e.getExitStatus();
+   }
+   cfg.applyAlias("numSearchThreadsPerAnalysisThread", "numSearchThreads");
+ 
+@@ -249,13 +273,13 @@
+   };
+ 
+   ThreadSafeQueue<string*> toWriteQueue;
+-  auto writeLoop = [&toWriteQueue,&logAllResponses,&logger]() {
++  auto writeLoop = [&toWriteQueue,&logAllResponses,&logger,&writeLine]() {
+     while(true) {
+       string* message;
+       bool suc = toWriteQueue.waitPop(message);
+       if(!suc)
+         break;
+-      cout << *message << endl;
++      writeLine(*message);
+       if(logAllResponses)
+         logger.write("Response: " + *message);
+       delete message;
+@@ -342,7 +366,7 @@
+   }
+ 
+   auto analysisLoop = [
+-    &logger,&toAnalyzeQueue,&reportAnalysis,&reportNoAnalysis,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
++    &logger,&toAnalyzeQueue,&reportAnalysis,&reportNoAnalysis,&reportErrorForId,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
+   ](AsyncBot* bot, int threadIdx) {
+     while(true) {
+       std::pair<std::pair<int64_t,int64_t>,AnalyzeRequest*> analysisItem;
+@@ -391,6 +415,13 @@
+           bot->genMoveSynchronous(pla, TimeControls(), searchFactor, onSearchBegun);
+         }
+ 
++#ifdef GOTEPAD_IOS_METAL
++        const string searchError = bot->get_search_error();
++        if(!searchError.empty()) {
++          reportErrorForId(request->id,"analysis",searchError);
++        }
++        else {
++#endif
+         if(logSearchInfo) {
+           ostringstream sout;
+           PlayUtils::printGenmoveLog(sout,bot->getSearch(),nnEval,Board::NULL_LOC,NAN,request->perspective,false);
+@@ -412,6 +443,9 @@
+               logger.write("Note: Search quitting due to no visits - this is normal and possible when shutting down but a bug under any other situation.");
+           }
+         }
++#ifdef GOTEPAD_IOS_METAL
++        }
++#endif
+       }
+ 
+       //Free up bot resources in case it's a while before we do more search
+@@ -474,7 +508,7 @@
+   auto requestLoop = [&]() {
+     string line;
+     json input;
+-    while(getline(cin,line)) {
++    while(readLine(line)) {
+       line = Global::trim(line);
+       if(line.length() == 0)
+         continue;
+@@ -544,6 +578,72 @@
+             evalCache->clear();
+           pushToWrite(new string(input.dump()));
+         }
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++        else if(action == "query_runtime_stats") {
++          input["nn"] = GotepadKataGo::get_embedded_nn_stats(nnEval);
++          pushToWrite(new string(input.dump()));
++        }
++        else if(action == "prepare_benchmark") {
++          if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
++            reportErrorForId(rbase.id, "batchSize", "prepare_benchmark requires an integer batchSize");
++            continue;
++          }
++          int batchSize = input["batchSize"].get<int>();
++          if(batchSize < 1 || batchSize > nnEval->getMaxBatchSize()) {
++            reportErrorForId(rbase.id, "batchSize", "batchSize is outside the configured NN batch range");
++            continue;
++          }
++          nnEval->setCurrentBatchSize(batchSize);
++#ifdef GOTEPAD_IOS_METAL
++          try {
++            input["backendWarmupSeconds"] = GotepadKataGo::warm_up_metal_search(nnEval);
++          } catch(const std::exception& error) {
++            reportErrorForId(rbase.id, "prepare_benchmark", error.what());
++            continue;
++          }
++#endif
++          nnEval->clearCache();
++          nnEval->clearStats();
++          if(evalCache != nullptr)
++            evalCache->clear();
++          input["nn"] = GotepadKataGo::get_embedded_nn_stats(nnEval);
++          pushToWrite(new string(input.dump()));
++        }
++        else if(action == "benchmark_nn") {
++          if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
++            reportErrorForId(rbase.id, "batchSize", "benchmark_nn requires an integer batchSize");
++            continue;
++          }
++          int batchSize = input["batchSize"].get<int>();
++          int durationMillis = 1500;
++          if(input.find("durationMillis") != input.end() && input["durationMillis"].is_number_integer())
++            durationMillis = input["durationMillis"].get<int>();
++          if(batchSize < 1 || batchSize > nnEval->getMaxBatchSize()) {
++            reportErrorForId(rbase.id, "batchSize", "batchSize is outside the configured NN batch range");
++            continue;
++          }
++          if(durationMillis < 250 || durationMillis > 10000) {
++            reportErrorForId(rbase.id, "durationMillis", "durationMillis must be between 250 and 10000");
++            continue;
++          }
++          try {
++#ifdef GOTEPAD_IOS_METAL
++            input["benchmark"] = GotepadKataGo::run_metal_nn_benchmark(
++              nnEval,batchSize,durationMillis,cfg,&logger
++            );
++#else
++            input["benchmark"] = GotepadKataGo::run_embedded_nn_benchmark(
++              nnEval,batchSize,durationMillis
++            );
++#endif
++            pushToWrite(new string(input.dump()));
++          } catch(const std::exception& error) {
++            reportErrorForId(rbase.id, "benchmark_nn", error.what());
++          } catch(...) {
++            reportErrorForId(rbase.id, "benchmark_nn", "Unknown error during NN benchmark");
++          }
++        }
++#endif
+         else if(action == "terminate") {
+ 
+           bool terminateIdFound = false;
+@@ -607,7 +707,11 @@
+           pushToWrite(new string(input.dump()));
+         }
+         else {
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++          reportError("'action' field must be 'query_version', 'query_models', 'clear_cache', 'query_runtime_stats', 'prepare_benchmark', 'benchmark_nn', 'terminate', or 'terminate_all'");
++#else
+           reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all'");
++#endif
+         }
+ 
+         continue;
+@@ -1301,7 +1405,6 @@
+   delete nnEval;
+   delete humanEval;
+   NeuralNet::globalCleanup();
+-  ScoreValue::freeTables();
+   logger.write("All cleaned up, quitting");
+   return 0;
+ }
+--- a/cpp/neuralnet/nneval.h
++++ b/cpp/neuralnet/nneval.h
+@@ -2,6 +2,7 @@
+ #define NEURALNET_NNEVAL_H_
+ 
+ #include <memory>
++#include <exception>
+ 
+ #include "../core/global.h"
+ #include "../core/commontypes.h"
+@@ -15,6 +16,7 @@
+ #include "../neuralnet/nninterface.h"
+ #include "../search/mutexpool.h"
+ 
++
+ class NNEvaluator;
+ 
+ class NNCacheTable {
+@@ -48,6 +50,11 @@
+   std::condition_variable clientWaitingForResult;
+   std::mutex resultMutex;
+   bool hasResult;
++#ifdef GOTEPAD_IOS_METAL
++  // Physical batch requested by the server; direct backend callers use their row count.
++  int backendBatchSize = 0;
++  std::exception_ptr backendException;
++#endif
+   bool includeOwnerMap;
+   int boardXSizeForServer;
+   int boardYSizeForServer;
+@@ -188,9 +195,18 @@
+   // This function itself is not threadsafe.
+   void spawnServerThreads();
+ 
++  // Returns true when an exception happened before the server thread finished
++  // initialization. Embedded hosts use this to turn model/buffer initialization
++  // failures into a normal startup error instead of std::terminate.
++  bool reportServerThreadStartupFailure(int serverThreadIdx,
++                                        std::exception_ptr error);
++
+   // Kill spawned server threads and join and free them. This function is not threadsafe, and along with spawnServerThreads
+   // should have calls to it and spawnServerThreads singlethreaded.
+   void killServerThreads();
++#ifdef GOTEPAD_IOS_METAL
++  std::string get_server_thread_runtime_error();
++#endif
+ 
+   // Set the number of threads and what gpus they use. Only call this if threads are not spawned yet, or have been killed.
+   void setNumThreads(const std::vector<int>& gpuIdxByServerThr);
+@@ -256,6 +272,11 @@
+ 
+   bool isKilled; // Flag used for killing server threads
+   int numServerThreadsStartingUp; // Counter for waiting until server threads are spawned
++  std::exception_ptr serverThreadStartupException;
++#ifdef GOTEPAD_IOS_METAL
++  std::exception_ptr server_thread_runtime_exception_;
++  std::atomic<bool> server_thread_runtime_failed_{false};
++#endif
+   std::condition_variable mainThreadWaitingForSpawn; // Condvar for waiting until server threads are spawned
+ 
+   std::vector<int> serverThreadsIsUsingFP16;
+--- a/cpp/neuralnet/nneval.cpp
++++ b/cpp/neuralnet/nneval.cpp
+@@ -367,14 +367,20 @@
+   int gpuIdxForThisThread,
+   int serverThreadIdx
+ ) {
+-  NNServerBuf* buf = new NNServerBuf(*nnEval,loadedModel);
+-  Rand rand(randSeedThisThread);
+-
+-  // Used to have a try catch around this but actually we're in big trouble if this raises an exception
+-  // and causes possibly the only nnEval thread to die, so actually go ahead and let the exception escape to
+-  // toplevel for easier debugging
+-  nnEval->serve(*buf,rand,gpuIdxForThisThread,serverThreadIdx);
+-  delete buf;
++  try {
++    std::unique_ptr<NNServerBuf> buf(new NNServerBuf(*nnEval,loadedModel));
++    Rand rand(randSeedThisThread);
++
++    // KataGo normally runs as its own process and deliberately lets unexpected
++    // evaluation errors terminate that process. During startup in an embedded
++    // host, report initialization failures to the spawning thread instead.
++    nnEval->serve(*buf,rand,gpuIdxForThisThread,serverThreadIdx);
++  }
++  catch(...) {
++    if(nnEval->reportServerThreadStartupFailure(serverThreadIdx,std::current_exception()))
++      return;
++    throw;
++  }
+ }
+ 
+ void NNEvaluator::setNumThreads(const vector<int>& gpuIdxByServerThr) {
+@@ -390,7 +396,12 @@
+ 
+   {
+     lock_guard<std::mutex> lock(bufferMutex);
+-    serverThreadsIsUsingFP16.resize(numThreads,0);
++    serverThreadsIsUsingFP16.assign(numThreads,-1);
++    serverThreadStartupException = nullptr;
++#ifdef GOTEPAD_IOS_METAL
++    server_thread_runtime_exception_ = nullptr;
++    server_thread_runtime_failed_.store(false,std::memory_order_release);
++#endif
+   }
+ 
+   queryQueue.unsetReadOnly();
+@@ -409,6 +420,39 @@
+   unique_lock<std::mutex> lock(bufferMutex);
+   while(numServerThreadsStartingUp > 0)
+     mainThreadWaitingForSpawn.wait(lock);
++  std::exception_ptr startupException = serverThreadStartupException;
++  lock.unlock();
++
++  if(startupException != nullptr) {
++    queryQueue.setReadOnly();
++    waitingForFinish.notify_all();
++    for(size_t i = 0; i<serverThreads.size(); i++)
++      serverThreads[i]->join();
++    for(size_t i = 0; i<serverThreads.size(); i++)
++      delete serverThreads[i];
++    serverThreads.clear();
++    serverThreadsIsUsingFP16.clear();
++    queryQueue.unsetReadOnly();
++    std::rethrow_exception(startupException);
++  }
++}
++
++bool NNEvaluator::reportServerThreadStartupFailure(
++  int serverThreadIdx,
++  std::exception_ptr error
++) {
++  lock_guard<std::mutex> lock(bufferMutex);
++  if(serverThreadIdx < 0 || serverThreadIdx >= (int)serverThreadsIsUsingFP16.size() ||
++     serverThreadsIsUsingFP16[serverThreadIdx] != -1)
++    return false;
++
++  serverThreadsIsUsingFP16[serverThreadIdx] = 0;
++  if(serverThreadStartupException == nullptr)
++    serverThreadStartupException = error;
++  numServerThreadsStartingUp--;
++  if(numServerThreadsStartingUp <= 0)
++    mainThreadWaitingForSpawn.notify_all();
++  return true;
+ }
+ 
+ void NNEvaluator::killServerThreads() {
+@@ -609,6 +653,12 @@
+ 
+     int numRows = (int)resultBufs.size();
+     testAssert(numRows > 0);
++#ifdef GOTEPAD_IOS_METAL
++    // The batch setting can change while waitPopUpToN is asleep between searches.
++    const int physicalBatchSize = std::max(numRows, currentBatchSize.load(std::memory_order_acquire));
++    for(NNResultBuf* resultBuf : resultBufs)
++      resultBuf->backendBatchSize = physicalBatchSize;
++#endif
+ 
+     bool doRandomize = currentDoRandomize.load(std::memory_order_acquire);
+     int defaultSymmetry = currentDefaultSymmetry.load(std::memory_order_acquire);
+@@ -706,7 +756,36 @@
+         }
+       }
+ 
++#ifdef GOTEPAD_IOS_METAL
++      std::exception_ptr batchError;
++      try {
++        if(server_thread_runtime_failed_.load(std::memory_order_acquire)) {
++          std::lock_guard<std::mutex> guard(bufferMutex);
++          std::rethrow_exception(server_thread_runtime_exception_);
++        }
++        NeuralNet::getOutput(gpuHandle, buf.inputBuffers, numRows, resultBufs.data(), outputBuf);
++      }
++      catch(...) {
++        batchError = std::current_exception();
++        {
++          std::lock_guard<std::mutex> guard(bufferMutex);
++          server_thread_runtime_exception_ = batchError;
++          server_thread_runtime_failed_.store(true,std::memory_order_release);
++        }
++        for(NNOutput* output : outputBuf)
++          delete output;
++        outputBuf.clear();
++        for(NNResultBuf* resultBuf : resultBufs) {
++          std::lock_guard<std::mutex> resultGuard(resultBuf->resultMutex);
++          resultBuf->backendException = batchError;
++          resultBuf->hasResult = true;
++          resultBuf->clientWaitingForResult.notify_all();
++        }
++      }
++      if(!batchError) {
++#else
+       NeuralNet::getOutput(gpuHandle, buf.inputBuffers, numRows, resultBufs.data(), outputBuf);
++#endif
+       testAssert(outputBuf.size() == numRows);
+ 
+       m_numRowsProcessed.fetch_add(numRows, std::memory_order_relaxed);
+@@ -726,6 +805,9 @@
+         resultBuf->clientWaitingForResult.notify_all();
+         resultLock.unlock();
+       }
++#ifdef GOTEPAD_IOS_METAL
++      }
++#endif
+     }
+ 
+     // Lock and update stats before looping again
+@@ -750,6 +832,21 @@
+     );
+   }
+ }
++
++#ifdef GOTEPAD_IOS_METAL
++string NNEvaluator::get_server_thread_runtime_error() {
++  if(!server_thread_runtime_failed_.load(std::memory_order_acquire))
++    return "";
++  std::exception_ptr error;
++  {
++    std::lock_guard<std::mutex> guard(bufferMutex);
++    error = server_thread_runtime_exception_;
++  }
++  try { std::rethrow_exception(error); }
++  catch(const std::exception& exception) { return exception.what(); }
++  catch(...) { return "Unknown Metal backend failure"; }
++}
++#endif
+ 
+ void NNEvaluator::waitForNextNNEvalIfAny() {
+   unique_lock<std::mutex> lock(bufferMutex);
+@@ -870,6 +967,11 @@
+ ) {
+   testAssert(!isKilled);
+   buf.hasResult = false;
++#ifdef GOTEPAD_IOS_METAL
++  buf.backendException = nullptr;
++  if(server_thread_runtime_failed_.load(std::memory_order_acquire))
++    throw StringError(get_server_thread_runtime_error());
++#endif
+ 
+   if(board.x_size > nnXLen || board.y_size > nnYLen)
+     throw StringError("NNEvaluator was configured with nnXLen = " + Global::intToString(nnXLen) +
+@@ -934,6 +1036,10 @@
+   while(!buf.hasResult)
+     buf.clientWaitingForResult.wait(resultLock);
+   resultLock.unlock();
++#ifdef GOTEPAD_IOS_METAL
++  if(buf.backendException)
++    std::rethrow_exception(buf.backendException);
++#endif
+ 
+   // Perform postprocessing on the result - turn the nn output into probabilities
+   // As a hack though, if the only thing we were missing was the ownermap, just grab the old policy and values
+--- a/cpp/neuralnet/metalbackend.cpp
++++ b/cpp/neuralnet/metalbackend.cpp
+@@ -10,6 +10,7 @@
+ #include <katagocoreml/KataGoConverter.hpp>
+ #include <ghc/filesystem.hpp>
+ #include <mutex>
++#include <algorithm>
+ #include <chrono>
+ #include <cassert>
+ #include <unistd.h>  // For getpid()
+@@ -1154,6 +1155,27 @@
+     gpuHandle->maskIdentityChecked = true;
+   }
+ 
++  int submittedBatchSize = batchSize;
++#ifdef GOTEPAD_IOS_METAL
++  if(gpuHandle->mpsGraphOnlyHandle) {
++    // Use one fixed physical shape for the current search configuration.
++    // Padding duplicates a valid input and is discarded; real rows are never split.
++    // Direct NN benchmarks submit exactly their requested number of rows.
++    submittedBatchSize = std::max(batchSize, inputBufs[0]->backendBatchSize);
++    if(submittedBatchSize > inputBuffers->maxBatchSize)
++      throw StringError("Metal backend: physical batch exceeds input buffer capacity");
++    for(int row = batchSize; row < submittedBatchSize; ++row) {
++      std::copy_n(inputBuffers->userInputBuffer, inputBuffers->singleInputElts,
++                  inputBuffers->userInputBuffer + row * inputBuffers->singleInputElts);
++      std::copy_n(inputBuffers->userInputGlobalBuffer, inputBuffers->singleInputGlobalElts,
++                  inputBuffers->userInputGlobalBuffer + row * inputBuffers->singleInputGlobalElts);
++      if(inputBuffers->singleInputMetaElts > 0)
++        std::copy_n(inputBuffers->userInputMetaBuffer, inputBuffers->singleInputMetaElts,
++                    inputBuffers->userInputMetaBuffer + row * inputBuffers->singleInputMetaElts);
++    }
++  }
++#endif
++
+   // Dispatch to appropriate handle based on mode
+   if(gpuHandle->coremlOnlyHandle) {
+     // ANE mode: Use CoreML (CPU+ANE)
+@@ -1170,7 +1192,7 @@
+       batchSize);
+   } else if(gpuHandle->mpsGraphOnlyHandle) {
+     // GPU mode: Use MPSGraph (GPU)
+-    gpuHandle->mpsGraphOnlyHandle.get().apply(
++    const bool succeeded = gpuHandle->mpsGraphOnlyHandle.get().apply(
+       inputBuffers->userInputBuffer,
+       inputBuffers->userInputGlobalBuffer,
+       inputBuffers->userInputMetaBuffer,
+@@ -1179,7 +1201,9 @@
+       inputBuffers->valueResults,
+       inputBuffers->scoreValuesResults,
+       inputBuffers->ownershipResults,
+-      batchSize);
++      submittedBatchSize);
++    if(!succeeded)
++      throw StringError("Metal backend: " + std::string(gpuHandle->mpsGraphOnlyHandle.get().getLastErrorMessage()));
+   } else {
+     throw runtime_error("Metal backend: No valid compute handle available");
+   }
+--- a/cpp/neuralnet/metalbackend.swift
++++ b/cpp/neuralnet/metalbackend.swift
+@@ -406,8 +406,34 @@
+ 
+ // MARK: - MPSGraph-based Model for GPU Inference
+ 
++
++// MPSGraph callbacks may run on a framework queue. Preserve their NSError
++// without throwing across Swift/Objective-C/C++ or returning partial results.
++private final class MetalGraphExecutionFailure {
++    private let lock = NSLock()
++    private var value: String?
++    func record(_ error: Error?) {
++        guard let error = error else { return }
++        lock.lock()
++        if value == nil { value = error.localizedDescription }
++        lock.unlock()
++    }
++    func message() -> String? {
++        lock.lock()
++        defer { lock.unlock() }
++        return value
++    }
++}
++
+ /// GPU-based model using MPSGraph for inference
+-public class MPSGraphModelHandle {
++final class MPSGraphModelSession {
++    public private(set) var lastErrorMessage: String = ""
++
++    private func fail(_ message: String) -> Bool {
++        lastErrorMessage = message
++        printError("Metal backend: " + message)
++        return false
++    }
+     let device: MTLDevice
+     let commandQueue: MTLCommandQueue
+     let graph: MPSGraph
+@@ -569,13 +595,14 @@
+         scoreValue: UnsafeMutablePointer<Float32>,
+         ownership: UnsafeMutablePointer<Float32>,
+         batchSize: Int
+-    ) {
++    ) -> Bool {
+       // Drain the per-call MPS objects (command buffer, the MPSNDArray / MPSGraphTensorData input
+       // feeds, and the encode result tensors) on every invocation. Without this pool they are
+       // autoreleased onto the long-lived NN-eval server thread, which never exits during a
+       // multi-game run (e.g. tunehuman), so they accumulate unboundedly — ~1 GB leaked per game.
+       // Mirrors the per-inference autoreleasepool in the CoreML apply() above.
+-      autoreleasepool {
++      return autoreleasepool {
++        lastErrorMessage = ""
+         let channelAxis = InputShape.getChannelAxis()
+         let numInputChannelsNS = input.shape[channelAxis]
+         let numInputGlobalChannelsNS = inputGlobal.shape[channelAxis]
+@@ -592,7 +619,7 @@
+         ]
+ 
+         guard let mtlCommandBuffer = commandQueue.makeCommandBuffer() else {
+-            fatalError("Metal backend: Failed to create command buffer")
++            return fail("Failed to create command buffer for batch \(batchSize)")
+         }
+         let commandBuffer = MPSCommandBuffer(commandBuffer: mtlCommandBuffer)
+ 
+@@ -643,35 +670,108 @@
+             mask.tensor: MPSGraphTensorData(maskArray),
+         ]
+ 
++        let failure = MetalGraphExecutionFailure()
++        let descriptor = MPSGraphExecutionDescriptor()
++        descriptor.scheduledHandler = { _, error in failure.record(error) }
++        descriptor.completionHandler = { _, error in failure.record(error) }
+         let fetch = graph.encode(
+             to: commandBuffer,
+             feeds: feeds,
+             targetTensors: targetTensors,
+             targetOperations: nil,
+-            executionDescriptor: nil)
++            executionDescriptor: descriptor)
++        if let error = failure.message() {
++            return fail("Batch \(batchSize): \(error)")
++        }
+ 
+         commandBuffer.commit()
+         commandBuffer.waitUntilCompleted()
+ 
+         if let error = commandBuffer.error {
+-            fatalError("Metal backend: GPU error: \(error)")
+-        }
+-
+-        // Copy results into output buffers. Fail loud if any expected output
+-        // tensor is missing from the graph result: a silent skip would leave
+-        // the caller's buffer uninitialized and search would consume garbage.
+-        func readOrDie(_ tensor: MPSGraphTensor, _ dest: UnsafeMutableRawPointer, _ name: String) {
+-            guard let result = fetch[tensor] else {
+-                fatalError("Metal backend: MPSGraph fetch missing expected output tensor: \(name)")
+-            }
+-            result.mpsndarray().readBytes(dest)
+-        }
+-        readOrDie(policyHead.policyTensor, policy, "policy")
+-        readOrDie(policyHead.policyPassTensor, policyPass, "policyPass")
+-        readOrDie(valueHead.valueTensor, value, "value")
+-        readOrDie(valueHead.scoreValueTensor, scoreValue, "scoreValue")
+-        readOrDie(valueHead.ownershipTensor, ownership, "ownership")
++            return fail("Batch \(batchSize) GPU error: \(error)")
++        }
++
++        if let error = failure.message() {
++            return fail("Batch \(batchSize): \(error)")
++        }
++        // Validate the entire result before writing any caller-owned output.
++        for tensor in targetTensors {
++            if fetch[tensor] == nil {
++                return fail("Batch \(batchSize): MPSGraph output tensor is missing")
++            }
++        }
++        fetch[policyHead.policyTensor]!.mpsndarray().readBytes(policy)
++        fetch[policyHead.policyPassTensor]!.mpsndarray().readBytes(policyPass)
++        fetch[valueHead.valueTensor]!.mpsndarray().readBytes(value)
++        fetch[valueHead.scoreValueTensor]!.mpsndarray().readBytes(scoreValue)
++        fetch[valueHead.ownershipTensor]!.mpsndarray().readBytes(ownership)
++        return true
+       }
++    }
++}
++
++/// Keep a single fixed-shape graph. MPSGraph retains GPU heaps for every
++/// specialization; release them before changing the physical batch size.
++public final class MPSGraphModelHandle {
++    private let modelDesc: SWModelDesc
++    private let nnXLen: Int32
++    private let nnYLen: Int32
++    private let optimizeIdentityMask: Bool
++    private var session: MPSGraphModelSession?
++    private var sessionBatchSize: Int = 0
++    public private(set) var lastErrorMessage: String = ""
++
++    public init?(modelDesc: SWModelDesc, nnXLen: Int32, nnYLen: Int32,
++                 optimizeIdentityMask: Bool = false) {
++        guard MTLCreateSystemDefaultDevice() != nil else { return nil }
++        self.modelDesc = modelDesc
++        self.nnXLen = nnXLen
++        self.nnYLen = nnYLen
++        self.optimizeIdentityMask = optimizeIdentityMask
++    }
++
++    public func apply(
++        input: UnsafeMutablePointer<Float32>,
++        inputGlobal: UnsafeMutablePointer<Float32>,
++        inputMeta: UnsafeMutablePointer<Float32>,
++        policy: UnsafeMutablePointer<Float32>,
++        policyPass: UnsafeMutablePointer<Float32>,
++        value: UnsafeMutablePointer<Float32>,
++        scoreValue: UnsafeMutablePointer<Float32>,
++        ownership: UnsafeMutablePointer<Float32>,
++        batchSize: Int
++    ) -> Bool {
++        return autoreleasepool {
++            lastErrorMessage = ""
++            if sessionBatchSize != batchSize {
++                // Drain the previous graph and its autoreleased heaps before
++                // creating the replacement, avoiding a transient allocation peak.
++                autoreleasepool { self.session = nil }
++                sessionBatchSize = batchSize
++            }
++            if self.session == nil {
++                let created = autoreleasepool {
++                    MPSGraphModelSession(modelDesc: modelDesc, nnXLen: nnXLen,
++                        nnYLen: nnYLen, optimizeIdentityMask: optimizeIdentityMask)
++                }
++                guard let created = created else {
++                    lastErrorMessage = "Failed to create graph for batch \(batchSize)"
++                    return false
++                }
++                self.session = created
++            }
++            let session = self.session!
++            let succeeded = session.apply(input: input, inputGlobal: inputGlobal,
++                inputMeta: inputMeta, policy: policy, policyPass: policyPass,
++                value: value, scoreValue: scoreValue, ownership: ownership,
++                batchSize: batchSize)
++            if !succeeded {
++                lastErrorMessage = session.lastErrorMessage
++                self.session = nil
++                sessionBatchSize = 0
++            }
++            return succeeded
++        }
+     }
+ }
+ 
+@@ -682,6 +782,7 @@
+     requireExactNNLen: Bool,
+     context: MetalComputeContext
+ ) -> MPSGraphModelHandle? {
++    return autoreleasepool {
+     guard let mpsGraphHandle = MPSGraphModelHandle(
+         modelDesc: modelDesc,
+         nnXLen: context.nnXLen,
+@@ -694,4 +795,5 @@
+ 
+     printError("Metal backend \(serverThreadIdx): Initialized MPSGraph GPU-only mode")
+     return mpsGraphHandle
+-}
++    }
++}
+--- a/cpp/search/searchmultithreadhelpers.cpp
++++ b/cpp/search/searchmultithreadhelpers.cpp
+@@ -75,6 +75,20 @@
+ }
+ 
+ void Search::performTaskWithThreads(std::function<void(int)>* task, int capThreads) {
++#ifdef GOTEPAD_IOS_METAL
++  // Exceptions must leave through the joining thread, never a std::thread entry.
++  std::exception_ptr taskError;
++  std::mutex taskErrorMutex;
++  auto* originalTask = task;
++  std::function<void(int)> guardedTask = [&](int threadIdx) {
++    try { (*originalTask)(threadIdx); }
++    catch(...) {
++      std::lock_guard<std::mutex> guard(taskErrorMutex);
++      if(!taskError) taskError = std::current_exception();
++    }
++  };
++  task = &guardedTask;
++#endif
+   spawnThreadsIfNeeded();
+   int numAdditionalThreadsToUse = std::min(capThreads-1, numAdditionalThreadsToUseForTasks());
+   if(numAdditionalThreadsToUse <= 0) {
+@@ -88,6 +102,10 @@
+     (*task)(0);
+     threadTasksRemaining->waitUntilZero();
+   }
++#ifdef GOTEPAD_IOS_METAL
++  if(taskError)
++    std::rethrow_exception(taskError);
++#endif
+ }
+ 
+ 
+--- a/cpp/search/asyncbot.h
++++ b/cpp/search/asyncbot.h
+@@ -133,6 +133,9 @@
+ 
+   //Wait for the ongoing search to end, if any search is running.
+   void waitForSearchToEnd();
++#ifdef GOTEPAD_IOS_METAL
++  std::string get_search_error();
++#endif
+ 
+   //Signal an ongoing genMove or ponder to stop as soon as possible, and wait for the stop to happen.
+   //Safe to call even if nothing is running.
+@@ -145,6 +148,9 @@
+ 
+ 
+  private:
++#ifdef GOTEPAD_IOS_METAL
++  std::string last_search_error_;
++#endif
+   Search* search;
+ 
+   std::mutex controlMutex;
+--- a/cpp/search/asyncbot.cpp
++++ b/cpp/search/asyncbot.cpp
+@@ -394,6 +394,13 @@
+   while(isRunning)
+     userWaitingForStop.wait(lock);
+ }
++
++#ifdef GOTEPAD_IOS_METAL
++string AsyncBot::get_search_error() {
++  std::lock_guard<std::mutex> guard(controlMutex);
++  return last_search_error_;
++}
++#endif
+ 
+ void AsyncBot::internalSearchThreadLoop() {
+   std::unique_lock<std::mutex> lock(controlMutex);
+@@ -493,8 +500,19 @@
+       return shouldStopNow.load(std::memory_order_acquire);
+     };
+ 
++#ifdef GOTEPAD_IOS_METAL
++    string searchError;
++    Loc moveLoc = Board::NULL_LOC;
++    try {
++      search->runWholeSearch(&searchBegun,&shouldStopEarly,pondering,tc,searchFactor);
++      moveLoc = search->getChosenMoveLoc();
++    }
++    catch(const std::exception& error) { searchError = error.what(); }
++    catch(...) { searchError = "Unknown search failure"; }
++#else
+     search->runWholeSearch(&searchBegun,&shouldStopEarly,pondering,tc,searchFactor);
+     Loc moveLoc = search->getChosenMoveLoc();
++#endif
+ 
+     if(usingCallbackLoop) {
+       lock.lock();
+@@ -506,6 +524,9 @@
+     }
+ 
+     lock.lock();
++#ifdef GOTEPAD_IOS_METAL
++    last_search_error_ = searchError;
++#endif
+     //Call queuedOnMove under the lock just in case
+     if(queuedOnMove)
+       queuedOnMove(moveLoc,queuedSearchId,search);

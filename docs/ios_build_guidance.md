@@ -1,6 +1,6 @@
 # Gotepad：从 Git 仓库建立 iOS 真机构建与安装环境
 
-本文供新 Mac 上的 GPT/开发者执行，目标是在只有本仓库 Git 跟踪文件的条件下，准备依赖、编译 Godot GDExtension、导出 Xcode 项目、开发签名，并安装到 iPhone 或 iPad。本文记录日期为 2026-10-11。命令默认从项目根目录执行，适用于真机 arm64 开发包；不是模拟器、App Store 或 TestFlight 发布流程。
+本文供新 Mac 上的 GPT/开发者执行，目标是在只有本仓库 Git 跟踪文件的条件下，准备依赖、编译 Godot GDExtension、导出 Xcode 项目、开发签名，并安装到 iPhone 或 iPad。本文维护日期为 2026-10-29。命令默认从项目根目录执行，覆盖真机 arm64 的 Debug 开发包及 Release 优化、开发签名的 IPA；不涵盖模拟器、App Store 或 TestFlight 分发。
 
 ## 1. 执行约定与仓库完整性
 
@@ -15,12 +15,13 @@ git status --short
 git rev-parse HEAD
 git ls-files CMakeLists.txt cmake gotepad-gd/export_presets.cfg gotepad-gd/go_gdext.gdextension
 git ls-files build_ios_debug.sh gotepad-gd/ios src/ios_model_file_picker.mm src/ios_sgf_file_bridge.mm src/ios_sgf_open_receiver.mm
+git ls-files third_party/katago/android.patch third_party/katago/ios.patch src/katago_embedded_benchmark.hpp src/katago_metal_benchmark.hpp
 mkdir -p .tmp/ios-bootstrap .tmp/ios
 ```
 
 截至本文编写时，`build_ios_debug.sh` 是未跟踪的本地便捷脚本，不能作为新机器必需的输入。本文后面提供独立构建命令。第三方库的源码也不随 Git 发布，Git 中只有获取说明和 KataGo 补丁。
 
-还有一个需要区分的状态：本机工作目录已经包含 SGF 打开接收、图片识别等后续开发修改，其中 `src/ios_sgf_file_bridge.hpp/.mm`、`src/ios_sgf_import.hpp`、`src/ios_sgf_open_receiver.mm`、`gotepad-gd/script/ios_sgf_picker.gd/.uid`、`gotepad-gd/ios/plugins/sgf_receiver/sgf_receiver.gdip` 在本次检查时尚未被跟踪。本机修改后的 CMake/导出配置可能引用这些文件，但此前已提交的版本没有这些引用。新机器必须以实际提交版本为准：若 CMake 或脚本引用的项目源码缺失，这属于提交不完整，不能靠安装 SDK 解决。应报告具体缺失文件，请维护者补齐项目源码；不能编造实现、静默删除功能或称“已还原本机最新版本”。编译已完整提交的较早版本则不要求这些尚未发布的功能文件。
+2026-10-29 已确认 SGF 接收相关的 `src/ios_sgf_file_bridge.hpp/.mm`、`src/ios_sgf_import.hpp`、`src/ios_sgf_open_receiver.mm`、`gotepad-gd/script/ios_sgf_picker.gd/.uid` 和 `gotepad-gd/ios/plugins/sgf_receiver/sgf_receiver.gdip` 均已被 Git 跟踪；当前 iOS CMake 也已使用 OpenCV。此次 Metal 修改新增的 `android.patch`、`ios.patch` 和 `src/katago_metal_benchmark.hpp` 必须与引用它们的 CMake、宿主代码和说明一起提交，不能只提交对旧补丁的删除。新机器仍以实际检出的提交为准：若 CMake 或脚本引用的项目源码缺失，这属于提交不完整，不能靠安装 SDK 解决。应报告具体缺失文件，不能编造实现或静默删除功能。
 
 可用以下命令辅助定位，注意 `git ls-files` 只表示文件被跟踪，不表示本机未提交修改已经上传：
 
@@ -36,11 +37,11 @@ rg -n 'ios_sgf|IOSSGF' gotepad-gd/script src/go_gdext.cpp
 | 开发机 | Apple Silicon Mac；Intel Mac 需要分别生成 x86_64 的宿主扩展和 arm64 的 iOS 扩展 |
 | Godot | 4.7.1 stable，标准版，非 .NET |
 | godot-cpp | `ba0edfed90512ec64aba51d4295a3e7e30112f86`，Godot API 4.7 |
-| Xcode | 本机已成功使用 Xcode 27.0、iOS 27.0 SDK |
+| Xcode | 2026-10-29 已使用 Xcode 27.1（27A9275）、iOS 27.1 SDK 构建并安装到 iOS 27.2 的 iPad Pro M5 |
 | iOS 最低版本 | 16.0，与导出预设和 Swift target 保持一致 |
 | 真机架构 | arm64 |
 | 原生构建 | CMake + Ninja，C++17、Objective-C++、Swift C++ interoperability |
-| KataGo | v1.17.1 源码 + 仓库嵌入式补丁 |
+| KataGo | 官方 v1.17.1 源码 + 独立的 `third_party/katago/ios.patch` |
 | 推理后端 | Metal GPU / MPSGraph；此构建不提供 ANE 转换或 iOS Eigen 自动回退 |
 | 签名 | Apple Development + Automatic Signing |
 
@@ -101,9 +102,9 @@ wc -c gotepad-gd/assets/katago/g170e-b10c128-s1141046784-d204142634.kgmodel gote
 | libsgfcplusplus | `https://github.com/herzbube/libsgfcplusplus.git`，提交 `e10f3f23db5b7a286146c2eeff348da249114ccd`，递归子模块 | `third_party/libsgfcplusplus` |
 | miniz | `https://github.com/richgel999/miniz.git`，标签 `3.1.2` | `third_party/miniz` |
 | LunaSVG | `https://github.com/sammycage/lunasvg.git`，提交 `83c58df8103dc7dca423dfd824992af94d49bed6`，递归子模块 | `third_party/lunasvg` |
-| KataGo | 官方 v1.17.1 ZIP，按下一节校验和打补丁 | `third_party/katago/source/KataGo-1.17.1` |
+| KataGo | 官方 v1.17.1 ZIP，仅应用 `ios.patch` | `third_party/katago/source/KataGo-ios-1.17.1`，通过 `KATAGO_SOURCE_DIR` 指定 |
 | Eigen | 官方 3.4.0 ZIP | `third_party/katago/source/eigen-3.4.0` |
-| OpenCV（条件依赖） | `https://github.com/opencv/opencv.git`，参考标签 `4.13.0` | `third_party/opencv` |
+| OpenCV | `https://github.com/opencv/opencv.git`，参考标签 `4.13.0` | `third_party/opencv` |
 
 第三方目标目录初始就有 `gotepad_info.txt`，不能直接 `git clone ... third_party/godot-cpp`，否则会因非空目录失败。先下载到 `.tmp`，再复制源码，并保留仓库的元信息：
 
@@ -130,6 +131,7 @@ fetch_dependency godot-cpp https://github.com/godotengine/godot-cpp.git ba0edfed
 fetch_dependency libsgfcplusplus https://github.com/herzbube/libsgfcplusplus.git e10f3f23db5b7a286146c2eeff348da249114ccd third_party/libsgfcplusplus
 fetch_dependency miniz https://github.com/richgel999/miniz.git 3.1.2 third_party/miniz
 fetch_dependency lunasvg https://github.com/sammycage/lunasvg.git 83c58df8103dc7dca423dfd824992af94d49bed6 third_party/lunasvg
+fetch_dependency opencv https://github.com/opencv/opencv.git 4.13.0 third_party/opencv
 ```
 
 本项目直接编译 miniz 源文件，不执行其上游 CMake，因此新机器还需生成静态构建用的 `miniz_export.h`。已有文件先检查，不覆盖不同实现：
@@ -147,11 +149,11 @@ fi
 
 确认 `third_party/libsgfcplusplus/sgfc` 和 `third_party/lunasvg/plutovg` 含源码。新机器无需 Android SDK、NDK、OpenCL Headers、QNN SDK、macOS KataGo 可执行程序或用户外部模型来构建 iOS Metal 版本。
 
-如果当前 CMake 的 iOS 分支启用 OpenCV，使用同一 helper 获取 `opencv`，ref 为 `4.13.0`、目标为 `third_party/opencv`。此前已提交的 iOS CMake 未启用 OpenCV，不能仅因本机安装了它就把它当成所有版本的必要依赖。iOS 启用时 CMake 仅构建静态 `core,imgproc`，不要链接 Homebrew 的 macOS OpenCV 动态库。其他版本应先核对项目需求再替换。
+当前 CMake 为 iOS 和 macOS 宿主构建静态 OpenCV `core,imgproc`，两次配置应分别在各自构建目录生成对应架构的库；不要链接 Homebrew 的 macOS OpenCV 动态库到 iOS。若检出历史提交，应以该提交的 CMake 决定依赖，其他版本先核对需求再替换。
 
 ## 6. KataGo 与 Eigen：校验、解压和补丁
 
-以下参考 ZIP 与哈希已经核对；本次重新下载的 KataGo ZIP 与 `gotepad_info.txt` 一致，Metal C++/Swift 源码与本机版本一致。
+以下参考 ZIP 与哈希已经核对。2026-10-29 已将两个平台的补丁分别应用到全新官方归档并核对全部 906 个文件；iOS Release 所用独立源码与 `ios.patch` 还原结果逐字节一致。官方版本本身已包含 Transformer 后端，不需要额外寻找“已集成 Transformer”的修改版源码。
 
 ```bash
 set -euo pipefail
@@ -159,26 +161,39 @@ mkdir -p .tmp/ios-bootstrap/archives third_party/katago/source
 curl -fL --retry 3 https://github.com/lightvector/KataGo/archive/refs/tags/v1.17.1.zip -o .tmp/ios-bootstrap/archives/KataGo-v1.17.1.zip
 curl -fL --retry 3 https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip -o .tmp/ios-bootstrap/archives/eigen-3.4.0.zip
 printf '%s\n' '5d2fe983a81b10d0cc577666bb484b51a7cbb2fc436d45bb42fffb418cd6f531  .tmp/ios-bootstrap/archives/KataGo-v1.17.1.zip' 'eba3f3d414d2f8cba2919c78ec6daab08fc71ba2ba4ae502b7e5d4d99fc02cda  .tmp/ios-bootstrap/archives/eigen-3.4.0.zip' | shasum -a 256 -c -
-# 仅在目标源码目录不存在时解压；已有源码先核对补丁状态，不覆盖。
-unzip -q .tmp/ios-bootstrap/archives/KataGo-v1.17.1.zip -d third_party/katago/source
-unzip -q .tmp/ios-bootstrap/archives/eigen-3.4.0.zip -d third_party/katago/source
 ```
 
-必须应用 Git 跟踪的嵌入式补丁，从项目根目录运行：
+在专用干净目录中仅应用 `ios.patch`。以下命令从项目根目录运行；若目标或暂存目录已存在，会停止以便先核对，不能覆盖已有修改：
 
 ```bash
+set -euo pipefail
 project_root="$PWD"
+export KATAGO_SOURCE_DIR="$project_root/third_party/katago/source/KataGo-ios-1.17.1"
+katago_staging_root="$project_root/.tmp/ios-bootstrap/katago-ios"
+if [[ -e "$KATAGO_SOURCE_DIR" || -e "$katago_staging_root" ]]; then
+    echo '已有 iOS KataGo 源码或解压缓存，请先核对版本和补丁状态后复用。' >&2
+    exit 1
+fi
+unzip -q .tmp/ios-bootstrap/archives/KataGo-v1.17.1.zip -d "$katago_staging_root"
 (
-    cd third_party/katago/source/KataGo-1.17.1
-    git apply --check "$project_root/third_party/katago/embedded-analysis-api.patch"
-    git apply "$project_root/third_party/katago/embedded-analysis-api.patch"
+    cd "$katago_staging_root/KataGo-1.17.1"
+    git apply --check "$project_root/third_party/katago/ios.patch"
+    git apply "$project_root/third_party/katago/ios.patch"
 )
-rg -n 'analysisEmbedded' third_party/katago/source/KataGo-1.17.1/cpp/main.h
+mv "$katago_staging_root/KataGo-1.17.1" "$KATAGO_SOURCE_DIR"
+if [[ ! -e third_party/katago/source/eigen-3.4.0 ]]; then
+    unzip -q .tmp/ios-bootstrap/archives/eigen-3.4.0.zip -d third_party/katago/source
+fi
+rg -n 'analysisEmbedded' "$KATAGO_SOURCE_DIR/cpp/main.h"
+rg -n 'MPSGraphModelSession' "$KATAGO_SOURCE_DIR/cpp/neuralnet/metalbackend.swift"
+rg -n 'run_metal_nn_benchmark' "$KATAGO_SOURCE_DIR/cpp/command/analysis.cpp"
 ```
 
-本次已确认该补丁能应用到指定的全新官方归档。重复执行前先用 `git apply --reverse --check` 判断补丁是否已经存在，不要反复打补丁。iOS 设置 `BUILD_ANDROID_KATAGO_OPENCL=OFF`，不要求 `o3-profile.patch`，也不需要恢复本机忽略目录内的 ONNX/QNN 或 Android O3 修改；这些修改不是官方依赖的下载步骤。不要把旧开发机未跟踪的 KataGo 源码作为唯一依据。
+复用现有 iOS 目录时，先核对版本、`git apply --reverse --check` 及本地差异，再设置 `KATAGO_SOURCE_DIR` 为该目录。Android 使用另一份干净源码和 `android.patch`，两个补丁不能叠加应用。旧 `embedded-analysis-api.patch`、`o3-profile.patch` 和临时 batch≤4 方案均不是当前 iOS 构建步骤；iOS 保持 `BUILD_ANDROID_KATAGO_OPENCL=OFF`。本机旧公共目录 `source/KataGo-1.17.1` 是两平台改动合集，不与单一平台补丁还原结果逐字一致；不要把它或旧机器 `.tmp/ipad-metal-v2/ios-patch-stage` 作为新环境的必要输入。
 
-`cmake/katago_ios_metal.cmake` 会在构建目录生成 iOS Metal 适配文件，移除 macOS Core ML 模型转换器依赖，明确禁用 ANE 转换，并生成 Swift C++ 头文件。保留这套适配，不要额外引入 katagocoreml、protobuf、abseil 或手动复制旧的 `KataGoSwift-swift.h`。
+`KATAGO_SOURCE_DIR` 是 CMake 缓存变量，切换目录后必须在配置命令中重新显式传入。当前未跟踪的 `build_ios_debug.sh` 不传此变量，不能仅靠导出同名环境变量改变它；应先按第 10 节配置正确路径，再使用脚本，或直接使用本文独立命令。iOS patch 需要本仓库匹配版本的 `src/katago_embedded_benchmark.hpp`、`src/katago_metal_benchmark.hpp` 和 CMake 接入，不是独立的上游 KataGo 发行包。
+
+`cmake/katago_ios_metal.cmake` 会在构建目录生成 iOS Metal 适配文件，移除 macOS Core ML 模型转换器依赖，明确禁用 ANE 转换，并生成 Swift C++ 头文件；这些规则不改写所选 KataGo 源码。保留这套适配，不要额外引入 katagocoreml、protobuf、abseil 或手动复制旧的 `KataGoSwift-swift.h`。Swift 源码、生成头文件及 C++ 包装必须来自同一轮配置；替换诊断 Swift 源码时也必须用同一份源码生成头文件，不能复用另一种类布局对应的头文件。
 
 ## 7. Godot 程序和导出模板
 
@@ -245,6 +260,7 @@ export DEVICE_ID='替换为目标iPhone或iPad的设备标识'
 ```bash
 set -euo pipefail
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+export KATAGO_SOURCE_DIR="${KATAGO_SOURCE_DIR:-$PWD/third_party/katago/source/KataGo-ios-1.17.1}"
 host_arch="$(uname -m)"
 cmake -S . -B ".tmp/build-macos-$host_arch-debug" -G Ninja \
     -DCMAKE_BUILD_TYPE=Debug -DCMAKE_OSX_ARCHITECTURES="$host_arch" \
@@ -258,12 +274,15 @@ cmake -S . -B .tmp/build-ios-arm64-metal -G Ninja \
     -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo -DGODOTCPP_TARGET=template_debug \
     -DGODOTCPP_API_VERSION=4.7 -DBUILD_EMBEDDED_KATAGO=ON \
+    "-DKATAGO_SOURCE_DIR=$KATAGO_SOURCE_DIR" \
     -DBUILD_ANDROID_KATAGO_OPENCL=OFF -DPython3_EXECUTABLE=/usr/bin/python3
 cmake --build .tmp/build-ios-arm64-metal --target go_gdext --parallel 8
 ls gotepad-gd/bin/libgo_gdext.ios.template_debug.arm64.dylib
 ```
 
 内存较小的 Mac 将并行数降到 2～4。只构建 `go_gdext`，无需构建或运行项目测试目标。宿主和 iOS 使用不同构建目录，不能混用旧平台的 CMakeCache。`go_gdext.gdextension` 必须与输出文件名一致；iOS 编译不是 macOS dylib 改名。
+
+复用构建缓存前核对其中的 `KATAGO_SOURCE_DIR`、`CMAKE_PROJECT_INCLUDE` 和 `GODOTCPP_TARGET`。普通包不应继续使用诊断阶段的源码替换或输出目录覆盖；Swift 生成头文件也应随所选源码重新生成。构建目录可以保留以复用缓存，但不能把“缓存曾经成功过”当作当前已选中正确源码的证据。
 
 ## 11. Godot 导入与导出 Xcode 项目
 
@@ -308,6 +327,64 @@ xcrun devicectl device install app --device "$DEVICE_ID" "$app_path" \
 
 设备首次打开若提示“不受信任的开发者”，到“设置 → 通用 → VPN 与设备管理”找到对应开发者并信任；界面措辞可能随系统版本变化。保持联网以完成验证。不要重装应用来解决单纯的信任问题，更不要先卸载应用导致棋谱和设置丢失。
 
+### Release 优化构建与 IPA
+
+性能检测和交付本机 Release IPA 时，原生扩展、Godot 导出和 Xcode 三步都必须切换为 Release：分别使用 `CMAKE_BUILD_TYPE=Release` / `GODOTCPP_TARGET=template_release`、`--export-release`、`-configuration Release`。导出预设仍名为 `iOS Debug`，名称本身不决定构建模式。这里沿用 Apple Development 自动签名，生成供已注册设备安装的优化包，不等于 App Store/TestFlight 分发签名；版本号仍按第 9 节处理。
+
+先确保第 10 节的 macOS 宿主 debug 扩展已可用于导入，然后从项目根目录运行以下命令。每轮导出目录和 IPA 使用独立时间戳，原生及 Xcode 构建目录保留以复用缓存；清空 `CMAKE_PROJECT_INCLUDE` 用于移除此前诊断构建的临时覆盖。
+
+```bash
+set -euo pipefail
+: "${TEAM_ID:?请先设置本机Team ID}"
+: "${DEVICE_ID:?请先设置目标设备标识}"
+: "${GODOT_PATH:?请先设置Godot程序路径}"
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+export KATAGO_SOURCE_DIR="${KATAGO_SOURCE_DIR:-$PWD/third_party/katago/source/KataGo-ios-1.17.1}"
+release_run="$(date +%Y%m%d-%H%M%S)"
+release_export_root="$PWD/.tmp/ios-release/$release_run"
+mkdir -p "$release_export_root"
+sdk_path="$(xcrun --sdk iphoneos --show-sdk-path)"
+cmake -S . -B .tmp/build-ios-arm64-release -G Ninja \
+    -DCMAKE_SYSTEM_NAME=iOS "-DCMAKE_OSX_SYSROOT=$sdk_path" \
+    -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
+    -DCMAKE_BUILD_TYPE=Release -DGODOTCPP_TARGET=template_release \
+    -DGODOTCPP_API_VERSION=4.7 -DBUILD_EMBEDDED_KATAGO=ON \
+    "-DKATAGO_SOURCE_DIR=$KATAGO_SOURCE_DIR" -DCMAKE_PROJECT_INCLUDE= \
+    -DBUILD_ANDROID_KATAGO_OPENCL=OFF -DPython3_EXECUTABLE=/usr/bin/python3
+cmake --build .tmp/build-ios-arm64-release --target go_gdext --parallel 8
+ls gotepad-gd/bin/libgo_gdext.ios.template_release.arm64.dylib
+"$GODOT_PATH" --headless --path gotepad-gd --import \
+    2>&1 | tee "$release_export_root/import.log"
+"$GODOT_PATH" --headless --path gotepad-gd \
+    --export-release 'iOS Debug' "$release_export_root/Gotepad.ipa" \
+    2>&1 | tee "$release_export_root/export.log"
+```
+
+按第 11 节检查 Godot 日志；若存在未解释的脚本、资源或扩展错误，先修复，不继续打包。通过后在同一 shell 完成 Xcode 构建、签名校验和 IPA 包装：
+
+```bash
+xcodebuild -project "$release_export_root/Gotepad.xcodeproj" -scheme Gotepad \
+    -configuration Release -sdk iphoneos -destination "id=$DEVICE_ID" \
+    -derivedDataPath "$PWD/.tmp/ios-release/DerivedData" \
+    -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
+    "DEVELOPMENT_TEAM=$TEAM_ID" CODE_SIGN_STYLE=Automatic build \
+    2>&1 | tee "$release_export_root/xcodebuild.log"
+app_path="$PWD/.tmp/ios-release/DerivedData/Build/Products/Release-iphoneos/Gotepad.app"
+codesign --verify --deep --strict "$app_path"
+package_root="$release_export_root/ipa-package"
+ipa_path="$release_export_root/Gotepad-release.ipa"
+mkdir -p "$package_root/Payload"
+ditto "$app_path" "$package_root/Payload/Gotepad.app"
+codesign --verify --deep --strict "$package_root/Payload/Gotepad.app"
+ditto -c -k --keepParent "$package_root/Payload" "$ipa_path"
+unzip -t "$ipa_path"
+shasum -a 256 "$ipa_path"
+xcrun devicectl device install app --device "$DEVICE_ID" "$app_path" \
+    2>&1 | tee "$release_export_root/install.log"
+```
+
+`Payload/Gotepad.app` 应直接位于 IPA 根目录内，不能多包一层导出目录。`devicectl` 安装这里使用已签名 `.app`；交付 IPA 时应记录其 SHA-256，并核对其中的原生库就是本轮验证的 Release 库。若使用诊断包测试，最终交付前恢复正常 PCK 和原生库，移除自动测试入口、错误注入与高频诊断日志，再签名、安装并核对。
+
 ## 13. 结果验收与日志
 
 完成时确认：原生扩展构建成功；Godot 导入和导出无实质错误；Xcode 输出 `BUILD SUCCEEDED`；`codesign --verify` 通过；`devicectl` 返回 `App installed` 与正确 Bundle ID。报告实际设备、Bundle ID、构建产物位置和未完成的真机测试，不能把“已安装”说成“所有功能已测试通过”。
@@ -315,6 +392,14 @@ xcrun devicectl device install app --device "$DEVICE_ID" "$app_path" \
 由用户或明确授权的测试过程检查：应用启动、横屏布局、内置 10b 普通分析、终局数目、正确类型的外部模型导入、普通/Human SL 性能检测，以及进入后台后的停止行为。如果当前提交包含 SGF 文档接收或图片识别，再检查对应功能。Human SL 与普通分析模型不可混用，文件名不决定模型类型。
 
 本机成功运行过 iPad mini 6 与 iPad Pro 11 英寸 M5；导出目标覆盖 iPhone，但本文不宣称已在所有 iPhone 上完成实机验证。
+
+2026-10-29 已在 iPad Pro 11 英寸 M5（iPad17,1，iOS 27.2）对 TF2（内部名 `b10c384h6nbttflrs`）及当时导入的 TF3（内部名 `b10c512h8nbt3tflrs-fson-silu-rsnh-swa`）完成纯 NN、搜索扫描和热态复测，均覆盖 GPU batch 1/2/4/8/16/32，没有复现此前的堆分配断言；TF3 另使用最终 Release 原生库跑完流程。这是指定模型和设备上的稳定性/性能验证，不替代数值正确性专项验证，也不代表任意模型、设备和内存压力下的理论上限。
+
+当前 iOS 不再限制 Transformer batch≤4。纯 NN 检测会为每个候选独立创建和释放资源，实际提交完整 batch，将初始化及首次编译预热与吞吐计时分开；搜索按当前配置使用一种固定物理 batch 图，不足一批时补齐输入，只计真实局面吞吐，并将图准备放到搜索计时之前。`averageBatchSize` 是每批真实行平均数，`backendBatchSize` 是 GPU 提交批量；补齐计算耗时仍计入搜索成绩。本次两模型推荐 batch 4，不能据此推断测试被截断到 4。
+
+普通检测报告为 `user://katago/benchmark-latest.jsonl`，逐条刷新保存。排查时同时检查 `nnStart/nn`、`warmupStart/warmup`、`searchPreparation`、`search`、发生时的 `batchFailure`、成功时的 `summary` 及最终 `benchmarkEnd`；仅有某阶段开始记录时，不应声称该阶段完成。可恢复的 NN 候选错误会排除该批量并继续其他候选，搜索阶段错误会终止本次检测并报告原因；系统框架直接 `abort/SIGABRT` 或系统进程终止无法用 C++/Swift 异常捕获恢复。
+
+诊断前备份应用的 `Documents/settings.cfg`、`Documents/katago/analysis.cfg` 和 `Documents/katago/human_analysis.cfg`，记录所选模型及签名 Bundle ID。临时模型覆盖、自动测试或安装结束后核对设置差异、模型路径和模型文件，恢复测试造成的改动，保留用户主动应用的配置。本次曾发现设置被默认值覆盖，已从备份恢复并在干净包启动后核对；不要仅以安装成功判断用户数据状态正常。数据容器的绝对路径可能随安装变化，模型应保留 `user://` 路径，受程序维护的配置由运行时解析到当前容器。
 
 需要启动日志时，先查看当前 Xcode 的命令帮助，再选择其支持的选项：
 
@@ -337,8 +422,11 @@ xcrun devicectl device copy from --help
 | Godot Mac 导入找不到扩展 | 先构建与宿主架构一致的 macOS debug 扩展，核对 `.gdextension` 路径 |
 | 找不到 iOS export template | 同版模板目录应含 `ios.zip`；不要只安装 macOS 模板 |
 | Swift 头文件缺失、错误 target、符号链接失败 | 使用完整 Xcode 的 Swift，Ninja，iphoneos SDK；保留 iOS target triple 和 Swift interoperability 配置 |
+| Swift/C++ 桥接崩溃或替换诊断源码后出现异常 | 核对实际 Swift 源码、生成头文件和原生库是否匹配；重新生成头文件并重编相关目标，不能复制另一轮头文件 |
 | Core ML converter/katagocoreml 缺失 | 检查是否使用仓库的 iOS Metal 适配；不要按 macOS 上游方案安装一套转换器 |
 | iOS 适配提示 converter markers changed | 检查 KataGo 源码是否为指定版本；升级须审核适配逻辑 |
+| 提示源码需要 `ios.patch`、性能检测仍限制 batch 4 | 检查所选独立源码及补丁版本、CMakeCache 的 `KATAGO_SOURCE_DIR` 和实际导出的 dylib，不能只看目录中是否存在补丁文件 |
+| 大 batch 出现 `createMemrefHeap` 断言 | 保留阶段报告及该包符号，检查固定物理 batch 图和资源释放修改是否进入实际库；框架直接 abort 不能靠 try/catch 挽救，不能仅把上限改为 4 后宣称通过 |
 | 签名显示 0 valid identities | Xcode 登录账号，确认 Apple Development 证书和私钥、钥匙串及中间证书链 |
 | `unable to build chain to self-signed root` | 从 [Apple PKI](https://www.apple.com/certificateauthority/)核对匹配的 WWDR 中间证书；本机曾需 WWDR G3，不应对所有机器盲装或把证书设为 Always Trust |
 | `No profiles` / Bundle ID 不可注册 | 当前 Team、网络、设备注册、自动签名、账号额度和唯一 Bundle ID |
@@ -348,6 +436,6 @@ xcrun devicectl device copy from --help
 
 ## 15. 后续维护
 
-可将第 10～12 节封装为 `.tmp/ios-bootstrap/build-and-install.sh`，输入通过 `DEVELOPER_DIR`、`GODOT_PATH`、`TEAM_ID`、`DEVICE_ID` 和并行数传递。除非用户要求提交该脚本，否则它仍只是本机生成文件。即使以后版本库加入正式构建脚本，也应保留版本匹配、LFS、依赖获取、宿主扩展、证书和设备检查。
+可将第 10～12 节封装为 `.tmp/ios-bootstrap/build-and-install.sh`，输入通过 `DEVELOPER_DIR`、`GODOT_PATH`、`KATAGO_SOURCE_DIR`、`TEAM_ID`、`DEVICE_ID` 和并行数传递，并明确选择 Debug 或 Release。除非用户要求提交该脚本，否则它仍只是本机生成文件。即使以后版本库加入正式构建脚本，也应保留版本匹配、LFS、依赖获取、宿主扩展、证书和设备检查。
 
 这份文档提供从已提交完整版本重建环境的方法，不会自动使未跟踪的功能源码出现在 GitHub。维护者发布新的 iOS 功能时，应一并提交所需项目源码、插件描述、CMake 和导出配置；二进制、依赖源码、缓存和签名凭据继续由新机器自行下载或生成。

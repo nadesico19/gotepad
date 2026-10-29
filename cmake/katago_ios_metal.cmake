@@ -1,5 +1,11 @@
 # Build the existing MPSGraph GPU backend without the macOS Core ML converter
 # and its host protobuf/abseil dependencies. ANE selection fails explicitly.
+file(READ "${KATAGO_CPP_DIR}/neuralnet/metalbackend.swift" katago_ios_swift_source)
+file(READ "${KATAGO_CPP_DIR}/command/analysis.cpp" katago_ios_analysis_source)
+if (NOT katago_ios_swift_source MATCHES "MPSGraphModelSession" OR
+    NOT katago_ios_analysis_source MATCHES "run_metal_nn_benchmark")
+  message(FATAL_ERROR "KataGo iOS source needs third_party/katago/ios.patch")
+endif ()
 set(katago_ios_triple "arm64-apple-ios${CMAKE_OSX_DEPLOYMENT_TARGET}")
 set(CMAKE_Swift_FLAGS "-target ${katago_ios_triple}" CACHE STRING "Swift iOS target" FORCE)
 enable_language(Swift)

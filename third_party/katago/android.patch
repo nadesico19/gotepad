@@ -1,3 +1,433 @@
+--- a/cpp/main.h
++++ b/cpp/main.h
+@@ -1,7 +1,18 @@
+ #include "core/global.h"
++
++#include <functional>
+ 
+ namespace MainCmds {
+   int analysis(const std::vector<std::string>& args);
++  // Gotepad embedding hook. The regular command-line entry point above keeps
++  // its behavior, while an in-process host can provide a blocking line reader
++  // and a response sink without redirecting the process-wide standard streams.
++  int analysisEmbedded(
++    const std::vector<std::string>& args,
++    const std::function<bool(std::string&)>& readLine,
++    const std::function<void(const std::string&)>& writeLine,
++    bool allowProcessExit = false
++  );
+   int benchmark(const std::vector<std::string>& args);
+   int contribute(const std::vector<std::string>& args);
+   int evalsgf(const std::vector<std::string>& args);
+--- a/cpp/core/global.cpp
++++ b/cpp/core/global.cpp
+@@ -23,13 +23,21 @@
+ void Global::fatalError(const char* s)
+ {
+   cout << "\nFATAL ERROR:\n" << s << endl;
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++  throw StringError(s);
++#else
+   quick_exit(EXIT_FAILURE);
++#endif
+ }
+ 
+ void Global::fatalError(const string& s)
+ {
+   cout << "\nFATAL ERROR:\n" << s << endl;
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++  throw StringError(s);
++#else
+   quick_exit(EXIT_FAILURE);
++#endif
+ }
+ 
+ //STRINGS---------------------------------
+--- a/cpp/command/analysis.cpp
++++ b/cpp/command/analysis.cpp
+@@ -14,6 +14,10 @@
+ 
+ #include "../external/nlohmann_json/json.hpp"
+ 
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++#include "katago_embedded_benchmark.hpp"
++#endif
++
+ using namespace std;
+ using json = nlohmann::json;
+ 
+@@ -56,10 +60,26 @@
+   std::atomic<int> status;
+ };
+ 
+-
+ int MainCmds::analysis(const vector<string>& args) {
++  return analysisEmbedded(
++    args,
++    [](string& line) { return static_cast<bool>(getline(cin,line)); },
++    [](const string& line) { cout << line << endl; },
++    true
++  );
++}
++
++int MainCmds::analysisEmbedded(
++  const vector<string>& args,
++  const std::function<bool(string&)>& readLine,
++  const std::function<void(const string&)>& writeLine,
++  bool allowProcessExit
++) {
+   Board::initHash();
+   ScoreValue::initTables();
++  struct ScoreValueTablesGuard {
++    ~ScoreValueTablesGuard() { ScoreValue::freeTables(); }
++  } scoreValueTablesGuard;
+   Rand seedRand;
+ 
+   ConfigParser cfg;
+@@ -70,6 +90,7 @@
+   bool quitWithoutWaiting;
+ 
+   KataGoCommandLine cmd("Run KataGo parallel JSON-based analysis engine.");
++  cmd.setExceptionHandling(allowProcessExit);
+   try {
+     cmd.addConfigFileArg("","analysis_example.cfg");
+     cmd.addModelFileArg();
+@@ -94,6 +115,9 @@
+   catch (TCLAP::ArgException &e) {
+     cerr << "Error: " << e.error() << " for argument " << e.argId() << endl;
+     return 1;
++  }
++  catch (TCLAP::ExitException &e) {
++    return e.getExitStatus();
+   }
+   cfg.applyAlias("numSearchThreadsPerAnalysisThread", "numSearchThreads");
+ 
+@@ -249,13 +273,13 @@
+   };
+ 
+   ThreadSafeQueue<string*> toWriteQueue;
+-  auto writeLoop = [&toWriteQueue,&logAllResponses,&logger]() {
++  auto writeLoop = [&toWriteQueue,&logAllResponses,&logger,&writeLine]() {
+     while(true) {
+       string* message;
+       bool suc = toWriteQueue.waitPop(message);
+       if(!suc)
+         break;
+-      cout << *message << endl;
++      writeLine(*message);
+       if(logAllResponses)
+         logger.write("Response: " + *message);
+       delete message;
+@@ -342,7 +366,7 @@
+   }
+ 
+   auto analysisLoop = [
+-    &logger,&toAnalyzeQueue,&reportAnalysis,&reportNoAnalysis,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
++    &logger,&toAnalyzeQueue,&reportAnalysis,&reportNoAnalysis,&reportErrorForId,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
+   ](AsyncBot* bot, int threadIdx) {
+     while(true) {
+       std::pair<std::pair<int64_t,int64_t>,AnalyzeRequest*> analysisItem;
+@@ -474,7 +498,7 @@
+   auto requestLoop = [&]() {
+     string line;
+     json input;
+-    while(getline(cin,line)) {
++    while(readLine(line)) {
+       line = Global::trim(line);
+       if(line.length() == 0)
+         continue;
+@@ -544,6 +568,74 @@
+             evalCache->clear();
+           pushToWrite(new string(input.dump()));
+         }
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++        else if(action == "query_runtime_stats") {
++          input["nn"] = GotepadKataGo::get_embedded_nn_stats(nnEval);
++          pushToWrite(new string(input.dump()));
++        }
++        else if(action == "prepare_benchmark") {
++          if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
++            reportErrorForId(rbase.id, "batchSize", "prepare_benchmark requires an integer batchSize");
++            continue;
++          }
++          int batchSize = input["batchSize"].get<int>();
++          if(batchSize < 1 || batchSize > nnEval->getMaxBatchSize()) {
++            reportErrorForId(rbase.id, "batchSize", "batchSize is outside the configured NN batch range");
++            continue;
++          }
++          nnEval->setCurrentBatchSize(batchSize);
++          nnEval->clearCache();
++          nnEval->clearStats();
++          if(evalCache != nullptr)
++            evalCache->clear();
++          input["nn"] = GotepadKataGo::get_embedded_nn_stats(nnEval);
++          pushToWrite(new string(input.dump()));
++        }
++#ifdef GOTEPAD_O3_PROFILE
++        else if(action == "validate_o3_nn") {
++          if(!input.contains("batchSize") || !input["batchSize"].is_number_integer()) {
++            reportErrorForId(rbase.id, "batchSize", "validate_o3_nn requires an integer batchSize");
++            continue;
++          }
++          try {
++            input["validation"] = GotepadKataGo::run_o3_validation(
++              nnEval->getModelFileName(), cfg, &logger, input["batchSize"].get<int>()
++            );
++            pushToWrite(new string(input.dump()));
++          } catch(const std::exception& error) {
++            reportErrorForId(rbase.id, "validate_o3_nn", error.what());
++          }
++        }
++#endif
++        else if(action == "benchmark_nn") {
++          if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
++            reportErrorForId(rbase.id, "batchSize", "benchmark_nn requires an integer batchSize");
++            continue;
++          }
++          int batchSize = input["batchSize"].get<int>();
++          int durationMillis = 1500;
++          if(input.find("durationMillis") != input.end() && input["durationMillis"].is_number_integer())
++            durationMillis = input["durationMillis"].get<int>();
++          if(batchSize < 1 || batchSize > nnEval->getMaxBatchSize()) {
++            reportErrorForId(rbase.id, "batchSize", "batchSize is outside the configured NN batch range");
++            continue;
++          }
++          if(durationMillis < 250 || durationMillis > 10000) {
++            reportErrorForId(rbase.id, "durationMillis", "durationMillis must be between 250 and 10000");
++            continue;
++          }
++          try {
++            input["benchmark"] = GotepadKataGo::run_embedded_nn_benchmark(
++              nnEval,batchSize,durationMillis
++            );
++            pushToWrite(new string(input.dump()));
++          } catch(const std::exception& error) {
++            reportErrorForId(rbase.id, "benchmark_nn", error.what());
++          } catch(...) {
++            reportErrorForId(rbase.id, "benchmark_nn", "Unknown error during NN benchmark");
++          }
++        }
++#endif
+         else if(action == "terminate") {
+ 
+           bool terminateIdFound = false;
+@@ -607,7 +699,11 @@
+           pushToWrite(new string(input.dump()));
+         }
+         else {
++#ifdef GOTEPAD_KATAGO_EMBEDDED
++          reportError("'action' field must be 'query_version', 'query_models', 'clear_cache', 'query_runtime_stats', 'prepare_benchmark', 'benchmark_nn', 'terminate', or 'terminate_all'");
++#else
+           reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all'");
++#endif
+         }
+ 
+         continue;
+@@ -1301,7 +1397,6 @@
+   delete nnEval;
+   delete humanEval;
+   NeuralNet::globalCleanup();
+-  ScoreValue::freeTables();
+   logger.write("All cleaned up, quitting");
+   return 0;
+ }
+--- a/cpp/neuralnet/nneval.h
++++ b/cpp/neuralnet/nneval.h
+@@ -2,6 +2,7 @@
+ #define NEURALNET_NNEVAL_H_
+ 
+ #include <memory>
++#include <exception>
+ 
+ #include "../core/global.h"
+ #include "../core/commontypes.h"
+@@ -15,6 +16,10 @@
+ #include "../neuralnet/nninterface.h"
+ #include "../search/mutexpool.h"
+ 
++#ifdef GOTEPAD_O3_PROFILE
++#include "katago_diagnostic_context.hpp"
++#endif
++
+ class NNEvaluator;
+ 
+ class NNCacheTable {
+@@ -45,6 +50,10 @@
+ 
+ // Each thread should allocate and re-use one of these
+ struct NNResultBuf {
++#ifdef GOTEPAD_O3_PROFILE
++  GotepadKataGo::DiagnosticClock::time_point diagnosticQueued{};
++  double diagnosticFeatureMs = 0;
++#endif
+   std::condition_variable clientWaitingForResult;
+   std::mutex resultMutex;
+   bool hasResult;
+@@ -188,6 +197,12 @@
+   // This function itself is not threadsafe.
+   void spawnServerThreads();
+ 
++  // Returns true when an exception happened before the server thread finished
++  // initialization. Embedded hosts use this to turn model/buffer initialization
++  // failures into a normal startup error instead of std::terminate.
++  bool reportServerThreadStartupFailure(int serverThreadIdx,
++                                        std::exception_ptr error);
++
+   // Kill spawned server threads and join and free them. This function is not threadsafe, and along with spawnServerThreads
+   // should have calls to it and spawnServerThreads singlethreaded.
+   void killServerThreads();
+@@ -256,6 +271,7 @@
+ 
+   bool isKilled; // Flag used for killing server threads
+   int numServerThreadsStartingUp; // Counter for waiting until server threads are spawned
++  std::exception_ptr serverThreadStartupException;
+   std::condition_variable mainThreadWaitingForSpawn; // Condvar for waiting until server threads are spawned
+ 
+   std::vector<int> serverThreadsIsUsingFP16;
+--- a/cpp/neuralnet/nneval.cpp
++++ b/cpp/neuralnet/nneval.cpp
+@@ -367,14 +367,20 @@
+   int gpuIdxForThisThread,
+   int serverThreadIdx
+ ) {
+-  NNServerBuf* buf = new NNServerBuf(*nnEval,loadedModel);
+-  Rand rand(randSeedThisThread);
+-
+-  // Used to have a try catch around this but actually we're in big trouble if this raises an exception
+-  // and causes possibly the only nnEval thread to die, so actually go ahead and let the exception escape to
+-  // toplevel for easier debugging
+-  nnEval->serve(*buf,rand,gpuIdxForThisThread,serverThreadIdx);
+-  delete buf;
++  try {
++    std::unique_ptr<NNServerBuf> buf(new NNServerBuf(*nnEval,loadedModel));
++    Rand rand(randSeedThisThread);
++
++    // KataGo normally runs as its own process and deliberately lets unexpected
++    // evaluation errors terminate that process. During startup in an embedded
++    // host, report initialization failures to the spawning thread instead.
++    nnEval->serve(*buf,rand,gpuIdxForThisThread,serverThreadIdx);
++  }
++  catch(...) {
++    if(nnEval->reportServerThreadStartupFailure(serverThreadIdx,std::current_exception()))
++      return;
++    throw;
++  }
+ }
+ 
+ void NNEvaluator::setNumThreads(const vector<int>& gpuIdxByServerThr) {
+@@ -390,7 +396,8 @@
+ 
+   {
+     lock_guard<std::mutex> lock(bufferMutex);
+-    serverThreadsIsUsingFP16.resize(numThreads,0);
++    serverThreadsIsUsingFP16.assign(numThreads,-1);
++    serverThreadStartupException = nullptr;
+   }
+ 
+   queryQueue.unsetReadOnly();
+@@ -409,6 +416,39 @@
+   unique_lock<std::mutex> lock(bufferMutex);
+   while(numServerThreadsStartingUp > 0)
+     mainThreadWaitingForSpawn.wait(lock);
++  std::exception_ptr startupException = serverThreadStartupException;
++  lock.unlock();
++
++  if(startupException != nullptr) {
++    queryQueue.setReadOnly();
++    waitingForFinish.notify_all();
++    for(size_t i = 0; i<serverThreads.size(); i++)
++      serverThreads[i]->join();
++    for(size_t i = 0; i<serverThreads.size(); i++)
++      delete serverThreads[i];
++    serverThreads.clear();
++    serverThreadsIsUsingFP16.clear();
++    queryQueue.unsetReadOnly();
++    std::rethrow_exception(startupException);
++  }
++}
++
++bool NNEvaluator::reportServerThreadStartupFailure(
++  int serverThreadIdx,
++  std::exception_ptr error
++) {
++  lock_guard<std::mutex> lock(bufferMutex);
++  if(serverThreadIdx < 0 || serverThreadIdx >= (int)serverThreadsIsUsingFP16.size() ||
++     serverThreadsIsUsingFP16[serverThreadIdx] != -1)
++    return false;
++
++  serverThreadsIsUsingFP16[serverThreadIdx] = 0;
++  if(serverThreadStartupException == nullptr)
++    serverThreadStartupException = error;
++  numServerThreadsStartingUp--;
++  if(numServerThreadsStartingUp <= 0)
++    mainThreadWaitingForSpawn.notify_all();
++  return true;
+ }
+ 
+ void NNEvaluator::killServerThreads() {
+@@ -602,7 +642,25 @@
+   while(true) {
+     resultBufs.clear();
+     int desiredBatchSize = std::min(maxBatchSize, currentBatchSize.load(std::memory_order_acquire));
++#ifdef GOTEPAD_O3_PROFILE
++    const bool diagnostics = GotepadKataGo::diagnostic_handles.load(std::memory_order_relaxed) > 0;
++    const auto diagnosticWaitStart = diagnostics ? GotepadKataGo::DiagnosticClock::now() : GotepadKataGo::DiagnosticClock::time_point{};
++#endif
+     bool gotAnything = queryQueue.waitPopUpToN(resultBufs,desiredBatchSize);
++#ifdef GOTEPAD_O3_PROFILE
++    GotepadKataGo::diagnostic_batch = {};
++    if(diagnostics && gotAnything) {
++      const auto now = GotepadKataGo::DiagnosticClock::now();
++      auto& timing = GotepadKataGo::diagnostic_batch;
++      timing.server_wait_ms = GotepadKataGo::diagnostic_ms(now - diagnosticWaitStart);
++      for(const auto* row : resultBufs) {
++        if(row->diagnosticQueued == GotepadKataGo::DiagnosticClock::time_point{}) continue;
++        timing.feature_ms += row->diagnosticFeatureMs;
++        timing.queue_ms += GotepadKataGo::diagnostic_ms(now - row->diagnosticQueued);
++        ++timing.rows;
++      }
++    }
++#endif
+     // Queue being closed is a signal that we're done.
+     if(!gotAnything)
+       break;
+@@ -750,6 +808,7 @@
+     );
+   }
+ }
++
+ 
+ void NNEvaluator::waitForNextNNEvalIfAny() {
+   unique_lock<std::mutex> lock(bufferMutex);
+@@ -916,9 +975,18 @@
+   buf.boardXSizeForServer = board.x_size;
+   buf.boardYSizeForServer = board.y_size;
+ 
++#ifdef GOTEPAD_O3_PROFILE
++  const bool diagnostics = GotepadKataGo::diagnostic_handles.load(std::memory_order_relaxed) > 0;
++  const auto featureStart = diagnostics ? GotepadKataGo::DiagnosticClock::now() : GotepadKataGo::DiagnosticClock::time_point{};
++  buf.diagnosticQueued = {};
++  buf.diagnosticFeatureMs = 0;
++#endif
+   if(!debugSkipNeuralNet) {
+     fillRowBufs(board, history, nextPlayer, sgfMeta, nnInputParams, buf);
+   }
++#ifdef GOTEPAD_O3_PROFILE
++  if(diagnostics) buf.diagnosticFeatureMs = GotepadKataGo::diagnostic_ms(GotepadKataGo::DiagnosticClock::now() - featureStart);
++#endif
+ 
+   buf.symmetry = nnInputParams.symmetry;
+   buf.policyOptimism = nnInputParams.policyOptimism;
+@@ -927,6 +995,9 @@
+   numOngoingEvals += 1;
+   lock.unlock();
+ 
++#ifdef GOTEPAD_O3_PROFILE
++  if(diagnostics) buf.diagnosticQueued = GotepadKataGo::DiagnosticClock::now();
++#endif
+   bool suc = queryQueue.forcePush(&buf);
+   testAssert(suc);
+ 
 --- a/cpp/neuralnet/openclbackend.cpp
 +++ b/cpp/neuralnet/openclbackend.cpp
 @@ -11,6 +11,10 @@
@@ -66,7 +496,22 @@
      nnXLen(nnX),
      nnYLen(nnY),
      usingFP16Mode(useFP16Mode)
-@@ -548,7 +582,25 @@
+@@ -531,7 +565,14 @@
+     enabled_t testFP16Mode = enabled_t::Auto;
+     enabled_t testFP16StorageMode = enabled_t::Auto;
+     enabled_t testFP16ComputeMode = enabled_t::Auto;
++#if defined(__ANDROID__)
++    // Mobile OpenCL implementations do not expose NVIDIA-style WMMA tensor
++    // cores. Some Mali drivers terminate the process instead of returning a
++    // compiler error when KataGo probes those kernels, so do not probe them.
++    enabled_t testFP16TensorCoresMode = enabled_t::False;
++#else
+     enabled_t testFP16TensorCoresMode = enabled_t::Auto;
++#endif
+ 
+     return OpenCLTuner::loadOrAutoTune(
+       openCLTunerFile,homeDataDirOverride,name,gpuIdxForTuning,logger,openCLReTunePerBoardSize,
+@@ -541,7 +582,25 @@
        full
      );
    };
@@ -93,7 +538,7 @@
  }
  
  void NeuralNet::freeComputeContext(ComputeContext* computeContext) {
-@@ -564,6 +616,10 @@
+@@ -557,6 +616,10 @@
  struct TransformerAttentionKernelSet;
  
  struct ComputeHandleInternal {
@@ -104,7 +549,7 @@
    ComputeContext* computeContext;
    cl_context clContext;
    cl_command_queue commandQueue;
-@@ -637,6 +693,10 @@
+@@ -630,6 +693,10 @@
      clContext = device->context;
      commandQueue = device->commandQueue;
      deviceId = device->info.deviceId;
@@ -115,7 +560,7 @@
      CompiledPrograms* progs = computeContext->compiledProgramsByDeviceId[device->info.deviceId];
      testAssert(progs != NULL);
      tuneParams = progs->tuneParams;
-@@ -653,6 +713,11 @@
+@@ -646,6 +713,11 @@
      usingFP16TensorCoresFor1x1 = progs->usingFP16TensorCoresFor1x1;
  
      paddedNNXYLen = tuneParams.getPaddedNNXYLen(nnXLen, nnYLen, usingFP16TensorCoresFor1x1);
@@ -127,7 +572,7 @@
  
      cl_int err;
      conv2dNCHWKernel = clCreateKernel(progs->conv2dNCHWProgram, "conv2dNCHW", &err);
-@@ -844,7 +909,8 @@
+@@ -837,7 +909,8 @@
    MAYBE_EVENT;
    err = OpenCLHelpers::doAddPointWise(handle->addPointWiseKernel, handle->commandQueue, handle->tuneParams, acc, value, totalSize, MAYBE_EVENTREF);
    CHECK_ERR(err);
@@ -137,7 +582,7 @@
    MAYBE_FREE_EVENT;
  }
  
-@@ -860,7 +926,8 @@
+@@ -853,7 +926,8 @@
      MAYBE_EVENTREF
    );
    CHECK_ERR(err);
@@ -147,7 +592,7 @@
    MAYBE_FREE_EVENT;
  }
  
-@@ -1069,6 +1136,7 @@
+@@ -1062,6 +1136,7 @@
        handle->commandQueue, kernel, nKernelDims, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
      );
      CHECK_ERR(err);
@@ -155,7 +600,7 @@
      MAYBE_PROFILE("BatchNorm");
      MAYBE_FREE_EVENT;
    }
-@@ -1283,6 +1351,20 @@
+@@ -1276,6 +1351,20 @@
  
    void apply(ComputeHandleInternal* handle, int batchSize, cl_mem input, cl_mem output, cl_mem convWorkspace, cl_mem convWorkspace2) const {
      if(convXSize == 1 && convYSize == 1) {
@@ -176,7 +621,7 @@
        if(!usingHGemmWmmaNHCW) {
          int filterStride = 0; //Reuse same filter for all matrices in batch
          int inputStride = paddedNNXYLen * inChannels;
-@@ -1300,7 +1382,7 @@
+@@ -1293,7 +1382,7 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -185,7 +630,7 @@
          MAYBE_FREE_EVENT;
        }
        else {
-@@ -1316,7 +1398,7 @@
+@@ -1309,7 +1398,7 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -194,7 +639,7 @@
          MAYBE_FREE_EVENT;
        }
      }
-@@ -1339,8 +1421,8 @@
+@@ -1332,8 +1421,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -205,7 +650,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1374,8 +1456,8 @@
+@@ -1367,8 +1456,8 @@
            );
          }
          CHECK_ERR(err);
@@ -216,7 +661,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1396,8 +1478,8 @@
+@@ -1389,8 +1478,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -227,7 +672,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1445,10 +1527,10 @@
+@@ -1438,10 +1527,10 @@
        );
        CHECK_ERR(err);
        if(convXRadius == 2 && convYRadius == 2) {
@@ -240,7 +685,7 @@
        }
        MAYBE_FREE_EVENT;
      }
-@@ -1506,8 +1588,8 @@
+@@ -1499,8 +1588,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -251,7 +696,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1541,8 +1623,8 @@
+@@ -1534,8 +1623,8 @@
            );
          }
          CHECK_ERR(err);
@@ -262,7 +707,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1563,8 +1645,8 @@
+@@ -1556,8 +1645,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -273,7 +718,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1629,6 +1711,7 @@
+@@ -1622,6 +1711,7 @@
  
      );
      CHECK_ERR(err);
@@ -281,7 +726,7 @@
      MAYBE_PROFILE("PLAINMATMUL");
      MAYBE_FREE_EVENT;
    }
-@@ -2000,6 +2083,24 @@
+@@ -1993,6 +2083,24 @@
      SizedBuf<cl_mem> midScratch(scratch->allocator, scratch->getBufSizeXY(normActConv1.outChannels));
      normActConv1.apply(handle,batchSize,trunk,trunkScratch,mid.buf,mask,convWorkspace,convWorkspace2);
      blocks.apply(handle,scratch,batchSize,mid.buf,midScratch.buf,mask,maskSum,convWorkspace,convWorkspace2);
@@ -306,7 +751,7 @@
      normActConv2.apply(handle,batchSize,mid.buf,mid.buf,trunkScratch,mask,convWorkspace,convWorkspace2);
      addPointWise(handle, trunk, trunkScratch, checkedTotalElts(batchSize, normActConv2.outChannels, paddedNNXYLen, "OpenCL addPointWise"));
    }
-@@ -2067,6 +2168,7 @@
+@@ -2060,6 +2168,7 @@
        handle->commandQueue, kernel, nKernelDims, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
      );
      CHECK_ERR(err);
@@ -314,7 +759,7 @@
      MAYBE_PROFILE("TransformerRMSNorm");
      MAYBE_FREE_EVENT;
    }
-@@ -2312,6 +2414,22 @@
+@@ -2305,6 +2414,22 @@
    // This is identical to a 1x1 convolution: output[n,oc,xy] = sum_ic input[n,ic,xy] * weight[ic,oc]
    void apply(ComputeHandleInternal* handle, int batchSize, cl_mem input, cl_mem output, cl_mem mask, cl_mem convWorkspace) const {
      (void)mask;
@@ -337,7 +782,7 @@
      if(!usingHGemmWmmaNHCW) {
        (void)convWorkspace;
        int filterStride = 0; // Reuse same filter for all batch elements
-@@ -2330,6 +2448,8 @@
+@@ -2323,6 +2448,8 @@
          MAYBE_EVENTREF
        );
        CHECK_ERR(err);
@@ -346,7 +791,7 @@
        MAYBE_PROFILE("TransformerMatMul");
        MAYBE_FREE_EVENT;
      }
-@@ -2347,6 +2467,8 @@
+@@ -2340,6 +2467,8 @@
          MAYBE_EVENTREF
        );
        CHECK_ERR(err);
@@ -355,7 +800,7 @@
        MAYBE_PROFILE("TransformerMatMulHGemm");
        MAYBE_FREE_EVENT;
      }
-@@ -2558,9 +2680,31 @@
+@@ -2551,9 +2680,31 @@
      SizedBuf<cl_mem> kBuf(scratch->allocator, scratch->getBufSizeXY(kTotalDim));
      SizedBuf<cl_mem> vBuf(scratch->allocator, scratch->getBufSizeXY(vTotalDim));
  
@@ -390,7 +835,7 @@
  
  #ifdef DEBUG_INTERMEDIATE_VALUES
      debugPrint3D("OPENCL Attn Q", handle, qBuf.buf, batchSize, qTotalDim, mask);
-@@ -2656,6 +2800,9 @@
+@@ -2649,6 +2800,9 @@
            handle->commandQueue, kernel, 2, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -400,7 +845,7 @@
          MAYBE_PROFILE("Attention");
          MAYBE_FREE_EVENT;
        }
-@@ -2670,6 +2817,9 @@
+@@ -2663,6 +2817,9 @@
            handle->commandQueue, kernel, 2, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -410,7 +855,7 @@
          MAYBE_PROFILE("Attention");
          MAYBE_FREE_EVENT;
        }
-@@ -2762,24 +2912,45 @@
+@@ -2755,24 +2912,45 @@
  
      // Step 2: linear1 projection -> ffn buffer
      SizedBuf<cl_mem> ffnBuf(scratch->allocator, scratch->getBufSizeXY(ffnChannels));
@@ -474,7 +919,7 @@
  
  #ifdef DEBUG_INTERMEDIATE_VALUES
      debugPrint3D("OPENCL FFN SwiGLU", handle, ffnBuf.buf, batchSize, ffnChannels, mask);
-@@ -3803,6 +3974,54 @@
+@@ -3796,6 +3974,54 @@
        " FP16TensorCoresFor1x1 " + Global::boolToString(handle->handle->usingFP16TensorCoresFor1x1)
      );
    }
@@ -529,7 +974,7 @@
    return handle;
  }
  
-@@ -3952,6 +4171,13 @@
+@@ -3945,6 +4171,13 @@
  }
  
  
@@ -543,7 +988,7 @@
  void NeuralNet::getOutput(
    ComputeHandle* gpuHandle,
    InputBuffers* inputBuffers,
-@@ -3962,6 +4188,9 @@
+@@ -3955,6 +4188,9 @@
    assert(numBatchEltsFilled <= inputBuffers->maxBatchSize);
    assert(numBatchEltsFilled > 0);
    const int batchSize = numBatchEltsFilled;
@@ -553,7 +998,7 @@
    const int nnXLen = gpuHandle->nnXLen;
    const int nnYLen = gpuHandle->nnYLen;
    const int paddedNNXYLen = gpuHandle->handle->paddedNNXYLen;
-@@ -4031,7 +4260,7 @@
+@@ -4024,7 +4260,7 @@
        }
      }
  
@@ -562,7 +1007,7 @@
        handle->commandQueue,
        buffers->input,
        CL_FALSE,
-@@ -4046,7 +4275,7 @@
+@@ -4039,7 +4275,7 @@
    }
    else {
      if(paddedNNXYLen == nnXYLen) {
@@ -571,7 +1016,7 @@
          handle->commandQueue,
          buffers->input,
          CL_FALSE,
-@@ -4066,7 +4295,7 @@
+@@ -4059,7 +4295,7 @@
      }
    }
  
@@ -580,7 +1025,7 @@
      handle->commandQueue,
      buffers->inputGlobal,
      CL_FALSE,
-@@ -4080,7 +4309,7 @@
+@@ -4073,7 +4309,7 @@
    CHECK_ERR(err);
  
    if(numMetaFeatures > 0) {
@@ -589,7 +1034,7 @@
        handle->commandQueue,
        buffers->inputMeta,
        CL_FALSE,
-@@ -4094,6 +4323,9 @@
+@@ -4087,6 +4323,9 @@
      CHECK_ERR(err);
    }
  
@@ -599,7 +1044,7 @@
    gpuHandle->model->apply(
      handle,
      gpuHandle->scratch.get(),
-@@ -4119,8 +4351,11 @@
+@@ -4112,8 +4351,11 @@
      buffers->convWorkspace2
    );
  
@@ -612,7 +1057,7 @@
      handle->commandQueue, buffers->policyPass, blocking, 0,
      inputBuffers->singlePolicyPassResultElts*sizeof(float)*batchSize, inputBuffers->policyPassResults, 0, NULL, NULL
    );
-@@ -4129,7 +4364,7 @@
+@@ -4122,7 +4364,7 @@
    // Read back policy (spatial) - GPU buffer is padded, need to unpad
    size_t paddedPolicyElts = (size_t)numPolicyChannels * paddedNNXYLen * batchSize;
    if(useFP16Storage) {
@@ -621,7 +1066,7 @@
        handle->commandQueue, buffers->policy, blocking, 0,
        paddedPolicyElts * sizeof(half_t), inputBuffers->policyResultsHalf, 0, NULL, NULL
      );
-@@ -4148,7 +4383,7 @@
+@@ -4141,7 +4383,7 @@
    }
    else {
      if(paddedNNXYLen == nnXYLen) {
@@ -630,7 +1075,7 @@
          handle->commandQueue, buffers->policy, blocking, 0,
          inputBuffers->singlePolicyResultElts*sizeof(float)*batchSize, inputBuffers->policyResults, 0, NULL, NULL
        );
-@@ -4159,12 +4394,12 @@
+@@ -4152,12 +4394,12 @@
      }
    }
  
@@ -645,7 +1090,7 @@
      handle->commandQueue, buffers->scoreValue, blocking, 0,
      inputBuffers->singleScoreValueResultElts*sizeof(float)*batchSize, inputBuffers->scoreValueResults, 0, NULL, NULL
    );
-@@ -4173,7 +4408,7 @@
+@@ -4166,7 +4408,7 @@
    // Read back ownership (spatial) - GPU buffer is padded, need to unpad
    size_t paddedOwnershipElts = (size_t)gpuHandle->model->numOwnershipChannels * paddedNNXYLen * batchSize;
    if(useFP16Storage) {
@@ -654,7 +1099,7 @@
        handle->commandQueue, buffers->ownership, blocking, 0,
        paddedOwnershipElts * sizeof(half_t), inputBuffers->ownershipResultsHalf, 0, NULL, NULL
      );
-@@ -4191,7 +4426,7 @@
+@@ -4184,7 +4426,7 @@
    }
    else {
      if(paddedNNXYLen == nnXYLen) {
@@ -663,7 +1108,7 @@
          handle->commandQueue, buffers->ownership, blocking, 0,
          inputBuffers->singleOwnershipResultElts*sizeof(float)*batchSize, inputBuffers->ownershipResults, 0, NULL, NULL
        );
-@@ -4202,6 +4437,9 @@
+@@ -4195,6 +4437,9 @@
      }
    }
  
@@ -673,7 +1118,7 @@
    #ifdef PROFILE_KERNELS
    {
      cl_int profileErr;
-@@ -4324,9 +4562,19 @@
+@@ -4317,9 +4562,19 @@
      }
    }
  
@@ -693,109 +1138,80 @@
  
  bool NeuralNet::testEvaluateConv(
    const ConvLayerDesc* desc,
---- a/cpp/command/analysis.cpp
-+++ b/cpp/command/analysis.cpp
-@@ -591,6 +591,22 @@
-           input["nn"] = GotepadKataGo::get_embedded_nn_stats(nnEval);
-           pushToWrite(new string(input.dump()));
-         }
-+#ifdef GOTEPAD_O3_PROFILE
-+        else if(action == "validate_o3_nn") {
-+          if(!input.contains("batchSize") || !input["batchSize"].is_number_integer()) {
-+            reportErrorForId(rbase.id, "batchSize", "validate_o3_nn requires an integer batchSize");
-+            continue;
-+          }
-+          try {
-+            input["validation"] = GotepadKataGo::run_o3_validation(
-+              nnEval->getModelFileName(), cfg, &logger, input["batchSize"].get<int>()
-+            );
-+            pushToWrite(new string(input.dump()));
-+          } catch(const std::exception& error) {
-+            reportErrorForId(rbase.id, "validate_o3_nn", error.what());
-+          }
-+        }
-+#endif
-         else if(action == "benchmark_nn") {
-           if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
-             reportErrorForId(rbase.id, "batchSize", "benchmark_nn requires an integer batchSize");
---- a/cpp/neuralnet/nneval.h
-+++ b/cpp/neuralnet/nneval.h
-@@ -16,6 +16,10 @@
- #include "../neuralnet/nninterface.h"
- #include "../search/mutexpool.h"
+--- a/cpp/neuralnet/openclhelpers.cpp
++++ b/cpp/neuralnet/openclhelpers.cpp
+@@ -346,8 +346,16 @@
+       logger->write("Found OpenCL Platform " + Global::uint32ToString(platformIdx) + ": " + desc);
  
-+#ifdef GOTEPAD_O3_PROFILE
-+#include "katago_diagnostic_context.hpp"
+     cl_uint numDevices;
++    // Android OpenCL implementations expose the mobile GPU only. Qualcomm's
++    // driver rejects the otherwise valid CPU | GPU | ACCELERATOR combination
++    // with CL_INVALID_DEVICE_TYPE, while accepting an explicit GPU request.
++#if defined(__ANDROID__)
++    const cl_device_type requestedDeviceTypes = CL_DEVICE_TYPE_GPU;
++#else
++    const cl_device_type requestedDeviceTypes = CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_ACCELERATOR;
 +#endif
-+
- class NNEvaluator;
- 
- class NNCacheTable {
-@@ -46,6 +50,10 @@
- 
- // Each thread should allocate and re-use one of these
- struct NNResultBuf {
-+#ifdef GOTEPAD_O3_PROFILE
-+  GotepadKataGo::DiagnosticClock::time_point diagnosticQueued{};
-+  double diagnosticFeatureMs = 0;
-+#endif
-   std::condition_variable clientWaitingForResult;
-   std::mutex resultMutex;
-   bool hasResult;
---- a/cpp/neuralnet/nneval.cpp
-+++ b/cpp/neuralnet/nneval.cpp
-@@ -642,7 +642,25 @@
-   while(true) {
-     resultBufs.clear();
-     int desiredBatchSize = std::min(maxBatchSize, currentBatchSize.load(std::memory_order_acquire));
-+#ifdef GOTEPAD_O3_PROFILE
-+    const bool diagnostics = GotepadKataGo::diagnostic_handles.load(std::memory_order_relaxed) > 0;
-+    const auto diagnosticWaitStart = diagnostics ? GotepadKataGo::DiagnosticClock::now() : GotepadKataGo::DiagnosticClock::time_point{};
-+#endif
-     bool gotAnything = queryQueue.waitPopUpToN(resultBufs,desiredBatchSize);
-+#ifdef GOTEPAD_O3_PROFILE
-+    GotepadKataGo::diagnostic_batch = {};
-+    if(diagnostics && gotAnything) {
-+      const auto now = GotepadKataGo::DiagnosticClock::now();
-+      auto& timing = GotepadKataGo::diagnostic_batch;
-+      timing.server_wait_ms = GotepadKataGo::diagnostic_ms(now - diagnosticWaitStart);
-+      for(const auto* row : resultBufs) {
-+        if(row->diagnosticQueued == GotepadKataGo::DiagnosticClock::time_point{}) continue;
-+        timing.feature_ms += row->diagnosticFeatureMs;
-+        timing.queue_ms += GotepadKataGo::diagnostic_ms(now - row->diagnosticQueued);
-+        ++timing.rows;
-+      }
-+    }
-+#endif
-     // Queue being closed is a signal that we're done.
-     if(!gotAnything)
-       break;
-@@ -956,9 +974,18 @@
-   buf.boardXSizeForServer = board.x_size;
-   buf.boardYSizeForServer = board.y_size;
- 
-+#ifdef GOTEPAD_O3_PROFILE
-+  const bool diagnostics = GotepadKataGo::diagnostic_handles.load(std::memory_order_relaxed) > 0;
-+  const auto featureStart = diagnostics ? GotepadKataGo::DiagnosticClock::now() : GotepadKataGo::DiagnosticClock::time_point{};
-+  buf.diagnosticQueued = {};
-+  buf.diagnosticFeatureMs = 0;
-+#endif
-   if(!debugSkipNeuralNet) {
-     fillRowBufs(board, history, nextPlayer, sgfMeta, nnInputParams, buf);
-   }
-+#ifdef GOTEPAD_O3_PROFILE
-+  if(diagnostics) buf.diagnosticFeatureMs = GotepadKataGo::diagnostic_ms(GotepadKataGo::DiagnosticClock::now() - featureStart);
+     err = clGetDeviceIDs(
+-      platformId, CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_ACCELERATOR, (cl_uint)(deviceIds.size() - numDevicesTotal),
++      platformId, requestedDeviceTypes, (cl_uint)(deviceIds.size() - numDevicesTotal),
+       deviceIds.data() + numDevicesTotal, &numDevices);
+     //Allow there to be 0 devices on this platform, just move on to the next
+     if(err == CL_DEVICE_NOT_FOUND) {
+--- a/cpp/neuralnet/opencltuner.cpp
++++ b/cpp/neuralnet/opencltuner.cpp
+@@ -4428,6 +4428,7 @@
+   // to stay at a high setting during the tuning.
+   WaitableFlag dummyInitializedOrDeadFlag;
+   WaitableFlag dummyShouldStopFlag;
++#if !defined(__ANDROID__)
+   std::thread dummyThread(
+     dummyThreadLoop,
+     std::ref(allDeviceInfos),
+@@ -4437,6 +4438,7 @@
+     std::ref(dummyShouldStopFlag)
+   );
+   dummyInitializedOrDeadFlag.waitUntilTrue();
 +#endif
  
-   buf.symmetry = nnInputParams.symmetry;
-   buf.policyOptimism = nnInputParams.policyOptimism;
-@@ -967,6 +994,9 @@
-   numOngoingEvals += 1;
-   lock.unlock();
+   OpenCLTuneParams untunedConfig = OpenCLTuneParams();
+   OpenCLTuneParams currentConfig = initialConfig;
+@@ -4929,8 +4931,10 @@
+   currentConfig.conv5x5.untransLocalSize1 = currentConfig.conv3x3.untransLocalSize1;
+   currentConfig.conv5x5.untransLocalSize2 = currentConfig.conv3x3.untransLocalSize2;
  
-+#ifdef GOTEPAD_O3_PROFILE
-+  if(diagnostics) buf.diagnosticQueued = GotepadKataGo::DiagnosticClock::now();
++#if !defined(__ANDROID__)
+   dummyShouldStopFlag.setPermanently(true);
+   dummyThread.join();
 +#endif
-   bool suc = queryQueue.forcePush(&buf);
-   testAssert(suc);
  
+   out << "Done tuning" << endl;
+   out << "------------------------------------------------------" << endl;
+--- a/cpp/program/setup.cpp
++++ b/cpp/program/setup.cpp
+@@ -20,6 +20,7 @@
+   prefixes.push_back("trt");
+   prefixes.push_back("metal");
+   prefixes.push_back("opencl");
++  prefixes.push_back("onnx");
+   prefixes.push_back("eigen");
+   prefixes.push_back("dummybackend");
+   return prefixes;
+@@ -87,6 +88,8 @@
+   string backendPrefix = "metal";
+   #elif defined(USE_OPENCL_BACKEND)
+   string backendPrefix = "opencl";
++  #elif defined(USE_ONNX_QNN_BACKEND)
++  string backendPrefix = "onnx";
+   #elif defined(USE_EIGEN_BACKEND)
+   string backendPrefix = "eigen";
+   #else
+@@ -142,7 +145,7 @@
+         requireExactNNLen = cfg.getBool("requireMaxBoardSize");
+     }
+ 
+-    bool inputsUseNHWC = backendPrefix == "opencl" || backendPrefix == "trt" || backendPrefix == "metal" ? false : true;
++    bool inputsUseNHWC = backendPrefix == "opencl" || backendPrefix == "trt" || backendPrefix == "metal" || backendPrefix == "onnx" ? false : true;
+     if(cfg.contains(backendPrefix+"InputsUseNHWC"+idxStr))
+       inputsUseNHWC = cfg.getBool(backendPrefix+"InputsUseNHWC"+idxStr);
+     else if(cfg.contains("inputsUseNHWC"+idxStr))

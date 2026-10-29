@@ -28,6 +28,14 @@ nlohmann::json run_o3_validation(const std::string& model_file, ConfigParser& cf
 
 inline nlohmann::json get_embedded_nn_stats(NNEvaluator* nn_eval) {
   nlohmann::json stats;
+#ifdef GOTEPAD_IOS_METAL
+  stats["backendBatchSize"] = nn_eval->getCurrentBatchSize();
+  stats["backendBatchingMode"] = "fixed-padded";
+  const std::string backend_error = nn_eval->get_server_thread_runtime_error();
+  if (!backend_error.empty()) {
+    stats["backendError"] = backend_error;
+  }
+#endif
 #ifdef GOTEPAD_O3_PROFILE
   stats["diagnosticVersion"] = "opencl-diag-v2";
   stats["environment"] = get_diagnostic_environment();
@@ -168,3 +176,7 @@ inline nlohmann::json run_embedded_nn_benchmark(
 }
 
 }  // namespace GotepadKataGo
+
+#ifdef GOTEPAD_IOS_METAL
+#include "katago_metal_benchmark.hpp"
+#endif

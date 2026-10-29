@@ -1,7 +1,7 @@
 名称：KataGo 本地分析引擎
 
 用途：
-为 Gotepad 提供围棋局面分析能力。Windows 客户端通过标准输入输出流连接用户部署的外部 KataGo 分析进程；Android 客户端内置轻量模型，并在隔离服务进程中优先使用 OpenCL 后端，不可用时回退到进程内的 Eigen CPU 后端。
+为 Gotepad 提供围棋局面分析能力。桌面客户端通过标准输入输出流连接用户部署的外部 KataGo 分析进程；Android 客户端内置轻量模型，并在隔离服务进程中优先使用 OpenCL 后端，不可用时回退到进程内的 Eigen CPU 后端；iOS 客户端内置同一轻量模型，通过 Metal GPU/MPSGraph 推理，不提供 ANE 转换或 Eigen 自动回退。
 
 1号开发机配置与后端选择：
 
@@ -80,24 +80,31 @@ SHA-256：
 - default_model.bin.gz：9D7A6AFED8FF5B74894727E156F04F0CD36060A24824892008FBB6E0CBA51F1D
 - 本机 OpenCL 调优缓存：43288DB35BF48320ECDBE6D9CFB7051CF72E48B0BC67F2AC0D5190D453679428
 
-Android 内置引擎：
+Android / iOS 内置引擎公共依赖：
 - KataGo 源码版本：v1.17.1
 - 源码归档：https://github.com/lightvector/KataGo/archive/refs/tags/v1.17.1.zip
 - 源码归档 SHA-256：5D2FE983A81B10D0CC577666BB484B51A7CBB2FC436D45BB42FFFB418CD6F531
-- 神经网络后端：OpenCL GPU 与 Eigen CPU，arm64-v8a；运行时优先 OpenCL，失败时自动回退 Eigen
+- 神经网络后端：Android 为 OpenCL GPU 与 Eigen CPU，arm64-v8a；iOS 为 Metal GPU/MPSGraph，arm64。两者均不编译到桌面客户端。
 - Eigen 版本：3.4.0
 - Eigen 归档：https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
 - Eigen 归档 SHA-256：EBA3F3D414D2F8CBA2919C78EC6DAAB08FC71BA2BA4AE502B7E5D4D99FC02CDA
 - 内置模型：g170e-b10c128-s1141046784-d204142634.bin.gz（KataGo g170 扩展训练的 10 block / 128 channel 网络）
-- APK 资源文件：gotepad-gd/assets/katago/g170e-b10c128-s1141046784-d204142634.kgmodel
+- 应用资源文件：gotepad-gd/assets/katago/g170e-b10c128-s1141046784-d204142634.kgmodel
 - 下载镜像：https://github.com/pasky/pachi/releases/download/katago_models/g170e-b10c128-s1141046784-d204142634.bin.gz
 - 模型 SHA-256：1A8E05A4EA3FCA20DAB79410CBB566C760767FCDD2FA0B701CFE259A84CC8B04
 - 模型授权：g170 训练批次由 Jane Street 与 David J. Wu 按 CC0 贡献至公有领域，说明见 gotepad-gd/assets/katago/LICENSE_NETWORK_G170_CC0.txt
 
 源码准备：
-1. 将 KataGo 源码解压到 source/KataGo-1.17.1。
+1. 校验上述官方 KataGo 归档后，为每个平台分别解压一份干净源码，建议目录为 source/KataGo-android-1.17.1 和 source/KataGo-ios-1.17.1；归档内部根目录名称是 KataGo-1.17.1，可在项目 .tmp 中解压、打补丁后再移动到对应目录。不要覆盖已有源码或依赖缓存。
 2. 将 Eigen 解压到 source/eigen-3.4.0。
-3. 在 source/KataGo-1.17.1 目录执行 `git apply ../../embedded-analysis-api.patch`。该补丁只为 analysis 命令增加读行/写行回调入口，不改变原有命令行行为。
+3. 在对应平台的干净源码根目录内先检查、再应用一个完整补丁：Android 使用 `git apply --check ../../android.patch` 和 `git apply ../../android.patch`，iOS 使用 `git apply --check ../../ios.patch` 和 `git apply ../../ios.patch`。这两组相对路径仅适用于上述 third_party/katago/source 下的最终目录；在 .tmp 内操作应使用补丁绝对路径。两个补丁各自直接基于官方 v1.17.1，均包含嵌入式读写、测速和启动错误处理，不要叠加应用；已应用的补丁可用 `git apply --reverse --check` 辅助确认，不要重复应用。
+4. 返回项目根目录，每次配置 CMake 时显式选择平台源码，例如 iOS 添加 `-DKATAGO_SOURCE_DIR="$PWD/third_party/katago/source/KataGo-ios-1.17.1"`，Android 添加 `-DKATAGO_SOURCE_DIR="$PWD/third_party/katago/source/KataGo-android-1.17.1"`。CMakeCache 会保留以前的路径；本地 build_ios_debug.sh 当前不传此参数，首次使用前必须先配置正确的路径。完整 iOS 步骤见 docs/ios_build_guidance.md。
+5. 官方 v1.17.1 本身已包含当前使用的 Transformer 后端，不需要额外获取“已集成 Transformer 的修改版源码”。两个补丁依赖本仓库对应版本的 src/katago_embedded_benchmark.hpp 等宿主代码；iOS 还需要 src/katago_metal_benchmark.hpp 和 cmake/katago_ios_metal.cmake。补丁与这些项目文件应一起交付，不能只复制第三方源码或旧 dylib。
+
+2026-10-29 源码对应关系核对：
+- 官方归档包含 906 个文件；本机公共目录 source/KataGo-1.17.1 是保留的 Android/iOS 改动合集，共修改 14 个文件，未发现补丁之外的源码修改或额外文件。android.patch 覆盖 9 个文件，ios.patch 覆盖 10 个文件，其中 5 个为公共文件；合集目录不与任意一个平台补丁的还原结果逐字一致，不应作为新机器重建的必要输入。
+- 两个补丁均已独立应用到全新官方归档，并核对全部 906 个文件。Android 启用代码与本机公共目录一致，禁用 iOS 条件分支后仅余一处空行差异；本次 iOS Release 实际使用的独立源码与 ios.patch 还原结果逐字节一致。
+- 本机发布构建曾使用 .tmp/ipad-metal-v2/ios-patch-stage，此路径只是本次构建暂存目录；新机器应按上述步骤重建独立平台目录，不依赖旧机器 .tmp。iOS CMake 在构建目录生成去除 macOS Core ML 转换器的适配 C++ 文件及 Swift 头文件，不改写所选第三方源码；这些生成规则保存在 cmake/katago_ios_metal.cmake。
 
 架构说明：
 - Android 将嵌入式 KataGo 注册到现有的 go_gdext 扩展中，并使用后台工作线程；Godot 主线程只发送和轮询 JSONL 消息。桌面构建不会编译或注册嵌入式 KataGo。
@@ -115,7 +122,7 @@ Android OpenCL 后端：
 
 玄戒 O3 第一阶段诊断：
 - 诊断实现位于 src/katago_o3_profile.hpp，只有 Android OpenCL target 定义 GOTEPAD_O3_PROFILE。诊断开关本身不改变推理算法；实验加速独立控制。
-- o3-profile.patch 保存当前已接入 Transformer 的 OpenCL 后端上的诊断接入改动；本机 source 目录已应用。重新准备该后端源码时，在 KataGo 源码根目录执行 git apply ../../o3-profile.patch。此增量补丁要求先具备当前 Transformer 后端，不能直接套用到未同步这些改动的旧归档。CMake 会检查接入标记，避免漏打补丁后静默生成无诊断的包。
+- android.patch 是 Android 的完整累计补丁，直接应用到官方 v1.17.1；该官方版本本身已包含 Transformer。补丁同时收录嵌入式接口、OpenCL 设备枚举和调优兼容、诊断、结构匹配实验加速及既有 ONNX 配置前缀接入。CMake 会检查接入标记。
 - 开关 gotepadO3Profile 默认 false，UI 仅在 XRing O3 显示；原生端还必须精确匹配已确认的 GPU 名称 Mali-G2-Ultra-NX r0p1 或 Mali-G2-Ultra-NX MC16。本机 OpenCL 实际报告 r0p1，图形接口报告 MC16，不能仅以图形接口名称判断 OpenCL 设备。其他设备不创建诊断队列，不收集事件，不写诊断文件。若设备身份不匹配，显式请求诊断时会在 logcat 中说明原因。
 - 自动性能检测强制 gotepadO3Profile=false，不改动原有参数选择逻辑。正常分析可通过设置中的诊断开关启动采样；改变开关并保存会使分析服务重新加载。
 - O3 诊断使用独立的有序 profiling queue，跳过前三个 batch，此后每八个 batch 采样一个。只在原有阻塞回读完成后收集事件，不增加逐算子 clFinish；每约五秒及正常关闭时输出累计快照。采样、profiling queue 和日志本身仍会影响速度，不可把诊断结果当作正常吞吐成绩。
@@ -125,7 +132,7 @@ Android OpenCL 后端：
 - 验证时由测试者分别为 b18 和 tf2 模型运行自动性能检测并保留结果，再开启诊断对同一 19×19 局面持续分析至少一分钟，之后关闭诊断。保持设备温度、供电、显示状态一致；性能基线必须取关闭诊断的结果。
 
 玄戒 O3 实验加速 v1：
-- 实现位于 src/katago_o3_gemm.hpp；o3-profile.patch 已更新为包含诊断和实验内核接入的累计补丁，原生源码需同步应用最新版本。Android 链接 stub 增加 clGetKernelWorkGroupInfo，仅用于链接，不随 APK 分发。
+- 实现位于 src/katago_o3_gemm.hpp；android.patch 已更新为包含诊断和实验内核接入的累计补丁，原生源码需同步应用最新版本。Android 链接 stub 增加 clGetKernelWorkGroupInfo，仅用于链接，不随 APK 分发。
 - gotepadO3Optimize 默认 false，由设置中的“玄戒 O3 实验加速”独立控制。硬件匹配沿用诊断的 XRing/O3/GPU 白名单，同时要求模型内部名称 b10c384h6nbttflrs、19×19/361 空间长度、FP16 storage+compute、非 WMMA 路径。只接管 Transformer 的 192→192、192→512、512→192 投影，batch 范围 1～32；其他情况继续原路径。b18 使用下述独立的 NBT v1 路径，不执行 Transformer 融合内核。
 - 每个 8×8 workgroup 计算 32×32 输出块，按 16 个输入通道分块缓存输入和权重，使用 half4 计算并保留原 NCHW 布局。Q/K/V 共享输入 tile，一次生成三个独立输出，不增加拆分复制。FFN 主投影与 gate 投影共享输入 tile，并在寄存器中执行原有 float SwiGLU，省去 gate 中间缓冲区。单路投影使用相同分块内核。沿用原权重缓冲区，没有额外权重副本，也不改动通用 tuner 或已有缓存。
 - 新内核改变分块和运算顺序，不能承诺与原内核逐位一致；采用原 FP16 投影精度和 float SwiGLU 计算方式。数值正确性与性能尚需实机验证，首次加载会编译三个内核变体。构建或创建内核失败，以及设置参数或提交返回错误时，会停用本句柄实验内核并回到原路径，logcat 标签 GotepadO3Gemm；无法捕获驱动直接终止进程的情况，届时应用已有的后端故障处理生效。
@@ -134,7 +141,7 @@ Android OpenCL 后端：
 
 玄戒 O3 数值验证入口：
 - 设置按钮“玄戒 O3 数值验证”使用专用 OpenCL 会话，主 evaluator 仅分配 batch 1；validate_o3_nn 操作按需创建独立验证 handle，不修改正常分析 handle 或保存的配置。仅 GOTEPAD_O3_PROFILE target 编译该操作；额外要求 gotepadO3Validation=true、已适配的 tf2/b18 nbt 模型和 O3 硬件/FP16 白名单，实验内核无法启用或运行中回退直接报错。
-- src/katago_o3_validation.hpp 在 openclbackend.cpp 的完整私有类型之后包含，src/katago_embedded_benchmark.hpp 提供操作声明。o3-profile.patch 为累计补丁，现在还包含 command/analysis.cpp 的 validate_o3_nn 接入；该部分基于已应用 embedded-analysis-api.patch 的源码。CMake 同时检查验证头文件和操作接入，防止构建旧后端。
+- src/katago_o3_validation.hpp 在 openclbackend.cpp 的完整私有类型之后包含，src/katago_embedded_benchmark.hpp 提供操作声明。android.patch 为累计补丁，现在还包含 command/analysis.cpp 的 validate_o3_nn 接入；该部分已经包含在同一个完整补丁中，不需要额外公共补丁。CMake 同时检查验证头文件和操作接入，防止构建旧后端。
 - 32 个固定种子生成的合法局面覆盖 0/8/24/60/100/160/220/280 手附近的目标长度（部分样本加一手以覆盖双方轮次）、不同贴目及固定对称变换，保存完整走子序列、合法点掩码和实际输入特征。使用 Tromp-Taylor 规则，无搜索/缓存，policy optimism=0、temperature=1。这些是生成样本，不声称包含人工验证的劫争/死活题。
 - 每个实际 batch 1/2/4/8/16/32 独立执行全部 32 样本、正序和置换两种排列。直接调用 NeuralNet::getOutput 保证实际批量，比较 originalRepeat、candidateRepeat、originalVsCandidate、originalSingleVsBatch、candidateSingleVsBatch；检查对应模型实验内核的执行计数和回退状态（tf2 三种变体，b18 单路变体）。
 - validation-时间-b批量.jsonl 每条记录即时落盘，保留原始 policy/value/score/ownership 输出及派生的合法落子概率、白方胜率、白方目差、白方归属；记录最大/平均绝对差、RMS、最差元素位置及非有限值数。派生值只实现固定规则下用于对照的相应转换，不代替 NNEvaluator 的完整后处理。NaN/Inf 原始值在 JSON 中表现为 null，comparison 中保留非有限值计数。
@@ -160,3 +167,14 @@ Android OpenCL 后端：
 - 按实际图发现可替换的 1×1 卷积、空间投影、QKV 和 SwiGLU 融合；通道从固定 192/384/512 扩展为输入 16 对齐、输出 32 对齐及整数索引安全范围。块数与网络宽度不固定。不兼容算子保留原实现，符合条件的 Transformer 中的卷积和输出头中的卷积也可进入优化；19×19、batch 1～32、FP16 存储及独立设备能力检查仍保留。
 - 启用路径标识为 structure-gemm-v2。后端状态、自动测速和数值验证共用同一结构判断；日志保存结构摘要及候选数量，诊断模型记录与验证报告另保存遍历信息。modelWhitelisted 仅作为旧报告字段兼容别名，其含义已变为结构适配。数值验证只要求结构中实际存在的内核变体被执行，不再强制每个 Transformer 都有三种变体。
 - 早期 O3 两个检查点的验证不代表新版更广泛替换路径已验证。所有模型均应重新做数值对照和性能比较；不宣称新结构、通道宽度或其他 GPU 已通过验证。
+
+
+iOS Metal 批量与错误处理：
+- ios.patch 独立包含公共嵌入接口及 iOS Metal 修改；不含 Android OpenCL 加速。iOS target 定义 GOTEPAD_IOS_METAL，Windows/macOS 不嵌入后端。原来固定 Transformer batch<=4 的临时限制已取消；默认自动检测仍测试 1、2、4、8、16、32。
+- iOS 纯 NN 测速按候选创建独立模型/计算句柄/缓冲，直接执行指定的真实 batch；初始化及首次编译预热单独计时，不混入吞吐量。候选结束和异常均释放资源，不把之前候选的图和 GPU 堆留给后续候选。报告 measurementMode=fixed-backend-batch，backendBatchSize 和 averageBatchSize 对应真实提交批量。
+- 普通搜索使用当前配置的固定物理 batch，而不是按每次队列取出的行数新建特化；不足一批时复制有效输入补齐，计算后仅返回真实行，真实局面不拆批、不改权重或精度，吞吐统计只计真实行。Swift 每个句柄只保留这一种固定形状的图；配置切换时先释放旧图和 GPU 堆再创建新图，避免批量特化累积。补齐行实际消耗的时间计入搜索测速，推荐反映实际后端开销；prepare_benchmark 通过真实服务线程预热当前形状，再清除缓存和统计，报告另存 backendWarmupSeconds，不把重新编译时间混入搜索成绩。搜索统计区分真实行平均数和 backendBatchSize，纯 NN 测速仍执行指定的完整真实批量。图构造及执行均有 autoreleasepool。
+- Swift 将命令缓冲创建失败、MPSGraph 回调 NSError、GPU command buffer error 和缺失输出转为失败返回；C++ 转成 StringError。测速请求返回 JSON 错误并排除该候选，继续检测其他候选；持续预热失败会尝试其他已通过的批量，所有候选失败时不生成推荐配置。报告逐条写入并刷新，保留失败阶段。
+- 普通搜索中的可恢复后端异常会唤醒等待 NN 结果的请求，停止使用已失败的计算句柄；搜索工作线程把异常交回加入线程，AsyncBot 在关闭回调线程后返回错误，analysis 通过原查询 id 发送 JSON 错误。不会用空的或伪造的 NN 输出继续搜索，也不会让 C++ 异常逃出 std::thread 入口。
+- 系统 MPSGraph 内部直接 abort/SIGABRT 或系统进程终止仍无法用 C++/Swift try/catch 恢复，不能声称这些信号已被捕获。资源生命周期和固定形状图用于避免已复现的堆累积触发路径；新模型和设备仍需实测。
+- 普通测速报告保存在 user://katago/benchmark-latest.jsonl，包含 nnStart、nn、warmupStart、warmup、searchPreparation、search、batchFailure（发生时）、summary（成功时）和 benchmarkEnd。初始化、首次图编译预热和搜索准备时间分开记录；搜索统计的 averageBatchSize 只表示真实行平均数，backendBatchSize 表示固定 GPU 提交批量。诊断时应保留逐条刷新的报告，不能只看最终推荐值。
+- 2026-10-29 在 iPad Pro 11 英寸 M5（iPad17,1，iOS 27.2）完成 TF2（内部名 b10c384h6nbttflrs）和当时导入的 TF3（内部名 b10c512h8nbt3tflrs-fson-silu-rsnh-swa）的全流程检测，纯 NN 与搜索均覆盖真实 GPU batch 1/2/4/8/16/32，并完成热态复测；TF3 另使用最终 Release 原生库验证。两种模型该轮均推荐 batch 4，这是候选成绩比较的结果，不是硬性上限。已验证纯 NN 候选错误后继续检测更大批量，以及搜索后端错误正常返回；这不代表任意模型、内存压力或设备下都不会被系统终止，也不构成数值正确性专项验证。

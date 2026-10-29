@@ -19,6 +19,6 @@
 !/third_party/lunasvg/gotepad_info.txt
 /third_party/katago/**
 !/third_party/katago/gotepad_info.txt
-!/third_party/katago/embedded-analysis-api.patch
-!/third_party/katago/o3-profile.patch
+!/third_party/katago/android.patch
+!/third_party/katago/ios.patch
 /third_party/opencv/

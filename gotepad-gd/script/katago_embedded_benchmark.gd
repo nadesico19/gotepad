@@ -45,6 +45,7 @@ var finishing_: bool = false
 var regular_phase_: int = 0
 var regular_nn_candidates_: Array[int] = []
 var regular_nn_candidate_index_: int = 0
+var regular_failed_batches_: Dictionary = {}
 var regular_search_candidates_: Array[Vector2i] = []
 var regular_search_candidate_index_: int = 0
 var regular_search_retesting_: bool = false
@@ -301,6 +302,7 @@ func start_regular_nn_benchmark_() -> void:
 	var batch_size: int = regular_nn_candidates_[regular_nn_candidate_index_]
 	regular_phase_ = kRegularPhaseNnBenchmark
 	append_output_(tr("正在测试纯神经网络批量 %d…") % batch_size)
+	append_regular_report_("nnStart", {"requestedBatchSize": batch_size})
 	send_regular_action_("benchmark_nn", {
 		"batchSize": batch_size,
 		"durationMillis": kRegularNnBenchmarkDurationMillis,
@@ -308,11 +310,18 @@ func start_regular_nn_benchmark_() -> void:
 
 
 func start_regular_warmup_() -> void:
-	var batch_size: int = regular_nn_candidates_[
-		regular_nn_candidates_.size() - 1
-	]
+	var batch_size: int = 0
+	for index: int in range(regular_nn_candidates_.size() - 1, -1, -1):
+		var candidate: int = regular_nn_candidates_[index]
+		if not regular_failed_batches_.has(candidate):
+			batch_size = candidate
+			break
+	if batch_size == 0:
+		finish_(false, 0, 0, tr("所有神经网络批量检测均失败，未生成推荐配置。"))
+		return
 	regular_phase_ = kRegularPhaseWarmup
 	append_output_(tr("正在进行持续负载预热，以测量热态性能…"))
+	append_regular_report_("warmupStart", {"requestedBatchSize": batch_size})
 	send_regular_action_("benchmark_nn", {
 		"batchSize": batch_size,
 		"durationMillis": kRegularWarmupDurationMillis,
@@ -422,6 +431,10 @@ func on_line_received_(line: String, source: KataGoTransport) -> void:
 	if str(result.get("id", "")) != query_id_:
 		return
 	if result.has("error"):
+		if OS.get_name() == "iOS" and not human_model_ and not o3_validation_mode_ \
+				and regular_phase_ in [kRegularPhaseNnBenchmark, kRegularPhaseWarmup]:
+			on_regular_nn_error_(str(result["error"]))
+			return
 		finish_(false, 0, 0, str(result.get("error", tr("性能检测失败。"))))
 		return
 	if bool(result.get("isDuringSearch", false)):
@@ -531,6 +544,8 @@ func on_regular_response_(result: Dictionary) -> void:
 		kRegularPhaseWarmup:
 			on_regular_warmup_completed_(result)
 		kRegularPhasePrepareSearch:
+			if result.has("backendWarmupSeconds"):
+				append_regular_report_("searchPreparation", result)
 			start_regular_search_query_()
 		kRegularPhaseSearch:
 			on_regular_search_completed_(result)
@@ -538,6 +553,30 @@ func on_regular_response_(result: Dictionary) -> void:
 			on_regular_search_stats_received_(result)
 		_:
 			finish_(false, 0, 0, tr("性能检测收到未知阶段的结果。"))
+
+
+func on_regular_nn_error_(message: String) -> void:
+	var failed_batch: int = regular_nn_candidates_[regular_nn_candidate_index_] \
+		if regular_phase_ == kRegularPhaseNnBenchmark else 0
+	if regular_phase_ == kRegularPhaseWarmup:
+		for index: int in range(regular_nn_candidates_.size() - 1, -1, -1):
+			if not regular_failed_batches_.has(regular_nn_candidates_[index]):
+				failed_batch = regular_nn_candidates_[index]
+				break
+	regular_failed_batches_[failed_batch] = message
+	append_output_(tr("批量 %d 检测失败，已排除该配置：%s") % [failed_batch, message])
+	append_regular_report_("batchFailure", {"requestedBatchSize": failed_batch, "error": message,
+		"phase": "nn" if regular_phase_ == kRegularPhaseNnBenchmark else "warmup"})
+	var remaining: Array[Vector2i] = []
+	for candidate: Vector2i in regular_search_candidates_:
+		if candidate.y != failed_batch:
+			remaining.append(candidate)
+	regular_search_candidates_ = remaining
+	if regular_phase_ == kRegularPhaseNnBenchmark:
+		regular_nn_candidate_index_ += 1
+		start_regular_nn_benchmark_()
+	else:
+		start_regular_warmup_()
 
 
 func on_regular_nn_benchmark_completed_(result: Dictionary) -> void:
@@ -611,15 +650,17 @@ func on_regular_search_stats_received_(result: Dictionary) -> void:
 		var samples: Array = regular_search_samples_.get(key, [])
 		samples.append(rate)
 		regular_search_samples_[key] = samples
-	append_output_(
-		"threads = %d, batch = %d : visits/s = %.2f, NN rows/s = %.2f, actual batch = %.2f, cache hits = %d" % [
+	var status: String = "threads = %d, batch = %d : visits/s = %.2f, NN rows/s = %.2f, actual batch = %.2f, cache hits = %d" % [
 			threads, batch_size, rate,
 			float(stats.get("rows", 0)) /
 				maxf(float(sample.get("elapsedSeconds", 0.0)), 0.001),
 			float(stats.get("averageBatchSize", 0.0)),
 			int(stats.get("cacheHits", 0)),
 		]
-	)
+	if str(stats.get("backendBatchingMode", "")) == "fixed-padded":
+		status = status.replace("actual batch", "real rows/batch")
+		status += ", GPU batch = %d" % int(stats.get("backendBatchSize", 0))
+	append_output_(status)
 	append_regular_report_("search", sample)
 	regular_pending_sample_.clear()
 	regular_search_candidate_index_ += 1
@@ -871,11 +912,27 @@ func finish_regular_success_() -> void:
 
 
 func append_regular_report_(record_type: String, data: Dictionary) -> void:
-	regular_report_records_.append({
+	var first_record: bool = regular_report_records_.is_empty()
+	var record: Dictionary = {
 		"type": record_type,
 		"unixTime": Time.get_unix_time_from_system(),
 		"data": data.duplicate(true),
-	})
+	}
+	regular_report_records_.append(record)
+	var local_path: String = "user://katago/validation-latest.jsonl" if o3_validation_mode_ else kRegularReportPath
+	var new_file: bool = first_record or not FileAccess.file_exists(local_path)
+	if new_file:
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(local_path.get_base_dir()))
+	var file: FileAccess = FileAccess.open(local_path, FileAccess.WRITE if new_file else FileAccess.READ_WRITE)
+	if file != null:
+		file.seek_end()
+		if new_file:
+			for pending: Dictionary in regular_report_records_:
+				file.store_line(JSON.stringify(pending, "", false))
+		else:
+			file.store_line(JSON.stringify(record, "", false))
+		file.flush()
+		file.close()
 
 
 func write_regular_report_() -> String:
@@ -922,6 +979,13 @@ func finish_(
 			"status": "completed_needs_review" if succeeded else "failed",
 			"completedBatches": o3_validation_index_, "message": message,
 			"numericalAcceptance": "not_evaluated",
+		})
+	elif not human_model_:
+		append_regular_report_("benchmarkEnd", {
+			"status": "completed" if succeeded else "failed",
+			"message": message,
+			"selectedThreads": search_threads,
+			"selectedBatchSize": batch_size,
 		})
 	var report_path: String = write_regular_report_()
 	if not report_path.is_empty():
