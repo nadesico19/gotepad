@@ -16,6 +16,7 @@
 
 #ifdef GOTEPAD_O3_PROFILE
 #include "katago_model_acceleration.hpp"
+#include "katago_diagnostic_context.hpp"
 #endif
 
 namespace GotepadKataGo {
@@ -28,6 +29,8 @@ nlohmann::json run_o3_validation(const std::string& model_file, ConfigParser& cf
 inline nlohmann::json get_embedded_nn_stats(NNEvaluator* nn_eval) {
   nlohmann::json stats;
 #ifdef GOTEPAD_O3_PROFILE
+  stats["diagnosticVersion"] = "opencl-diag-v2";
+  stats["environment"] = get_diagnostic_environment();
   stats["modelAcceleration"] = get_acceleration_status(nn_eval->getInternalModelName(), nn_eval->getModelVersion());
   if(stats["modelAcceleration"]["handleCount"].get<size_t>() < static_cast<size_t>(nn_eval->getNumServerThreads())) {
     stats["modelAcceleration"]["available"] = false;

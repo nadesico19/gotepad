@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "main.h"
+#include "katago_diagnostic_context.hpp"
 
 #include <android/log.h>
 #include <jni.h>
@@ -342,4 +343,13 @@ Java_com_godot_game_KataGoOpenCLService_nativeGetError(JNIEnv *environment,
                                                        jclass) {
   const std::string error = nd::go::katago::android::engine_().error();
   return environment->NewStringUTF(error.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_godot_game_KataGoOpenCLService_nativeUpdateDiagnosticEnvironment(
+    JNIEnv* environment, jclass, jstring value) {
+  try {
+    auto parsed = nlohmann::json::parse(nd::go::katago::android::from_java_string_(environment, value));
+    if (parsed.is_object()) GotepadKataGo::set_diagnostic_environment(std::move(parsed));
+  } catch (...) { /* Optional diagnostics must not interrupt analysis. */ }
 }

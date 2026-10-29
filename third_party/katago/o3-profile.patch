@@ -127,11 +127,42 @@
  
      cl_int err;
      conv2dNCHWKernel = clCreateKernel(progs->conv2dNCHWProgram, "conv2dNCHW", &err);
-@@ -1283,6 +1348,17 @@
+@@ -844,7 +909,8 @@
+   MAYBE_EVENT;
+   err = OpenCLHelpers::doAddPointWise(handle->addPointWiseKernel, handle->commandQueue, handle->tuneParams, acc, value, totalSize, MAYBE_EVENTREF);
+   CHECK_ERR(err);
+-  MAYBE_PROFILE("AddPointWise");
++  O3_PROFILE_SHAPE(string("/E=") + std::to_string(totalSize));
++    MAYBE_PROFILE("AddPointWise");
+   MAYBE_FREE_EVENT;
+ }
+ 
+@@ -860,7 +926,8 @@
+     MAYBE_EVENTREF
+   );
+   CHECK_ERR(err);
+-  MAYBE_PROFILE("PerformGPoolMask");
++  O3_PROFILE_SHAPE(string("/C=") + std::to_string(gpoolChannels) + "/XY=" + std::to_string(nnXYLen));
++    MAYBE_PROFILE("PerformGPoolMask");
+   MAYBE_FREE_EVENT;
+ }
+ 
+@@ -1069,6 +1136,7 @@
+       handle->commandQueue, kernel, nKernelDims, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
+     );
+     CHECK_ERR(err);
++    O3_PROFILE_SHAPE(string("/C=") + std::to_string(numChannels) + "/XY=" + std::to_string(paddedNNXYLen));
+     MAYBE_PROFILE("BatchNorm");
+     MAYBE_FREE_EVENT;
+   }
+@@ -1283,6 +1351,20 @@
  
    void apply(ComputeHandleInternal* handle, int batchSize, cl_mem input, cl_mem output, cl_mem convWorkspace, cl_mem convWorkspace2) const {
      if(convXSize == 1 && convYSize == 1) {
 +#ifdef GOTEPAD_O3_PROFILE
++      if(handle->o3Profile.sampling()) handle->o3Profile.decision(
++        "conv1x1/IC=" + std::to_string(inChannels) + "/OC=" + std::to_string(outChannels),
++        usingHGemmWmmaNHCW ? "tensor_layout" : handle->o3Gemm.dispatch_reason(1, inChannels, outChannels, batchSize));
 +      if(handle->o3Gemm.enabled() && handle->o3Gemm.conv_enabled() && !usingHGemmWmmaNHCW) {
 +        MAYBE_EVENT;
 +        if(handle->o3Gemm.apply(handle->commandQueue, 1, inChannels, outChannels,
@@ -145,7 +176,7 @@
        if(!usingHGemmWmmaNHCW) {
          int filterStride = 0; //Reuse same filter for all matrices in batch
          int inputStride = paddedNNXYLen * inChannels;
-@@ -1300,7 +1376,7 @@
+@@ -1300,7 +1382,7 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -154,7 +185,7 @@
          MAYBE_FREE_EVENT;
        }
        else {
-@@ -1316,7 +1392,7 @@
+@@ -1316,7 +1398,7 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -163,7 +194,7 @@
          MAYBE_FREE_EVENT;
        }
      }
-@@ -1339,8 +1415,8 @@
+@@ -1339,8 +1421,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -174,7 +205,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1374,8 +1450,8 @@
+@@ -1374,8 +1456,8 @@
            );
          }
          CHECK_ERR(err);
@@ -185,7 +216,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1396,8 +1472,8 @@
+@@ -1396,8 +1478,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -196,7 +227,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1445,10 +1521,10 @@
+@@ -1445,10 +1527,10 @@
        );
        CHECK_ERR(err);
        if(convXRadius == 2 && convYRadius == 2) {
@@ -209,7 +240,7 @@
        }
        MAYBE_FREE_EVENT;
      }
-@@ -1506,8 +1582,8 @@
+@@ -1506,8 +1588,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -220,7 +251,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1541,8 +1617,8 @@
+@@ -1541,8 +1623,8 @@
            );
          }
          CHECK_ERR(err);
@@ -231,7 +262,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1563,8 +1639,8 @@
+@@ -1563,8 +1645,8 @@
            MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -242,7 +273,7 @@
          MAYBE_FREE_EVENT;
        }
  
-@@ -1629,6 +1705,7 @@
+@@ -1629,6 +1711,7 @@
  
      );
      CHECK_ERR(err);
@@ -250,11 +281,47 @@
      MAYBE_PROFILE("PLAINMATMUL");
      MAYBE_FREE_EVENT;
    }
-@@ -2312,6 +2389,19 @@
+@@ -2000,6 +2083,24 @@
+     SizedBuf<cl_mem> midScratch(scratch->allocator, scratch->getBufSizeXY(normActConv1.outChannels));
+     normActConv1.apply(handle,batchSize,trunk,trunkScratch,mid.buf,mask,convWorkspace,convWorkspace2);
+     blocks.apply(handle,scratch,batchSize,mid.buf,midScratch.buf,mask,maskSum,convWorkspace,convWorkspace2);
++#ifdef GOTEPAD_O3_PROFILE
++    const auto& finalConv = normActConv2.conv;
++    if(handle->o3Gemm.enabled() && finalConv.convXSize == 1 && finalConv.convYSize == 1 &&
++       !finalConv.usingHGemmWmmaNHCW && batchSize <= 32 &&
++       GotepadKataGo::accelerated_matrix_shape(finalConv.inChannels, finalConv.outChannels)) {
++      // Keep mid intact so a failed submission can safely take the original path.
++      normActConv2.norm.apply(handle,batchSize,mid.buf,midScratch.buf,mask);
++      MAYBE_EVENT;
++      if(handle->o3Gemm.apply(handle->commandQueue, 1, finalConv.inChannels, finalConv.outChannels,
++          batchSize, midScratch.buf, finalConv.filter, finalConv.filter, finalConv.filter,
++          trunk, trunk, trunk, MAYBE_EVENTREF, true)) {
++        O3_PROFILE_SHAPE(string("/IC=") + std::to_string(finalConv.inChannels) + "/OC=" + std::to_string(finalConv.outChannels));
++        MAYBE_PROFILE("O3NbtProjectionResidualV4");
++        MAYBE_FREE_EVENT;
++        return;
++      }
++    }
++#endif
+     normActConv2.apply(handle,batchSize,mid.buf,mid.buf,trunkScratch,mask,convWorkspace,convWorkspace2);
+     addPointWise(handle, trunk, trunkScratch, checkedTotalElts(batchSize, normActConv2.outChannels, paddedNNXYLen, "OpenCL addPointWise"));
+   }
+@@ -2067,6 +2168,7 @@
+       handle->commandQueue, kernel, nKernelDims, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
+     );
+     CHECK_ERR(err);
++    O3_PROFILE_SHAPE(string("/C=") + std::to_string(numChannels) + "/XY=" + std::to_string(paddedNNXYLen));
+     MAYBE_PROFILE("TransformerRMSNorm");
+     MAYBE_FREE_EVENT;
+   }
+@@ -2312,6 +2414,22 @@
    // This is identical to a 1x1 convolution: output[n,oc,xy] = sum_ic input[n,ic,xy] * weight[ic,oc]
    void apply(ComputeHandleInternal* handle, int batchSize, cl_mem input, cl_mem output, cl_mem mask, cl_mem convWorkspace) const {
      (void)mask;
 +#ifdef GOTEPAD_O3_PROFILE
++    if(handle->o3Profile.sampling()) handle->o3Profile.decision(
++      "projection/IC=" + std::to_string(inChannels) + "/OC=" + std::to_string(outChannels),
++      handle->o3Gemm.dispatch_reason(1, inChannels, outChannels, batchSize));
 +    if(handle->o3Gemm.enabled()) {
 +      MAYBE_EVENT;
 +      if(handle->o3Gemm.apply(handle->commandQueue, 1, inChannels, outChannels,
@@ -270,7 +337,7 @@
      if(!usingHGemmWmmaNHCW) {
        (void)convWorkspace;
        int filterStride = 0; // Reuse same filter for all batch elements
-@@ -2330,6 +2420,8 @@
+@@ -2330,6 +2448,8 @@
          MAYBE_EVENTREF
        );
        CHECK_ERR(err);
@@ -279,7 +346,7 @@
        MAYBE_PROFILE("TransformerMatMul");
        MAYBE_FREE_EVENT;
      }
-@@ -2347,6 +2439,8 @@
+@@ -2347,6 +2467,8 @@
          MAYBE_EVENTREF
        );
        CHECK_ERR(err);
@@ -288,7 +355,7 @@
        MAYBE_PROFILE("TransformerMatMulHGemm");
        MAYBE_FREE_EVENT;
      }
-@@ -2558,9 +2652,28 @@
+@@ -2558,9 +2680,31 @@
      SizedBuf<cl_mem> kBuf(scratch->allocator, scratch->getBufSizeXY(kTotalDim));
      SizedBuf<cl_mem> vBuf(scratch->allocator, scratch->getBufSizeXY(vTotalDim));
  
@@ -312,6 +379,9 @@
 +      }
 +    }
 +#endif
++#ifdef GOTEPAD_O3_PROFILE
++    if(handle->o3Profile.sampling()) handle->o3Profile.decision("QKV", qkvFused ? "fused" : "separate_projections");
++#endif
 +    if(!qkvFused) {
 +      qProj.apply(handle, batchSize, trunkScratch, qBuf.buf, mask, convWorkspace);
 +      kProj.apply(handle, batchSize, trunkScratch, kBuf.buf, mask, convWorkspace);
@@ -320,7 +390,7 @@
  
  #ifdef DEBUG_INTERMEDIATE_VALUES
      debugPrint3D("OPENCL Attn Q", handle, qBuf.buf, batchSize, qTotalDim, mask);
-@@ -2656,6 +2769,9 @@
+@@ -2656,6 +2800,9 @@
            handle->commandQueue, kernel, 2, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -330,7 +400,7 @@
          MAYBE_PROFILE("Attention");
          MAYBE_FREE_EVENT;
        }
-@@ -2670,6 +2786,9 @@
+@@ -2670,6 +2817,9 @@
            handle->commandQueue, kernel, 2, NULL, globalSizes, localSizes, 0, NULL, MAYBE_EVENTREF
          );
          CHECK_ERR(err);
@@ -340,7 +410,7 @@
          MAYBE_PROFILE("Attention");
          MAYBE_FREE_EVENT;
        }
-@@ -2762,24 +2881,42 @@
+@@ -2762,24 +2912,45 @@
  
      // Step 2: linear1 projection -> ffn buffer
      SizedBuf<cl_mem> ffnBuf(scratch->allocator, scratch->getBufSizeXY(ffnChannels));
@@ -378,6 +448,9 @@
 +      }
 +    }
 +#endif
++#ifdef GOTEPAD_O3_PROFILE
++    if(handle->o3Profile.sampling()) handle->o3Profile.decision("FFN", ffnFused ? "fused" : "separate_projections");
++#endif
 +    if(!ffnFused) {
 +      linear1.apply(handle, batchSize, trunkScratch, ffnBuf.buf, mask, convWorkspace);
 +
@@ -401,7 +474,7 @@
  
  #ifdef DEBUG_INTERMEDIATE_VALUES
      debugPrint3D("OPENCL FFN SwiGLU", handle, ffnBuf.buf, batchSize, ffnChannels, mask);
-@@ -3803,6 +3940,47 @@
+@@ -3803,6 +3974,54 @@
        " FP16TensorCoresFor1x1 " + Global::boolToString(handle->handle->usingFP16TensorCoresFor1x1)
      );
    }
@@ -443,13 +516,34 @@
 +    {"tensorCores", handle->handle->usingFP16TensorCores},
 +    {"tensorCores1x1", handle->handle->usingFP16TensorCoresFor1x1},
 +    {"attentionTune", handle->handle->tuneParams.transformer.desc()},
-+    {"gemmDirectTune", handle->handle->tuneParams.xGemmDirect.desc()}
++    {"gemmDirectTune", tuning.xGemmDirect.desc()},
++    {"gemmTune", tuning.xGemm.desc()}, {"gemm16Tune", tuning.xGemm16.desc()},
++    {"conv3x3Tune", tuning.conv3x3.desc()}, {"conv5x5Tune", tuning.conv5x5.desc()},
++    {"gpoolTune", tuning.gPool.desc()}, {"rmsNormTune", tuning.transformerRMSNorm.desc()},
++    {"spatialRmsNormTune", tuning.spatialRMSNorm.desc()}, {"pointWiseTune", tuning.pointWise.desc()},
++    {"addBiasTune", tuning.addChannelBiasesNCHW.desc()},
++    {"modelSha256", loadedModel->modelDesc.sha256},
++    {"experimentalTile", {{"outputXY",32}, {"outputChannels",32}, {"inputChannels",16}, {"workgroup",{8,8,1}}}}
 +  });
 +#endif
    return handle;
  }
  
-@@ -3962,6 +4140,9 @@
+@@ -3952,6 +4171,13 @@
+ }
+ 
+ 
++#ifdef GOTEPAD_O3_PROFILE
++#define O3_WRITE_BUFFER(queue, buffer, ...) handle->o3Profile.transfer(true, #buffer, queue, buffer, __VA_ARGS__)
++#define O3_READ_BUFFER(queue, buffer, ...) handle->o3Profile.transfer(false, #buffer, queue, buffer, __VA_ARGS__)
++#else
++#define O3_WRITE_BUFFER clEnqueueWriteBuffer
++#define O3_READ_BUFFER clEnqueueReadBuffer
++#endif
+ void NeuralNet::getOutput(
+   ComputeHandle* gpuHandle,
+   InputBuffers* inputBuffers,
+@@ -3962,6 +4188,9 @@
    assert(numBatchEltsFilled <= inputBuffers->maxBatchSize);
    assert(numBatchEltsFilled > 0);
    const int batchSize = numBatchEltsFilled;
@@ -459,7 +553,43 @@
    const int nnXLen = gpuHandle->nnXLen;
    const int nnYLen = gpuHandle->nnYLen;
    const int paddedNNXYLen = gpuHandle->handle->paddedNNXYLen;
-@@ -4094,6 +4275,9 @@
+@@ -4031,7 +4260,7 @@
+       }
+     }
+ 
+-    err = clEnqueueWriteBuffer(
++    err = O3_WRITE_BUFFER(
+       handle->commandQueue,
+       buffers->input,
+       CL_FALSE,
+@@ -4046,7 +4275,7 @@
+   }
+   else {
+     if(paddedNNXYLen == nnXYLen) {
+-      err = clEnqueueWriteBuffer(
++      err = O3_WRITE_BUFFER(
+         handle->commandQueue,
+         buffers->input,
+         CL_FALSE,
+@@ -4066,7 +4295,7 @@
+     }
+   }
+ 
+-  err = clEnqueueWriteBuffer(
++  err = O3_WRITE_BUFFER(
+     handle->commandQueue,
+     buffers->inputGlobal,
+     CL_FALSE,
+@@ -4080,7 +4309,7 @@
+   CHECK_ERR(err);
+ 
+   if(numMetaFeatures > 0) {
+-    err = clEnqueueWriteBuffer(
++    err = O3_WRITE_BUFFER(
+       handle->commandQueue,
+       buffers->inputMeta,
+       CL_FALSE,
+@@ -4094,6 +4323,9 @@
      CHECK_ERR(err);
    }
  
@@ -469,7 +599,7 @@
    gpuHandle->model->apply(
      handle,
      gpuHandle->scratch.get(),
-@@ -4119,6 +4303,9 @@
+@@ -4119,8 +4351,11 @@
      buffers->convWorkspace2
    );
  
@@ -477,9 +607,63 @@
 +  handle->o3Profile.submitted();
 +#endif
    cl_bool blocking = CL_TRUE;
-   err = clEnqueueReadBuffer(
+-  err = clEnqueueReadBuffer(
++  err = O3_READ_BUFFER(
      handle->commandQueue, buffers->policyPass, blocking, 0,
-@@ -4202,6 +4389,9 @@
+     inputBuffers->singlePolicyPassResultElts*sizeof(float)*batchSize, inputBuffers->policyPassResults, 0, NULL, NULL
+   );
+@@ -4129,7 +4364,7 @@
+   // Read back policy (spatial) - GPU buffer is padded, need to unpad
+   size_t paddedPolicyElts = (size_t)numPolicyChannels * paddedNNXYLen * batchSize;
+   if(useFP16Storage) {
+-    err = clEnqueueReadBuffer(
++    err = O3_READ_BUFFER(
+       handle->commandQueue, buffers->policy, blocking, 0,
+       paddedPolicyElts * sizeof(half_t), inputBuffers->policyResultsHalf, 0, NULL, NULL
+     );
+@@ -4148,7 +4383,7 @@
+   }
+   else {
+     if(paddedNNXYLen == nnXYLen) {
+-      err = clEnqueueReadBuffer(
++      err = O3_READ_BUFFER(
+         handle->commandQueue, buffers->policy, blocking, 0,
+         inputBuffers->singlePolicyResultElts*sizeof(float)*batchSize, inputBuffers->policyResults, 0, NULL, NULL
+       );
+@@ -4159,12 +4394,12 @@
+     }
+   }
+ 
+-  err = clEnqueueReadBuffer(
++  err = O3_READ_BUFFER(
+     handle->commandQueue, buffers->value, blocking, 0,
+     inputBuffers->singleValueResultElts*sizeof(float)*batchSize, inputBuffers->valueResults, 0, NULL, NULL
+   );
+   CHECK_ERR(err);
+-  err = clEnqueueReadBuffer(
++  err = O3_READ_BUFFER(
+     handle->commandQueue, buffers->scoreValue, blocking, 0,
+     inputBuffers->singleScoreValueResultElts*sizeof(float)*batchSize, inputBuffers->scoreValueResults, 0, NULL, NULL
+   );
+@@ -4173,7 +4408,7 @@
+   // Read back ownership (spatial) - GPU buffer is padded, need to unpad
+   size_t paddedOwnershipElts = (size_t)gpuHandle->model->numOwnershipChannels * paddedNNXYLen * batchSize;
+   if(useFP16Storage) {
+-    err = clEnqueueReadBuffer(
++    err = O3_READ_BUFFER(
+       handle->commandQueue, buffers->ownership, blocking, 0,
+       paddedOwnershipElts * sizeof(half_t), inputBuffers->ownershipResultsHalf, 0, NULL, NULL
+     );
+@@ -4191,7 +4426,7 @@
+   }
+   else {
+     if(paddedNNXYLen == nnXYLen) {
+-      err = clEnqueueReadBuffer(
++      err = O3_READ_BUFFER(
+         handle->commandQueue, buffers->ownership, blocking, 0,
+         inputBuffers->singleOwnershipResultElts*sizeof(float)*batchSize, inputBuffers->ownershipResults, 0, NULL, NULL
+       );
+@@ -4202,6 +4437,9 @@
      }
    }
  
@@ -489,7 +673,7 @@
    #ifdef PROFILE_KERNELS
    {
      cl_int profileErr;
-@@ -4324,9 +4514,16 @@
+@@ -4324,9 +4562,19 @@
      }
    }
  
@@ -503,6 +687,9 @@
 +#ifdef GOTEPAD_O3_PROFILE
 +#include "katago_o3_validation.hpp"
 +#endif
++
++#undef O3_WRITE_BUFFER
++#undef O3_READ_BUFFER
  
  bool NeuralNet::testEvaluateConv(
    const ConvLayerDesc* desc,
@@ -531,3 +718,84 @@
          else if(action == "benchmark_nn") {
            if(input.find("batchSize") == input.end() || !input["batchSize"].is_number_integer()) {
              reportErrorForId(rbase.id, "batchSize", "benchmark_nn requires an integer batchSize");
+--- a/cpp/neuralnet/nneval.h
++++ b/cpp/neuralnet/nneval.h
+@@ -16,6 +16,10 @@
+ #include "../neuralnet/nninterface.h"
+ #include "../search/mutexpool.h"
+ 
++#ifdef GOTEPAD_O3_PROFILE
++#include "katago_diagnostic_context.hpp"
++#endif
++
+ class NNEvaluator;
+ 
+ class NNCacheTable {
+@@ -46,6 +50,10 @@
+ 
+ // Each thread should allocate and re-use one of these
+ struct NNResultBuf {
++#ifdef GOTEPAD_O3_PROFILE
++  GotepadKataGo::DiagnosticClock::time_point diagnosticQueued{};
++  double diagnosticFeatureMs = 0;
++#endif
+   std::condition_variable clientWaitingForResult;
+   std::mutex resultMutex;
+   bool hasResult;
+--- a/cpp/neuralnet/nneval.cpp
++++ b/cpp/neuralnet/nneval.cpp
+@@ -642,7 +642,25 @@
+   while(true) {
+     resultBufs.clear();
+     int desiredBatchSize = std::min(maxBatchSize, currentBatchSize.load(std::memory_order_acquire));
++#ifdef GOTEPAD_O3_PROFILE
++    const bool diagnostics = GotepadKataGo::diagnostic_handles.load(std::memory_order_relaxed) > 0;
++    const auto diagnosticWaitStart = diagnostics ? GotepadKataGo::DiagnosticClock::now() : GotepadKataGo::DiagnosticClock::time_point{};
++#endif
+     bool gotAnything = queryQueue.waitPopUpToN(resultBufs,desiredBatchSize);
++#ifdef GOTEPAD_O3_PROFILE
++    GotepadKataGo::diagnostic_batch = {};
++    if(diagnostics && gotAnything) {
++      const auto now = GotepadKataGo::DiagnosticClock::now();
++      auto& timing = GotepadKataGo::diagnostic_batch;
++      timing.server_wait_ms = GotepadKataGo::diagnostic_ms(now - diagnosticWaitStart);
++      for(const auto* row : resultBufs) {
++        if(row->diagnosticQueued == GotepadKataGo::DiagnosticClock::time_point{}) continue;
++        timing.feature_ms += row->diagnosticFeatureMs;
++        timing.queue_ms += GotepadKataGo::diagnostic_ms(now - row->diagnosticQueued);
++        ++timing.rows;
++      }
++    }
++#endif
+     // Queue being closed is a signal that we're done.
+     if(!gotAnything)
+       break;
+@@ -956,9 +974,18 @@
+   buf.boardXSizeForServer = board.x_size;
+   buf.boardYSizeForServer = board.y_size;
+ 
++#ifdef GOTEPAD_O3_PROFILE
++  const bool diagnostics = GotepadKataGo::diagnostic_handles.load(std::memory_order_relaxed) > 0;
++  const auto featureStart = diagnostics ? GotepadKataGo::DiagnosticClock::now() : GotepadKataGo::DiagnosticClock::time_point{};
++  buf.diagnosticQueued = {};
++  buf.diagnosticFeatureMs = 0;
++#endif
+   if(!debugSkipNeuralNet) {
+     fillRowBufs(board, history, nextPlayer, sgfMeta, nnInputParams, buf);
+   }
++#ifdef GOTEPAD_O3_PROFILE
++  if(diagnostics) buf.diagnosticFeatureMs = GotepadKataGo::diagnostic_ms(GotepadKataGo::DiagnosticClock::now() - featureStart);
++#endif
+ 
+   buf.symmetry = nnInputParams.symmetry;
+   buf.policyOptimism = nnInputParams.policyOptimism;
+@@ -967,6 +994,9 @@
+   numOngoingEvals += 1;
+   lock.unlock();
+ 
++#ifdef GOTEPAD_O3_PROFILE
++  if(diagnostics) buf.diagnosticQueued = GotepadKataGo::DiagnosticClock::now();
++#endif
+   bool suc = queryQueue.forcePush(&buf);
+   testAssert(suc);
+ 

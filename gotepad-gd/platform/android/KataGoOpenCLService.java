@@ -5,6 +5,12 @@ package com.godot.game;
 
 import android.app.Service;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageInfo;
+import android.os.BatteryManager;
+import android.os.Build;
+import android.os.PowerManager;
+import org.json.JSONObject;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -31,6 +37,7 @@ public final class KataGoOpenCLService extends Service {
 	private boolean polling;
 	private int lastState = -1;
 	private int clientSessionId = -1;
+	private long lastEnvironmentMillis = -5000L;
 
 	private final Runnable pollNative = new Runnable() {
 		@Override
@@ -38,6 +45,7 @@ public final class KataGoOpenCLService extends Service {
 			if (!polling || !nativeLibraryLoaded) {
 				return;
 			}
+			updateDiagnosticEnvironment();
 			for (String line : nativePollLines()) {
 				sendText(KataGoOpenCLProtocol.MSG_LINE, line);
 			}
@@ -137,6 +145,8 @@ public final class KataGoOpenCLService extends Service {
 					"OpenCL is unavailable or its system library cannot be loaded");
 			return;
 		}
+		lastEnvironmentMillis = -5000L;
+		updateDiagnosticEnvironment();
 		boolean started = nativeStart(
 				data.getString(KataGoOpenCLProtocol.KEY_MODEL_PATH, ""),
 				data.getString(KataGoOpenCLProtocol.KEY_HUMAN_MODEL_PATH, ""),
@@ -150,6 +160,43 @@ public final class KataGoOpenCLService extends Service {
 		polling = true;
 		handler.removeCallbacks(pollNative);
 		handler.post(pollNative);
+	}
+
+	// Low-frequency snapshot shared with benchmark reports and diagnostic windows.
+	private void updateDiagnosticEnvironment() {
+		long now = SystemClock.elapsedRealtime();
+		if (now - lastEnvironmentMillis < 5000L) return;
+		lastEnvironmentMillis = now;
+		try {
+			JSONObject value = new JSONObject();
+			value.put("available", true);
+			value.put("unixTimeMs", System.currentTimeMillis());
+			value.put("elapsedRealtimeMs", now);
+			value.put("processId", android.os.Process.myPid());
+			value.put("deviceModel", Build.MODEL);
+			value.put("androidSdk", Build.VERSION.SDK_INT);
+			PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+			value.put("appVersion", info.versionName);
+			value.put("appVersionCode", Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode);
+			PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+			value.put("thermalStatus", power != null && Build.VERSION.SDK_INT >= 29
+					? power.getCurrentThermalStatus() : JSONObject.NULL);
+			value.put("powerSaveMode", power != null ? power.isPowerSaveMode() : JSONObject.NULL);
+			Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+			if (battery != null) {
+				int temperature = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
+				value.put("batteryTemperatureC", temperature != Integer.MIN_VALUE ? temperature / 10.0 : JSONObject.NULL);
+				value.put("batteryPlugged", battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1));
+				value.put("batteryStatus", battery.getIntExtra(BatteryManager.EXTRA_STATUS, -1));
+				value.put("batteryLevel", battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1));
+				value.put("batteryScale", battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1));
+			}
+			// Battery temperature is not GPU temperature; frequency is intentionally unavailable.
+			value.put("gpuFrequencyHz", JSONObject.NULL);
+			nativeUpdateDiagnosticEnvironment(value.toString());
+		} catch (Exception error) {
+			Log.w(TAG, "Unable to sample diagnostic environment", error);
+		}
 	}
 
 	private void failAndExitProcess(String error) {
@@ -212,6 +259,8 @@ public final class KataGoOpenCLService extends Service {
 			Log.w(TAG, "Unable to report to the Gotepad process", error);
 		}
 	}
+
+	private static native void nativeUpdateDiagnosticEnvironment(String value);
 
 	private static native boolean nativeStart(
 			String modelPath, String humanModelPath, String configPath,
