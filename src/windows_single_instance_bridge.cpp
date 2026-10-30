@@ -23,6 +23,9 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#if defined(__MINGW32__) && defined(GOTEPAD_MINGW_POSIX_THREADS)
+#include <pthread.h>
+#endif
 #endif
 
 namespace nd::go::gdext {
@@ -174,7 +177,12 @@ WindowsSingleInstanceBridge::~WindowsSingleInstanceBridge() {
   if (impl_->listener.joinable()) {
     impl_->stopping.store(true, std::memory_order_release);
     static_cast<void>(send_packet_to_primary_(kShutdownPacketMagic, {}));
+#if defined(__MINGW32__) && defined(GOTEPAD_MINGW_POSIX_THREADS)
+    static_cast<void>(CancelSynchronousIo(
+        pthread_gethandle(impl_->listener.native_handle())));
+#else
     static_cast<void>(CancelSynchronousIo(impl_->listener.native_handle()));
+#endif
     impl_->listener.join();
   }
   if (impl_->instance_mutex != nullptr)

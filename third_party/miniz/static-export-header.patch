@@ -1,0 +1,8 @@
+--- /dev/null
++++ b/miniz_export.h
+@@ -0,0 +1,5 @@
++#pragma once
++
++#ifndef MINIZ_EXPORT
++#define MINIZ_EXPORT
++#endif

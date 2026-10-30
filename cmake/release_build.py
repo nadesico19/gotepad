@@ -50,7 +50,7 @@ def update(text, name, values):
 
 def config(platform):
     presets = (PROJECT / "export_presets.cfg").read_text(encoding="utf-8")
-    platform_name = {"macos": "macOS", "ios": "iOS", "android": "Android"}[platform]
+    platform_name = {"macos": "macOS", "ios": "iOS", "android": "Android", "windows": "Windows Desktop"}[platform]
     matches = [name for name in re.findall(r"^\[(preset\.\d+)\]", presets, re.M)
                if value(presets, name, "platform") == platform_name]
     require(len(matches) == 1, "Expected one export preset for " + platform_name)
@@ -112,9 +112,11 @@ def stage(platform, target, host_arch, template=""):
     binary_dir.mkdir()
     host = "libgo_gdext.macos.template_debug.{}.dylib".format(host_arch)
     release = "libgo_gdext.{}.template_release.arm64.{}".format(platform, "so" if platform == "android" else "dylib")
+    if platform == "windows":
+        release = "libgo_gdext.windows.template_release.x86_64.dll"
     for library in (host, release):
         shutil.copy2(PROJECT / "bin" / library, binary_dir / library)
-    release_name = {"macos": "macOS Release", "ios": "iOS Release", "android": "Android Release"}[platform]
+    release_name = {"macos": "macOS Release", "ios": "iOS Release", "android": "Android Release", "windows": "Windows Release"}[platform]
     presets = update(presets, name, {"name": json.dumps(release_name)})
     settings = {}
     if platform in ("macos", "ios"):
@@ -124,6 +126,11 @@ def stage(platform, target, host_arch, template=""):
                          "binary_format/architecture": '"arm64"'})
     elif platform == "ios":
         settings.update({"application/export_project_only": "true"})
+    elif platform == "windows":
+        settings.update({"custom_template/debug": '""', "custom_template/release": json.dumps(template),
+                         "binary_format/architecture": '"x86_64"',
+                         "application/file_version": json.dumps(version + ".0"),
+                         "application/product_version": json.dumps(version + ".0")})
     else:
         keystore, alias, password = android_secrets()
         settings.update({"keystore/release": json.dumps(keystore), "keystore/release_user": json.dumps(alias),

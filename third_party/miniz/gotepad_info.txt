@@ -18,7 +18,19 @@ https://github.com/richgel999/miniz/releases/tag/3.1.2
 MIT License
 
 获取方式（在项目根目录执行）：
-git clone --depth 1 --branch 3.1.2 https://github.com/richgel999/miniz.git third_party/miniz
+- 先获取上游 3.1.2 源码到项目 .tmp 下的独立暂存目录，再复制到 third_party/miniz，保留本目录已有的 gotepad_info.txt 和补丁文件。目标目录已有元信息，不能直接克隆到非空的 third_party/miniz，也不要覆盖用户的已有源码修改。
+- 官方源码归档：https://github.com/richgel999/miniz/archive/refs/tags/3.1.2.zip
+- 源码归档 SHA-256：E7A0334927A069DC5AEB69616D371542A4376E1569290D7102B88C6F3992D6CB
+- 解压根目录名称：miniz-3.1.2。
+
+本地补丁：
+- 文件：static-export-header.patch。
+- 作用：新增静态构建需要的 miniz_export.h，将 MINIZ_EXPORT 定义为空。不修改上游压缩、解压或 ZIP 实现；Windows、Linux、macOS、Android 和 iOS 共用此补丁。
+- 上游通过 CMake 的 GenerateExportHeader 生成此头文件，官方源码归档不包含它。本项目在顶层 CMake 直接编译源文件，没有执行上游 CMake，因此必须在构建前补齐。
+- 在项目根目录，对尚未补齐头文件的源码执行：
+  git apply --check --directory=third_party/miniz third_party/miniz/static-export-header.patch
+  git apply --directory=third_party/miniz third_party/miniz/static-export-header.patch
+- 已有 miniz_export.h 时先核对内容，不要覆盖用户修改；完整一致时可用 git apply --reverse --check --directory=third_party/miniz third_party/miniz/static-export-header.patch 确认已应用，不必再次打补丁。现有 iOS 构建指南中的手动生成方式与该补丁用途相同，二者选一种完成即可。
 
 本项目直接编译下列上游源文件：
 - miniz.c
@@ -28,4 +40,9 @@ git clone --depth 1 --branch 3.1.2 https://github.com/richgel999/miniz.git third
 
 注意：
 - 上述源文件及配套头文件应直接位于 third_party/miniz 下。
+- miniz_export.h 是本地补充文件，不是另一个 miniz 版本，也不是压缩算法修改。
 - 上游许可证全文请从 3.1.2 标签中的 LICENSE 文件获取，并按其要求保留。
+
+2026-10-30 源码核对：
+- 本机保留的 10 个上游文件（4 个 .c、5 个 .h 及 LICENSE）与官方 3.1.2 的 Git blob 哈希完全一致；唯一额外的构建文件是 miniz_export.h，现已完整收录在上述补丁中。
+- 已在全新官方归档上应用 static-export-header.patch，并逐字节核对上述 10 个上游文件及新增头文件，全部与当前本地文件一致。
