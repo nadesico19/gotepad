@@ -27,6 +27,11 @@ initialize_release() {
     command -v "$python_path" >/dev/null || fail "Set PYTHON_PATH to Python 3."
     command -v ninja >/dev/null || fail "Ninja is required on PATH."
     [[ "$build_jobs" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_JOBS must be a positive integer."
+    # Xcode updates can remove versioned SDK directories stored in CMakeCache.
+    # Resolve the selected developer tools' SDK on every invocation and pass
+    # it explicitly to each macOS configure, including host editor builds.
+    macos_sdk_path="$(xcrun --sdk macosx --show-sdk-path)" || fail "Unable to locate the macOS SDK. Check xcode-select or DEVELOPER_DIR."
+    [[ -d "$macos_sdk_path" ]] || fail "The selected macOS SDK does not exist: $macos_sdk_path"
     local godot_version
     godot_version="$("$godot_path" --version)"
     [[ "$godot_version" == 4.7.1.stable.* ]] || fail "Expected Godot 4.7.1 stable, found: $godot_version"
@@ -36,6 +41,7 @@ initialize_release() {
     trap 'rm -rf -- "$work_directory"' EXIT
     log_directory="$project_root/.tmp/$platform"
     exec > >(tee "$log_directory/release-build.log") 2>&1
+    echo "macOS SDK: $macos_sdk_path"
     release_helper validate "$platform"
 }
 
@@ -43,6 +49,7 @@ build_host_extension() {
     local host_build_directory="$project_root/.tmp/build-macos-$host_arch-debug-for-editor"
     "$cmake_path" -S "$project_root" -B "$host_build_directory" -G Ninja \
         -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_OSX_ARCHITECTURES=$host_arch" \
+        "-DCMAKE_OSX_SYSROOT=$macos_sdk_path" \
         -DGODOTCPP_TARGET=template_debug -DGODOTCPP_API_VERSION=4.7 \
         -DBUILD_EMBEDDED_KATAGO=OFF -DBUILD_ANDROID_KATAGO_OPENCL=OFF \
         "-DPython3_EXECUTABLE=$python_path"

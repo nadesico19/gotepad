@@ -67,7 +67,7 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func plot_rect_() -> Rect2:
-	return Rect2(Vector2(0.0, 12.0), Vector2(size.x, size.y - 30.0))
+	return Rect2(Vector2.ZERO, size)
 
 
 func draw_curve_(plot: Rect2, score_curve: bool) -> void:

@@ -28,11 +28,11 @@ const kWatchdogMaxRestartAttempts: int = 1
 @onready var candidates_: Tree = $Panel/Margin/Content/Candidates
 @onready var curve_: AnalysisCurve = $Panel/Margin/Content/Curve
 @onready var score_group_: HBoxContainer = \
-	$Panel/Margin/Content/CurveFooter/ScoreGroup
+	$Panel/Margin/Content/CurveFooter/Metrics/ScoreGroup
 @onready var current_winrate_value_: Label = \
-	$Panel/Margin/Content/CurveFooter/WinrateGroup/CurrentWinrateValue
+	$Panel/Margin/Content/CurveFooter/Metrics/WinrateGroup/CurrentWinrateValue
 @onready var current_score_value_: Label = \
-	$Panel/Margin/Content/CurveFooter/ScoreGroup/CurrentScoreValue
+	$Panel/Margin/Content/CurveFooter/Metrics/ScoreGroup/CurrentScoreValue
 @onready var analyze_game_button_: Button = \
 	$Panel/Margin/Content/CurveFooter/AnalyzeGame
 @onready var invalid_max_playouts_dialog_: AcceptDialog = \

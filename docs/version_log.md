@@ -1,3 +1,15 @@
+# 0.1.22
+
+- 修复iOS版在进行自动性能检测时可能发生闪退的问题。
+- 小幅优化安卓版KataGo OpenCL后端的性能。
+- 调整UI图标配色，优化UI细节。
+
+Translation：
+
+- Fixed an issue that could cause the iOS app to crash during automatic performance testing.
+- Slightly improved the performance of KataGo's OpenCL backend on Android.
+- Adjusted UI icon colors and improved UI details.
+
 # 0.1.21
 
 - 工具菜单中增加一键为特定节点添加占位笔记的功能，特定节点包含有多分支的中间节点以及叶子节点。有占位笔记的节点会自动出现在“专注”模式中，方便用户直接编辑笔记内容。

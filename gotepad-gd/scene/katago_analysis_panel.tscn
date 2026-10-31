@@ -47,6 +47,7 @@ theme_override_constants/separation = 8
 
 [node name="Controls" type="VBoxContainer" parent="Panel/Margin/Content"]
 layout_mode = 2
+size_flags_vertical = 1
 theme_override_constants/separation = 6
 
 [node name="Primary" type="HBoxContainer" parent="Panel/Margin/Content/Controls"]
@@ -128,43 +129,48 @@ column_titles_visible = true
 [node name="Curve" type="Control" parent="Panel/Margin/Content"]
 custom_minimum_size = Vector2(280, 200)
 layout_mode = 2
+size_flags_vertical = 1
 clip_contents = true
 mouse_default_cursor_shape = 2
 tooltip_text = "点击曲线位置漫游到对应局面"
 script = ExtResource("3_curve")
 
-[node name="CurveFooter" type="HFlowContainer" parent="Panel/Margin/Content"]
+[node name="CurveFooter" type="VBoxContainer" parent="Panel/Margin/Content"]
 layout_mode = 2
-alignment = 1
-theme_override_constants/h_separation = 24
-theme_override_constants/v_separation = 12
+size_flags_vertical = 1
+theme_override_constants/separation = 12
 
-[node name="WinrateGroup" type="HBoxContainer" parent="Panel/Margin/Content/CurveFooter"]
+[node name="Metrics" type="HBoxContainer" parent="Panel/Margin/Content/CurveFooter"]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 2
+
+[node name="WinrateGroup" type="HBoxContainer" parent="Panel/Margin/Content/CurveFooter/Metrics"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="WinrateLegend" type="Label" parent="Panel/Margin/Content/CurveFooter/WinrateGroup"]
+[node name="WinrateLegend" type="Label" parent="Panel/Margin/Content/CurveFooter/Metrics/WinrateGroup"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.713725, 0.807843, 0.627451, 1)
 text = "━ 黑方胜率"
 
-[node name="CurrentWinrateValue" type="Label" parent="Panel/Margin/Content/CurveFooter/WinrateGroup"]
+[node name="CurrentWinrateValue" type="Label" parent="Panel/Margin/Content/CurveFooter/Metrics/WinrateGroup"]
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.713725, 0.807843, 0.627451, 1)
 text = "—"
 horizontal_alignment = 2
 
-[node name="ScoreGroup" type="HBoxContainer" parent="Panel/Margin/Content/CurveFooter"]
+[node name="ScoreGroup" type="HBoxContainer" parent="Panel/Margin/Content/CurveFooter/Metrics"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="ScoreLegend" type="Label" parent="Panel/Margin/Content/CurveFooter/ScoreGroup"]
+[node name="ScoreLegend" type="Label" parent="Panel/Margin/Content/CurveFooter/Metrics/ScoreGroup"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.929412, 0.788235, 0.509804, 1)
 text = "━ 黑方目差"
 
-[node name="CurrentScoreValue" type="Label" parent="Panel/Margin/Content/CurveFooter/ScoreGroup"]
+[node name="CurrentScoreValue" type="Label" parent="Panel/Margin/Content/CurveFooter/Metrics/ScoreGroup"]
 custom_minimum_size = Vector2(44, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.929412, 0.788235, 0.509804, 1)
@@ -173,6 +179,7 @@ horizontal_alignment = 2
 
 [node name="AnalyzeGame" type="Button" parent="Panel/Margin/Content/CurveFooter"]
 layout_mode = 2
+size_flags_horizontal = 8
 focus_mode = 0
 mouse_default_cursor_shape = 2
 tooltip_text = "分析当前播放条对应的整条棋局路径"

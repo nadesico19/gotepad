@@ -144,6 +144,84 @@ def stage(platform, target, host_arch, template=""):
     preset_path.chmod(0o600)
 
 
+def android_editor_setting(key):
+    settings = Path.home() / "Library/Application Support/Godot/editor_settings-4.7.tres"
+    if not settings.is_file():
+        return None
+    match = re.search(r"^" + re.escape(key) + r"\s*=\s*(\"(?:\\.|[^\"])*\")\s*$",
+                      settings.read_text(encoding="utf-8"), re.M)
+    if not match:
+        return None
+    try:
+        configured = json.loads(match.group(1))
+    except ValueError:
+        return None
+    return Path(configured).expanduser() if configured else None
+
+
+def android_tool(tool, sdk=None):
+    # These are read-only searches: use existing installations, without
+    # registering them system-wide or downloading another toolchain.
+    local_tools = ROOT / ".tmp/android/tools"
+    candidates = []
+    if tool == "java":
+        candidates.append(android_editor_setting("export/android/java_sdk_path"))
+        for directory in sorted(local_tools.glob("jdk*"), reverse=True):
+            candidates.extend((directory / "Contents/Home", directory))
+        candidates.extend((Path("/Applications/Android Studio.app/Contents/jbr/Contents/Home"),
+                           Path.home() / "Applications/Android Studio.app/Contents/jbr/Contents/Home",
+                           Path("/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"),
+                           Path("/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home")))
+        for directory in (Path("/Library/Java/JavaVirtualMachines"),
+                          Path.home() / "Library/Java/JavaVirtualMachines", Path.home() / ".jdks"):
+            candidates.extend(sorted(directory.glob("*/Contents/Home"), reverse=True))
+
+        def valid(path):
+            if not all(os.access(path / "bin" / name, os.X_OK) for name in ("java", "javac", "keytool")):
+                return False
+            release = path / "release"
+            return release.is_file() and re.search(r'^JAVA_VERSION="17(?:\.|\")', release.read_text(encoding="utf-8"), re.M)
+
+        message = "No JDK 17 was found. Set JAVA_HOME to an existing JDK 17 home containing bin/java and bin/javac."
+    elif tool == "sdk":
+        candidates = [android_editor_setting("export/android/android_sdk_path"), local_tools / "sdk",
+                      Path.home() / "Library/Android/sdk"]
+
+        def valid(path):
+            return (path / "build-tools").is_dir() and (path / "platforms").is_dir()
+
+        message = "No Android SDK was found. Set ANDROID_HOME to an existing Android SDK."
+    elif tool == "ndk":
+        ndk_root = Path(sdk) / "ndk"
+        if ndk_root.is_dir():
+            candidates.extend(sorted((p for p in ndk_root.iterdir() if re.fullmatch(r"\d+(?:\.\d+)*", p.name)),
+                                     key=lambda p: tuple(map(int, p.name.split("."))), reverse=True))
+        candidates.extend(sorted(local_tools.glob("android-ndk-*"), reverse=True))
+        candidates.append(Path(sdk) / "ndk-bundle")
+
+        def valid(path):
+            return (path / "build/cmake/android.toolchain.cmake").is_file()
+
+        message = "No Android NDK was found. Set ANDROID_NDK_HOME to an existing Android NDK."
+    else:
+        raise SystemExit("Unknown Android tool: " + tool)
+    for candidate in candidates:
+        if candidate is not None and valid(candidate):
+            print(candidate.resolve())
+            return
+    if tool == "java":
+        # java_home only sees JDKs registered with macOS. A project-local or
+        # Android Studio JDK must be considered before this optional fallback.
+        result = subprocess.run(["/usr/libexec/java_home", "-v", "17"], stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, text=True, check=False)
+        if result.returncode == 0 and result.stdout.strip():
+            candidate = Path(result.stdout.strip())
+            if valid(candidate):
+                print(candidate.resolve())
+                return
+    raise SystemExit(message)
+
+
 def configure_android_sdk():
     settings = Path.home() / "Library/Application Support/Godot/editor_settings-4.7.tres"
     require(settings.is_file(), "Godot editor settings are missing; import the staged project first.")
@@ -243,6 +321,8 @@ def main():
         android_template(Path(args[0]), Path(args[1]), Path(args[2]) if len(args) > 2 else None)
     elif command == "configure-android-sdk":
         configure_android_sdk()
+    elif command == "android-tool":
+        android_tool(args[0], args[1] if len(args) > 1 else None)
     elif command == "verify-apk":
         verify_apk(Path(args[0]), Path(args[1]))
     elif command == "latest":

@@ -327,7 +327,18 @@ if (BUILD_EMBEDDED_KATAGO)
   endif ()
 
   find_package(Threads REQUIRED)
-  find_package(ZLIB REQUIRED)
+  add_library(gotepad_katago_zlib INTERFACE)
+  if (TARGET zlib)
+    # OpenCV caches its bundled target name as ZLIB_LIBRARY. FindZLIB would
+    # treat that name as an imported library path, producing a bare "zlib"
+    # file argument at link time. Reuse the real target and its headers.
+    target_link_libraries(gotepad_katago_zlib INTERFACE zlib)
+    target_include_directories(gotepad_katago_zlib SYSTEM INTERFACE
+        ${ZLIB_INCLUDE_DIR})
+  else ()
+    find_package(ZLIB REQUIRED)
+    target_link_libraries(gotepad_katago_zlib INTERFACE ZLIB::ZLIB)
+  endif ()
   set(KATAGO_GDEXT_SOURCES
       src/katago_gdext.cpp src/katago_version.cpp
       ${KATAGO_EMBEDDED_EIGEN_SOURCES})
@@ -347,7 +358,7 @@ if (BUILD_EMBEDDED_KATAGO)
       NO_GIT_REVISION NO_LIBZIP
       BYTE_ORDER=1234 LITTLE_ENDIAN=1234 BIG_ENDIAN=4321)
   target_compile_options(go_gdext PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fsigned-char>)
-  target_link_libraries(go_gdext PRIVATE Threads::Threads ZLIB::ZLIB)
+  target_link_libraries(go_gdext PRIVATE Threads::Threads gotepad_katago_zlib)
   # Android's NDK does not expose the legacy endian macros expected by
   # KataGo's portable SHA implementation. Gotepad currently builds only
   # little-endian arm64 Android packages.
@@ -432,7 +443,7 @@ if (BUILD_EMBEDDED_KATAGO)
     target_compile_options(katago_opencl_android PRIVATE
         -fsigned-char -fvisibility=hidden)
     target_link_libraries(katago_opencl_android PRIVATE
-        Threads::Threads ZLIB::ZLIB log android android_opencl_link_stub)
+        Threads::Threads gotepad_katago_zlib log android android_opencl_link_stub)
     target_link_options(katago_opencl_android PRIVATE
         "-Wl,-z,max-page-size=16384")
     set_target_properties(katago_opencl_android PROPERTIES
