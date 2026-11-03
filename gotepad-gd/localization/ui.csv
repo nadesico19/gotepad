@@ -637,7 +637,7 @@ keys,zh_CN,ja,ko,en
 "所选模型是普通分析模型，仿人棋请选择 Human SL 模型。","所选模型是普通分析模型，仿人棋请选择 Human SL 模型。","選択されたモデルは通常の解析モデルです。人間模倣対局には Human SL モデルを選択してください。","선택한 모델은 일반 분석 모델입니다. 인간 모방 대국에는 Human SL 모델을 선택하세요.","This is a regular analysis model. Choose a Human SL model for human-style play."
 "无法创建数目配置：%s","无法创建数目配置：%s","数え上げ設定を作成できません：%s","계가 설정을 만들 수 없습니다: %s","Unable to create scoring configuration: %s"
 "移动端数目使用内置 10b 模型。","移动端数目使用内置 10b 模型。","モバイル版の数え上げは内蔵 10b モデルを使用します。","모바일 계가는 내장 10b 모델을 사용합니다.","Mobile scoring uses the built-in 10b model."
-"终局数目仅支持中国规则，黑方固定贴还白方 3.5 子。\n请先收完所有单官，再开始所属判定。","终局数目仅支持中国规则，黑方固定贴还白方 3.5 子。\n请先收完所有单官，再开始所属判定。","終局計算は中国ルールのみ対応し、黒から白へ 3.5 子を移して計算します。\nすべてのダメを詰めてから所有判定を開始してください。","종국 계가는 중국식 규칙만 지원하며 흑에서 백으로 3.5자를 넘겨 계산합니다.\n모든 공배를 메운 뒤 소유권 판정을 시작하세요.","Final scoring uses Chinese rules with a fixed transfer of 3.5 zi from Black to White.\nFill all dame before starting ownership analysis."
+"DIALOG_TERRITORY_SCORING_INSTRUCTIONS","终局数目仅支持中国规则，黑方固定贴还白方 3.5 子。\n请先收完所有单官，再开始所属判定。","終局計算は中国ルールのみ対応し、黒から白へ 3.5 子を移して計算します。\nすべてのダメを詰めてから所有判定を開始してください。","종국 계가는 중국식 규칙만 지원하며 흑에서 백으로 3.5자를 넘겨 계산합니다.\n모든 공배를 메운 뒤 소유권 판정을 시작하세요.","Final scoring uses Chinese rules with a fixed transfer of 3.5 zi from Black to White.\nFill all dame before starting ownership analysis."
 "贴还后双方相等时：","贴还后双方相等时：","調整後に同点となった場合：","조정 후 동점일 때:","When the totals are equal after the transfer:"
 "1. 平局时，白方胜","1. 平局时，白方胜","1. 同点なら白勝ち","1. 동점이면 백 승리","1. White wins a tie"
 "2. 平局时，最后放弃着手的一方胜","2. 平局时，最后放弃着手的一方胜","2. 同点なら最後にパスした側の勝ち","2. 동점이면 마지막으로 패스한 쪽 승리","2. The last player to pass wins a tie"

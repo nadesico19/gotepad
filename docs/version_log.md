@@ -1,3 +1,13 @@
+# 0.1.23
+
+- 终局数目功能采用中国规则最新的2027试行版。
+- 修复个别界面多语言文本的缺失。
+
+Translation：
+
+- Updated final scoring to use the latest 2027 trial edition of the Chinese rules.
+- Fixed missing localized text in some parts of the interface.
+
 # 0.1.22
 
 - 修复iOS版在进行自动性能检测时可能发生闪退的问题。

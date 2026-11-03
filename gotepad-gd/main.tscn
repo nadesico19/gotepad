@@ -943,12 +943,13 @@ theme_override_constants/separation = 12
 
 [node name="Instructions" type="Label" parent="Interface/SafeArea/TerritoryModeConfirmation/Content"]
 layout_mode = 2
-text = "终局数目仅支持中国规则，黑方固定贴还白方 3.5 子。\n请先收完所有单官，再开始所属判定。"
+text = "DIALOG_TERRITORY_SCORING_INSTRUCTIONS"
 autowrap_mode = 3
 
 [node name="DrawTitle" type="Label" parent="Interface/SafeArea/TerritoryModeConfirmation/Content"]
 layout_mode = 2
 text = "贴还后双方相等时："
+autowrap_mode = 3
 
 [node name="DrawWhite" type="CheckBox" parent="Interface/SafeArea/TerritoryModeConfirmation/Content"]
 layout_mode = 2
@@ -967,6 +968,7 @@ theme_override_styles/focus = SubResource("StyleBoxTerritoryRadioFocus")
 button_pressed = true
 button_group = SubResource("ButtonGroupTerritoryDraw")
 text = "1. 平局时，白方胜"
+autowrap_mode = 3
 
 [node name="DrawPass" type="CheckBox" parent="Interface/SafeArea/TerritoryModeConfirmation/Content"]
 layout_mode = 2
@@ -984,6 +986,7 @@ theme_override_icons/radio_unchecked = ExtResource("44_radio_unchecked")
 theme_override_styles/focus = SubResource("StyleBoxTerritoryRadioFocus")
 button_group = SubResource("ButtonGroupTerritoryDraw")
 text = "2. 平局时，最后放弃着手的一方胜"
+autowrap_mode = 3
 
 [node name="DrawKeep" type="CheckBox" parent="Interface/SafeArea/TerritoryModeConfirmation/Content"]
 layout_mode = 2
@@ -1001,6 +1004,7 @@ theme_override_icons/radio_unchecked = ExtResource("44_radio_unchecked")
 theme_override_styles/focus = SubResource("StyleBoxTerritoryRadioFocus")
 button_group = SubResource("ButtonGroupTerritoryDraw")
 text = "3. 平局时，维持平局"
+autowrap_mode = 3
 
 [node name="PassHint" type="Label" parent="Interface/SafeArea/TerritoryModeConfirmation/Content"]
 layout_mode = 2
