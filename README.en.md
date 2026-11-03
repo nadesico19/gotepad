@@ -76,7 +76,7 @@ Load a dedicated human-like-play model to play against an AI of a comparable lev
 
 ### Final scoring
 
-Use KataGo ownership analysis and Chinese rules to score the final position.
+Use KataGo ownership analysis and Chinese rules to score the final position. The feature currently follows the 2027 trial edition and supports a Japanese/Korean-style tie-break that awards the win to the player who passes first (all dame points must still be filled).
 
 ![Final scoring](examples/screenshots/counting.png)
 
