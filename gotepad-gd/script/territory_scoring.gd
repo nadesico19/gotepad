@@ -4,6 +4,9 @@ extends RefCounted
 const kEmpty: int = 0
 const kBlack: int = 1
 const kWhite: int = 2
+const kKomi: float = 3.5
+const kWhiteWinsDrawMarginKomi: float = 3.75
+const kBlackWinsDrawMarginKomi: float = 3.25
 const kDirections: Array[Vector2i] = [
 	Vector2i(-1, 0), Vector2i(1, 0),
 	Vector2i(0, -1), Vector2i(0, 1),
@@ -14,7 +17,8 @@ static func score_chinese(
 		states: PackedInt32Array,
 		ownership: PackedInt32Array,
 		board_size: int,
-		komi: float
+		draw_winner: int = kEmpty,
+		margin_komi: float = kKomi
 ) -> Dictionary:
 	var point_count: int = board_size * board_size
 	if states.size() != point_count or ownership.size() != point_count:
@@ -75,10 +79,14 @@ static func score_chinese(
 		else:
 			neutral_points += region.size()
 
-	var black_total: float = float(black_stones + black_territory)
-	var white_total: float = float(white_stones + white_territory) + komi
-	var winner: int = kEmpty
-	if not is_equal_approx(black_total, white_total):
+	# 中立点不计入任何一方，也不以棋盘总点数补足双方地域。
+	# 胜负判定始终按贴还 3.5 子，与胜子数使用的贴子数分开。
+	var black_total: float = float(black_stones + black_territory) - kKomi
+	var white_total: float = float(white_stones + white_territory) + kKomi
+	var is_draw: bool = is_equal_approx(black_total, white_total)
+	var winner: int = draw_winner
+	var margin: float = absf((black_total - white_total) / 2.0 + kKomi - margin_komi)
+	if not is_draw:
 		winner = kBlack if black_total > white_total else kWhite
 	return {
 		"cleaned_states": cleaned,
@@ -87,9 +95,11 @@ static func score_chinese(
 		"black_territory": black_territory,
 		"white_territory": white_territory,
 		"neutral_points": neutral_points,
-		"komi": komi,
+		"komi": kKomi,
+		"margin_komi": margin_komi,
 		"black_total": black_total,
 		"white_total": white_total,
 		"winner": winner,
-		"margin": absf(black_total - white_total),
+		"is_draw": is_draw,
+		"margin": margin,
 	}

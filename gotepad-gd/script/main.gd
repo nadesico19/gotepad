@@ -224,6 +224,10 @@ class DocumentState extends RefCounted:
 	$Interface/SafeArea/SgfLoadWarningDialog
 @onready var territory_mode_confirmation_: ConfirmationDialog = \
 	$Interface/SafeArea/TerritoryModeConfirmation
+@onready var territory_draw_white_: CheckBox = \
+	$Interface/SafeArea/TerritoryModeConfirmation/Content/DrawWhite
+@onready var territory_draw_pass_: CheckBox = \
+	$Interface/SafeArea/TerritoryModeConfirmation/Content/DrawPass
 @onready var territory_result_dialog_: AcceptDialog = \
 	$Interface/SafeArea/TerritoryResultDialog
 @onready var territory_error_dialog_: AcceptDialog = \
@@ -321,6 +325,9 @@ var desktop_open_request_timer_: Timer
 var desktop_open_requests_: Array[String] = []
 var desktop_open_action_pending_: bool = false
 var territory_mode_active_: bool = false
+var territory_draw_winner_: int = kWhite
+var territory_draw_uses_pass_: bool = false
+var territory_margin_komi_: float = TerritoryScoring.kKomi
 var territory_query_id_: String = ""
 var territory_side_panel_to_restore_: int = kPendingPanelNone
 var territory_restore_after_resume_: bool = false
@@ -3257,15 +3264,24 @@ func on_territory_scoring_requested_() -> void:
 
 
 func show_territory_scoring_confirmation_() -> void:
-	territory_mode_confirmation_.dialog_text = tr(
-		"终局数目目前只支持中国规则。请先收完所有单官，再开始所属判定。"
-	)
-	DialogLayoutManager.popup_centered(territory_mode_confirmation_, Vector2i(620, 220))
+	DialogLayoutManager.popup_centered(territory_mode_confirmation_, Vector2i(680, 340))
 
 
 func enter_territory_scoring_mode_() -> void:
 	if territory_mode_active_:
 		return
+	territory_draw_uses_pass_ = territory_draw_pass_.button_pressed
+	territory_draw_winner_ = TerritoryScoring.kEmpty
+	territory_margin_komi_ = TerritoryScoring.kKomi
+	if territory_draw_white_.button_pressed:
+		territory_draw_winner_ = kWhite
+		territory_margin_komi_ = TerritoryScoring.kWhiteWinsDrawMarginKomi
+	elif territory_draw_uses_pass_:
+		territory_draw_winner_ = board_.get_next_color()
+		# 白收后下一手为黑，按 3.25 子；黑收后下一手为白，按 3.75 子。
+		territory_margin_komi_ = TerritoryScoring.kBlackWinsDrawMarginKomi \
+			if territory_draw_winner_ == kBlack \
+			else TerritoryScoring.kWhiteWinsDrawMarginKomi
 	territory_side_panel_to_restore_ = kPendingPanelNone
 	if notes_panel_.is_panel_open():
 		territory_side_panel_to_restore_ = kPendingPanelNotes
@@ -3328,6 +3344,8 @@ func enter_territory_scoring_mode_() -> void:
 		2
 	)
 	query["rules"] = "chinese"
+	# KataGo 使用目数，黑方贴还 3.5 子对应 7 目。
+	query["komi"] = TerritoryScoring.kKomi * 2.0
 	query["initialPlayer"] = "W" \
 		if board_.get_next_color() == kWhite else "B"
 	query["includeOwnership"] = true
@@ -3407,41 +3425,46 @@ func append_territory_log_(message: String) -> void:
 func on_territory_scoring_accept_requested_() -> void:
 	if not territory_mode_active_ or territory_accept_button_.disabled:
 		return
-	var metadata: Dictionary = Dictionary(
-		board_.get_go_notes().call(&"get_sgf_metadata")
-	)
-	var komi_text: String = str(metadata.get("komi", "7.5")).strip_edges()
-	var komi: float = float(komi_text) if komi_text.is_valid_float() else 7.5
 	var score: Dictionary = TerritoryScoring.score_chinese(
 		board_.get_position_states(),
 		board_.get_territory_marks(),
 		board_.get_board_size(),
-		komi
+		territory_draw_winner_,
+		territory_margin_komi_
 	)
 	if score.is_empty():
 		show_territory_error_(tr("无法根据当前所属标记完成数目。"))
 		return
 	var lines: PackedStringArray = PackedStringArray([
-		tr("黑方：%d 子 + %d 空 = %.1f") % [
+		tr("黑方：%d 子 + %d 空 − 贴还 %.1f 子 = %.1f 子") % [
 			int(score.black_stones), int(score.black_territory),
-			float(score.black_total)
+			float(score.komi), float(score.black_total)
 		],
-		tr("白方：%d 子 + %d 空 + 贴目 %.1f = %.1f") % [
+		tr("白方：%d 子 + %d 空 + 贴还 %.1f 子 = %.1f 子") % [
 			int(score.white_stones), int(score.white_territory),
 			float(score.komi), float(score.white_total)
 		],
 		tr("中立点：%d") % int(score.neutral_points),
 	])
+	if not bool(score.is_draw):
+		lines.append(tr("胜负按贴还 3.5 子判定；胜子数按贴还 %.2f 子计算。") % float(score.margin_komi))
 	var winner: int = int(score.winner)
-	if winner == kBlack:
-		lines.append(tr("结果：黑方胜 %.1f 目") % float(score.margin))
+	if bool(score.is_draw):
+		if territory_draw_uses_pass_:
+			lines.append(tr("平局处理：最后放弃着手的一方胜（按当前棋盘下一手颜色判定）。"))
+			lines.append(tr("结果：黑方胜 %.2f 子（黑方为放弃着手方）。") % float(score.margin) \
+				if winner == kBlack else tr("结果：白方胜 %.2f 子（白方为放弃着手方）。") % float(score.margin))
+		elif winner == kWhite:
+			lines.append(tr("结果：白方胜 %.2f 子（按“平局时白方胜”判定）。") % float(score.margin))
+		else:
+			lines.append(tr("结果：平局（贴还后双方相等，按所选方式维持平局）。"))
+	elif winner == kBlack:
+		lines.append(tr("结果：黑方胜 %.2f 子") % float(score.margin))
 	elif winner == kWhite:
-		lines.append(tr("结果：白方胜 %.1f 目") % float(score.margin))
-	else:
-		lines.append(tr("结果：和棋"))
+		lines.append(tr("结果：白方胜 %.2f 子") % float(score.margin))
 	exit_territory_scoring_mode_()
 	territory_result_dialog_.dialog_text = "\n".join(lines)
-	DialogLayoutManager.popup_centered(territory_result_dialog_, Vector2i(560, 280))
+	DialogLayoutManager.popup_centered(territory_result_dialog_, Vector2i(680, 340))
 
 
 func exit_territory_scoring_mode_() -> void:

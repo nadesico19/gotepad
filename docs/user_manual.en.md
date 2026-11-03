@@ -380,9 +380,23 @@ When the AI chooses to pass, the program asks whether you also want to pass; the
 
 ![endgame scoring](../gotepad-gd/assets/ui/territory_scoring.svg)
 
-Endgame scoring currently supports only Chinese rules. Fill all dame points before clicking the endgame scoring icon at the end of the toolbar on the right side of the board. Move numbers on stones are temporarily hidden during scoring; leaving scoring restores the previous display settings. The program uses the "Final scoring effort" setting to ask KataGo which side owns each intersection. This setting defaults to 200 visits and is independent of ordinary analysis effort and human-like play visits. The result appears as translucent region markers on the board; the separate log panel beside the green `✓` and red `✕` buttons displays engine startup messages and real-time progress line by line.
+Endgame scoring currently supports only Chinese rules and ignores the komi stored in the game record. Fill all dame points before clicking the endgame scoring icon at the end of the toolbar on the right side of the board. This feature measures scores in Chinese counting units, called *zi*: transferring 3.5 zi from Black to White corresponds to a 7-point komi in the usual score-difference convention. Do not confuse these units.
 
-KataGo can misjudge life, death, and ownership. Click an intersection to switch its entire four-directionally connected ownership region to the other side. After checking all marks, click the green `✓`: the program removes stones judged dead from a calculation-only board, assigns the remaining empty regions, and lists each side’s stones, territory, komi, neutral points, and winning margin. White’s total includes komi. Scoring then exits and displays the result; it does not remove stones from the game record or automatically fill in the game result. The red `✕` or `Esc` exits without changing the record. Scoring is an aid; complex life and death, seki, and unfinished dame still require review.
+The startup dialog offers three vertically arranged radio buttons. The winner is always determined using a 3.5-zi transfer: subtract 3.5 from Black’s stones-plus-territory total, add 3.5 to White’s total, and compare. The displayed winning margin uses the transfer specified below:
+
+| Option | When the totals are equal after the 3.5-zi transfer | Transfer used for the displayed winning margin |
+|---|---|---|
+| 1. White wins a tie (default) | White wins | 3.75 zi from Black to White |
+| 2. The last player to pass wins a tie | Treat the next-to-play color when scoring starts as the player who passes, and award that side the win | 3.25 zi if Black is next (White played last); 3.75 zi if White is next (Black played last) |
+| 3. Keep the tie | Display a draw | 3.5 zi from Black to White |
+
+※ Before selecting option 2, check that the board’s next-to-play color is correct. The program uses that color directly; it does not reconstruct the actual order of passes.
+
+The winning margin is half the absolute difference between the two totals after applying the transfer for the selected option, displayed to two decimal places in zi. On a 19×19 board with no neutral points, raw totals of 184 for Black and 177 for White are equal after the 3.5-zi transfer: option 1 displays White winning by 0.25 zi; option 2 displays Black or White winning by 0.25 zi according to the next-to-play color; option 3 displays a draw. Neutral points are excluded from both sides’ area totals and all result calculations. They are listed separately, without adding points to make the two totals sum to 361 or to the total number of intersections on another board size.
+
+Move numbers on stones are temporarily hidden during scoring; leaving scoring restores the previous display settings. The program uses the “Final scoring effort” setting to ask KataGo which side owns each intersection. This setting defaults to 200 visits and is independent of ordinary analysis effort and human-like play visits. The result appears as translucent region markers on the board; the separate log panel beside the green `✓` and red `✕` buttons displays engine startup messages and real-time progress line by line.
+
+KataGo can misjudge life, death, and ownership. Click an intersection to switch its entire four-directionally connected ownership region to the other side. After checking all marks, click the green `✓`: the program removes stones judged dead from a calculation-only board, assigns the remaining empty regions, and lists each side’s stones, empty territory points, transfer, neutral points, winner, and winning margin, explaining the tie-breaking decision when applicable. Scoring then exits and displays the result; it does not remove stones from the game record or automatically fill in the game result. The red `✕` or `Esc` exits without changing the record. Scoring is an aid; complex life and death, seki, and unfinished dame still require review.
 
 ## Settings
 
