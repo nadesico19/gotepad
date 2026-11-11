@@ -8,6 +8,7 @@ signal query_error(query_id: String, message: String)
 signal service_warning(message: String)
 signal running_changed(running: bool)
 signal transport_starting
+signal transport_ready
 signal recovery_started
 
 var transport_: KataGoTransport
@@ -33,6 +34,7 @@ func set_transport(transport: KataGoTransport) -> void:
 	transport_.log_received.connect(on_transport_log_)
 	transport_.transport_error.connect(on_transport_error_)
 	transport_.transport_stopped.connect(on_transport_stopped_)
+	transport_.transport_ready.connect(transport_ready.emit)
 	transport_.recovery_started.connect(on_transport_recovery_started_)
 
 
@@ -106,6 +108,10 @@ func shutdown() -> void:
 
 func is_running() -> bool:
 	return transport_ != null and transport_.is_transport_running()
+
+
+func is_initializing() -> bool:
+	return transport_ != null and transport_.is_transport_initializing()
 
 
 func on_transport_line_(line: String) -> void:

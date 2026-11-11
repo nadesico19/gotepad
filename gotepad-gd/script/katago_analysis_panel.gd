@@ -117,6 +117,7 @@ func bind_service(service: KataGoAnalysisService) -> void:
 	service_.service_error.connect(on_service_error_)
 	service_.query_error.connect(on_query_error_)
 	service_.service_warning.connect(on_service_warning_)
+	service_.transport_ready.connect(on_transport_ready_)
 	service_.recovery_started.connect(on_service_recovery_started_)
 
 
@@ -296,6 +297,8 @@ func on_play_pressed_() -> void:
 		if not paused_result_.is_empty():
 			apply_current_result_(paused_result_)
 			paused_result_.clear()
+		elif not current_query_id_.is_empty() and service_.is_initializing():
+			refresh_waiting_status_()
 		update_controls_()
 		return
 	if prepare_for_user_analysis_():
@@ -306,7 +309,8 @@ func on_pause_pressed_() -> void:
 	if state_ != kStateAnalyzing:
 		return
 	state_ = kStatePaused
-	status_label_.text = tr("已暂停界面刷新，KataGo仍在分析")
+	if not service_.is_initializing():
+		status_label_.text = tr("已暂停界面刷新，KataGo仍在分析")
 	update_controls_()
 
 
@@ -388,9 +392,7 @@ func start_current_analysis_(continuous: bool, max_playouts: int = 0) -> void:
 		return
 	arm_watchdog_()
 	state_ = kStateContinuous if continuous else kStateAnalyzing
-	status_label_.text = tr("正在分析当前局面…") \
-		if current_max_playouts_ <= 0 \
-		else tr("正在加大计算量：%d maxplayouts…") % current_max_playouts_
+	refresh_waiting_status_()
 	update_controls_()
 
 
@@ -444,10 +446,33 @@ func on_analyze_game_pressed_() -> void:
 		on_service_error_(tr("播放路径没有可分析的局面。"))
 		return
 	analyze_game_button_.text = tr("取消整局分析")
-	status_label_.text = tr("正在分析整条播放路径：0/%d") % \
-		batch_pending_turns_.size()
+	refresh_waiting_status_()
 	arm_watchdog_()
 	update_controls_()
+
+
+func on_transport_ready_() -> void:
+	if state_ == kStatePaused and not current_query_id_.is_empty():
+		status_label_.text = tr("已暂停界面刷新，KataGo仍在分析")
+	else:
+		refresh_waiting_status_()
+
+
+func refresh_waiting_status_() -> void:
+	if state_ == kStatePaused or state_ == kStateStopping:
+		return
+	if current_query_id_.is_empty() and batch_query_id_.is_empty():
+		return
+	if service_.is_initializing():
+		status_label_.text = tr("正在初始化 KataGo…")
+	elif not batch_query_id_.is_empty():
+		status_label_.text = tr("正在分析整条播放路径：0/%d") % \
+			batch_pending_turns_.size()
+	elif current_max_playouts_ > 0:
+		status_label_.text = tr("正在加大计算量：%d maxplayouts…") % \
+			current_max_playouts_
+	else:
+		status_label_.text = tr("正在分析当前局面…")
 
 
 func on_analysis_result_(result: Dictionary) -> void:

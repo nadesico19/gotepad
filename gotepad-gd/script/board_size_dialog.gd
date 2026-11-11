@@ -221,7 +221,7 @@ func on_ios_sgf_selected_(result: Dictionary) -> void:
 		return
 	var error: String = str(result.get("error", ""))
 	if not error.is_empty():
-		show_load_error(error)
+		show_load_error(tr(error))
 		return
 	var path: String = str(result.get("path", ""))
 	if not path.is_empty():
@@ -307,7 +307,7 @@ func on_ios_image_selected_(result: Dictionary) -> void:
 	var error: String = str(result.get("error", ""))
 	if not error.is_empty():
 		finish_image_file_dialog_()
-		show_load_error(error)
+		show_load_error(tr(error))
 		return
 	on_image_file_selected_(str(result.get("path", "")))
 

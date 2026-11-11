@@ -496,6 +496,9 @@ func _ready() -> void:
 	katago_human_analysis_service_.service_error.connect(
 		on_human_play_service_error_
 	)
+	katago_human_analysis_service_.transport_ready.connect(
+		on_human_play_transport_ready_
+	)
 	configure_human_play_options_()
 	territory_scoring_button_.pressed.connect(
 		on_territory_scoring_requested_
@@ -716,7 +719,7 @@ func poll_ios_open_files_() -> void:
 		var result: Dictionary = Dictionary(value)
 		var error: String = str(result.get("error", ""))
 		if not error.is_empty():
-			board_size_dialog_.show_load_error(error)
+			board_size_dialog_.show_load_error(tr(error))
 			continue
 		var path: String = str(result.get("path", ""))
 		if not path.is_empty():
@@ -1671,7 +1674,9 @@ func save_ios_document_(overwrite: bool) -> bool:
 		else ios_file_picker_.export_file(source_path)
 	if not opened:
 		ios_file_picker_.queue_free()
-		on_ios_save_completed_({"error": tr("无法打开 iOS 文件选择器。")}, document, source_path)
+		on_ios_save_completed_(
+			{"error": "无法打开 iOS 文件选择器。"}, document, source_path
+		)
 	return opened
 
 
@@ -1681,7 +1686,7 @@ func on_ios_save_completed_(result: Dictionary, document: DocumentState, source_
 	if bool(result.get("cancelled", false)) or not error.is_empty():
 		DirAccess.remove_absolute(source_path)
 		if not error.is_empty():
-			save_error_dialog_.dialog_text = error
+			save_error_dialog_.dialog_text = tr(error)
 			DialogLayoutManager.popup_centered(save_error_dialog_, Vector2i(480, 180))
 		return
 	var index: int = documents_.find(document)
@@ -2692,6 +2697,13 @@ func request_human_play_ai_move_() -> void:
 			on_human_play_service_error_(tr(
 				"无法向KataGo发送仿人棋请求。"
 			))
+	elif katago_human_analysis_service_.is_initializing():
+		set_human_play_status_(tr("正在初始化 KataGo…"))
+
+
+func on_human_play_transport_ready_() -> void:
+	if human_play_mode_active_ and not human_play_query_id_.is_empty():
+		set_human_play_status_(tr("AI正在思考…"))
 
 
 func on_human_play_analysis_result_(result: Dictionary) -> void:
@@ -3355,6 +3367,8 @@ func enter_territory_scoring_mode_() -> void:
 		territory_query_id_ = ""
 		show_territory_error_(tr("无法向KataGo发送终局数目请求。"))
 		exit_territory_scoring_mode_()
+	elif territory_service.is_initializing():
+		append_territory_log_(tr("正在初始化 KataGo…"))
 
 
 func on_territory_analysis_result_(result: Dictionary) -> void:

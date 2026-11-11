@@ -4,6 +4,7 @@
 /.idea/
 /.vscode/
 /gotepad-gd/.godot/
+/gotepad-gd/localization/*.translation
 /gotepad-gd/bin/
 /gotepad-gd/ios/plugins/**/*.a
 /gotepad-gd/android/

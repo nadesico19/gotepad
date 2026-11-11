@@ -60,6 +60,88 @@ func get_cells() -> PackedInt32Array:
 	return cells_.duplicate()
 
 
+func get_cells_for_import() -> PackedInt32Array:
+	var cells: PackedInt32Array = get_cells()
+	if cells.size() != board_size_ * board_size_:
+		return cells
+	var neighbors: Array[PackedInt32Array] = build_neighbors_(cells.size())
+	var no_liberties: PackedInt32Array = find_stones_without_liberties_(
+		cells, neighbors
+	)
+	while not no_liberties.is_empty():
+		var blocker: int = find_low_confidence_blocker_(cells, neighbors, no_liberties)
+		if blocker < 0:
+			# Clearing whole groups only adds liberties to the groups left on the board.
+			for index: int in no_liberties:
+				cells[index] = 0
+			break
+		cells[blocker] = 0
+		no_liberties = find_stones_without_liberties_(cells, neighbors)
+	return cells
+
+
+func build_neighbors_(point_count: int) -> Array[PackedInt32Array]:
+	var neighbors: Array[PackedInt32Array] = []
+	for index: int in range(point_count):
+		var adjacent: PackedInt32Array = PackedInt32Array()
+		var column: int = index % board_size_
+		if column > 0:
+			adjacent.append(index - 1)
+		if column + 1 < board_size_:
+			adjacent.append(index + 1)
+		if index >= board_size_:
+			adjacent.append(index - board_size_)
+		if index + board_size_ < point_count:
+			adjacent.append(index + board_size_)
+		neighbors.append(adjacent)
+	return neighbors
+
+
+func find_stones_without_liberties_(
+		cells: PackedInt32Array, neighbors: Array[PackedInt32Array]
+) -> PackedInt32Array:
+	var no_liberties: PackedInt32Array = PackedInt32Array()
+	var visited: PackedByteArray = PackedByteArray()
+	visited.resize(cells.size())
+	for start: int in range(cells.size()):
+		var color: int = cells[start]
+		if (color != kBlack and color != kWhite) or visited[start] != 0:
+			continue
+		var group: PackedInt32Array = PackedInt32Array([start])
+		var cursor: int = 0
+		var has_liberty: bool = false
+		visited[start] = 1
+		while cursor < group.size():
+			var index: int = group[cursor]
+			cursor += 1
+			for neighbor: int in neighbors[index]:
+				if cells[neighbor] == 0:
+					has_liberty = true
+				elif cells[neighbor] == color and visited[neighbor] == 0:
+					visited[neighbor] = 1
+					group.append(neighbor)
+		if not has_liberty:
+			no_liberties.append_array(group)
+	return no_liberties
+
+
+func find_low_confidence_blocker_(
+		cells: PackedInt32Array, neighbors: Array[PackedInt32Array],
+		no_liberties: PackedInt32Array
+) -> int:
+	var blocker: int = -1
+	var lowest_confidence: float = kLowConfidenceThreshold
+	for index: int in no_liberties:
+		var opponent: int = kWhite if cells[index] == kBlack else kBlack
+		for neighbor: int in neighbors[index]:
+			if cells[neighbor] != opponent or neighbor >= confidence_.size():
+				continue
+			if confidence_[neighbor] < lowest_confidence:
+				lowest_confidence = confidence_[neighbor]
+				blocker = neighbor
+	return blocker
+
+
 func get_low_confidence_count() -> int:
 	var count: int = 0
 	for value: float in confidence_:

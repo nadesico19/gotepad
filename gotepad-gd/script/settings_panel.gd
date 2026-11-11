@@ -2085,7 +2085,7 @@ func on_ios_model_selected_(result: Dictionary, human_model: bool) -> void:
 	importing_human_model_ = human_model
 	var message: String = str(result.get("error", ""))
 	if not message.is_empty():
-		update_active_model_import_status_(message, kStatusErrorColor)
+		update_active_model_import_status_(tr(message), kStatusErrorColor)
 		return
 	ios_model_source_path_ = str(result.get("path", ""))
 	start_katago_model_import_(ios_model_source_path_, human_model)

@@ -149,7 +149,7 @@ func on_rotate_pressed_() -> void:
 func on_accept_pressed_() -> void:
 	if recognition_running_:
 		return
-	var cells: PackedInt32Array = review_.get_cells()
+	var cells: PackedInt32Array = review_.get_cells_for_import()
 	if cells.size() != board_size_ * board_size_:
 		show_error_(tr("棋盘图片尚未完成识别。"))
 		return
@@ -160,9 +160,7 @@ func on_accept_pressed_() -> void:
 	var command: String = build_preset_command_(cells)
 	if not command.is_empty() \
 			and int(validation_notes.execute_command(command)) != 0:
-		show_error_(tr(
-			"识别盘面包含无法预置的棋子，请修正红框附近的识别结果后重试。"
-		))
+		show_error_(tr("无法校验识别盘面。"))
 		return
 	hide()
 	import_confirmed.emit(board_size_, cells, source_path_)

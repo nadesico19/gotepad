@@ -10,6 +10,8 @@ func start_transport() -> bool:
 	if not SettingsStore.has_valid_katago_human_paths():
 		transport_error.emit(tr("KataGo人类模仿棋模型或分析配置无效，请先打开设置检查。"))
 		return false
+	if OS.get_name() not in ["Android", "iOS"]:
+		stop_transport()
 	backend_ = KataGoAndroidTransport.new() if OS.get_name() == "Android" \
 		else KataGoEmbeddedTransport.new() if OS.get_name() == "iOS" \
 		else KataGoLocalTransport.new()
@@ -18,6 +20,7 @@ func start_transport() -> bool:
 	backend_.log_received.connect(on_backend_log_received_)
 	backend_.transport_error.connect(on_backend_error_)
 	backend_.transport_stopped.connect(on_backend_stopped_)
+	backend_.transport_ready.connect(transport_ready.emit)
 	if OS.get_name() in ["Android", "iOS"]:
 		return bool(backend_.call("start_human_transport_with_override", ""))
 	return bool(backend_.call("start_human_transport"))
@@ -37,6 +40,10 @@ func stop_transport() -> void:
 
 func is_transport_running() -> bool:
 	return backend_ != null and backend_.is_transport_running()
+
+
+func is_transport_initializing() -> bool:
+	return backend_ != null and backend_.is_transport_initializing()
 
 
 func on_backend_stopped_() -> void:

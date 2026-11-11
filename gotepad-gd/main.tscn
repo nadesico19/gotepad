@@ -985,7 +985,7 @@ theme_override_icons/radio_checked = ExtResource("45_radio_checked")
 theme_override_icons/radio_unchecked = ExtResource("44_radio_unchecked")
 theme_override_styles/focus = SubResource("StyleBoxTerritoryRadioFocus")
 button_group = SubResource("ButtonGroupTerritoryDraw")
-text = "2. 平局时，最后放弃着手的一方胜"
+text = "2. 平局时，最先放弃着手的一方胜"
 autowrap_mode = 3
 
 [node name="DrawKeep" type="CheckBox" parent="Interface/SafeArea/TerritoryModeConfirmation/Content"]
