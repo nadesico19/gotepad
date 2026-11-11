@@ -3,6 +3,7 @@
 /.tmp/
 /.idea/
 /.vscode/
+.DS_Store
 /gotepad-gd/.godot/
 /gotepad-gd/localization/*.translation
 /gotepad-gd/bin/
