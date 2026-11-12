@@ -3965,6 +3965,7 @@ func on_go_notes_history_changed_() -> void:
 	update_reorder_branch_button_()
 	notes_panel_.refresh_current_position()
 	sgf_metadata_panel_.refresh_metadata()
+	katago_analysis_panel_.refresh_player_names(go_notes_)
 
 
 func refresh_note_preview_pages_after_change_() -> void:

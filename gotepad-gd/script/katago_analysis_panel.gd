@@ -27,6 +27,10 @@ const kWatchdogMaxRestartAttempts: int = 1
 	$Panel/Margin/Content/Controls/Secondary/Continuous
 @onready var candidates_: Tree = $Panel/Margin/Content/Candidates
 @onready var curve_: AnalysisCurve = $Panel/Margin/Content/Curve
+@onready var black_player_name_: Label = \
+	$Panel/Margin/Content/Curve/BlackPlayerName
+@onready var white_player_name_: Label = \
+	$Panel/Margin/Content/Curve/WhitePlayerName
 @onready var score_group_: HBoxContainer = \
 	$Panel/Margin/Content/CurveFooter/Metrics/ScoreGroup
 @onready var current_winrate_value_: Label = \
@@ -133,6 +137,7 @@ func open_panel(go_notes: GoNotes, board: GoBoardView) -> void:
 	go_notes_ = go_notes
 	board_ = board
 	current_uid_ = board_.get_view_uid()
+	refresh_player_names(go_notes)
 	panel_.show()
 	refresh_candidates_(latest_move_infos_)
 	refresh_curve_()
@@ -153,6 +158,7 @@ func begin_human_play_mode(
 	board_ = board
 	document_instance_id_ = go_notes.get_instance_id()
 	current_uid_ = board.get_view_uid()
+	refresh_player_names(go_notes)
 	human_play_previous_continuous_ = continuous_.button_pressed
 	continuous_.set_pressed_no_signal(false)
 	human_play_mode_ = true
@@ -248,6 +254,26 @@ func stop_continuous_analysis() -> void:
 func set_panel_rect(rect: Rect2) -> void:
 	position = rect.position
 	size = rect.size
+
+
+func refresh_player_names(go_notes: GoNotes) -> void:
+	if go_notes == null or go_notes != go_notes_:
+		return
+	var metadata: Dictionary = Dictionary(go_notes.call(&"get_sgf_metadata"))
+	black_player_name_.text = player_name_with_rank_(
+		str(metadata.get("black_name", "")), str(metadata.get("black_rank", ""))
+	)
+	white_player_name_.text = player_name_with_rank_(
+		str(metadata.get("white_name", "")), str(metadata.get("white_rank", ""))
+	)
+
+
+func player_name_with_rank_(player_name: String, rank: String) -> String:
+	player_name = player_name.strip_edges()
+	rank = rank.strip_edges()
+	if player_name.is_empty() or rank.is_empty():
+		return player_name
+	return "%s %s" % [player_name, rank]
 
 
 func on_board_position_changed(uid: int) -> void:
