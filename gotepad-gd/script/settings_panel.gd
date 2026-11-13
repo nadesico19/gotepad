@@ -523,6 +523,9 @@ func update_mobile_spinbox_icons_(spin_box: SpinBox, icons: Dictionary) -> void:
 func on_mobile_spinbox_gui_input_(
 	event: InputEvent, spin_box: SpinBox, line_edit: LineEdit
 ) -> void:
+	if MobileTextEditLongPressController.is_physical_mouse_edit_click(event):
+		activate_mobile_spinbox_physical_edit_(spin_box, line_edit)
+		return
 	if event is InputEventScreenTouch:
 		var touch: InputEventScreenTouch = event as InputEventScreenTouch
 		if touch.pressed and not touch.canceled:
@@ -539,7 +542,28 @@ func on_mobile_spinbox_gui_input_(
 			cancel_mobile_spinbox_long_press_()
 
 
+func edit_mobile_spinbox_after_focus_navigation_(previous_focus: Control) -> void:
+	var line_edit: LineEdit = get_viewport().gui_get_focus_owner() as LineEdit
+	if line_edit == null or line_edit == previous_focus:
+		return
+	var spin_box: SpinBox = line_edit.get_parent() as SpinBox
+	if spin_box != null and configured_mobile_spinboxes_.has(spin_box.get_instance_id()):
+		activate_mobile_spinbox_physical_edit_(spin_box, line_edit)
+
+
+func activate_mobile_spinbox_physical_edit_(spin_box: SpinBox, line_edit: LineEdit) -> void:
+	if spin_box.editable:
+		cancel_mobile_spinbox_long_press_()
+		line_edit.grab_focus()
+		line_edit.edit()
+		MobileTextEditLongPressController.begin_physical_ime(line_edit)
+
+
 func _input(event: InputEvent) -> void:
+	if MobileTextEditLongPressController.is_keyboard_focus_navigation(event):
+		call_deferred(
+			&"edit_mobile_spinbox_after_focus_navigation_", get_viewport().gui_get_focus_owner()
+		)
 	if settings_scroll_tween_ != null \
 			and should_cancel_settings_scroll_tween_(event):
 		cancel_settings_scroll_tween_()
@@ -564,6 +588,7 @@ func _input(event: InputEvent) -> void:
 
 
 func reset_mobile_spinbox_editing_(line_edit: LineEdit) -> void:
+	MobileTextEditLongPressController.end_physical_ime(line_edit)
 	line_edit.virtual_keyboard_enabled = false
 	if mobile_spinbox_line_edit_ == line_edit:
 		cancel_mobile_spinbox_long_press_()
@@ -621,6 +646,7 @@ func on_mobile_spinbox_long_press_timeout_(
 	line_edit.virtual_keyboard_enabled = true
 	line_edit.edit()
 	line_edit.select_all()
+	MobileTextEditLongPressController.begin_android_ime(line_edit, true)
 
 
 func configure_platform_option_visibility_() -> void:

@@ -6,6 +6,8 @@ package com.godot.game;
 
 import org.godotengine.godot.Godot;
 import org.godotengine.godot.GodotActivity;
+import org.godotengine.godot.GodotLib;
+import org.godotengine.godot.GodotRenderView;
 
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -16,6 +18,15 @@ import android.os.Process;
 import android.provider.OpenableColumns;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.text.InputType;
+import android.view.KeyEvent;
+import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputConnectionWrapper;
+import android.view.inputmethod.InputMethodManager;
+import android.view.inputmethod.TextAttribute;
+import android.widget.EditText;
 
 import androidx.activity.EdgeToEdge;
 import androidx.core.content.FileProvider;
@@ -53,6 +64,135 @@ public class GodotApp extends GodotActivity {
 			new ConcurrentLinkedQueue<>();
 	private static volatile boolean boardImageRequestActive = false;
 	private File pendingCameraImageFile;
+	private HardwareImeEditor hardwareImeEditor;
+	private long hardwareImeField;
+
+	public static void beginHardwareIme(long field, boolean multiline, boolean showKeyboard) {
+		GodotApp activity = currentActivity.get();
+		if (activity != null) {
+			activity.runOnUiThread(() -> activity.beginHardwareImeOnUi(field, multiline, showKeyboard));
+		}
+	}
+
+	public static void endHardwareIme(long field) {
+		GodotApp activity = currentActivity.get();
+		if (activity != null) activity.runOnUiThread(() -> activity.endHardwareImeOnUi(field));
+	}
+
+	private void beginHardwareImeOnUi(long field, boolean multiline, boolean showKeyboard) {
+		Godot godot = getGodot();
+		GodotRenderView render = godot == null ? null : godot.getRenderView();
+		if (render == null || !(render.getView().getParent() instanceof ViewGroup)) return;
+		ViewGroup parent = (ViewGroup) render.getView().getParent();
+		// Use the same hardware-keyboard detection as the engine's soft keyboard.
+		boolean hardwareKeyboard = false;
+		for (int i = 0; i < parent.getChildCount(); i++) {
+			if (parent.getChildAt(i) instanceof org.godotengine.godot.input.GodotEditText) {
+				hardwareKeyboard = ((org.godotengine.godot.input.GodotEditText)
+						parent.getChildAt(i)).hasHardwareKeyboard();
+				break;
+			}
+		}
+		if (!hardwareKeyboard) return;
+		if (hardwareImeField != field) {
+			endHardwareImeOnUi(hardwareImeField);
+			hardwareImeEditor = new HardwareImeEditor(render, multiline);
+			hardwareImeField = field;
+			parent.addView(hardwareImeEditor, new ViewGroup.LayoutParams(1, 1));
+			hardwareImeEditor.requestFocus();
+		}
+		if (showKeyboard) {
+			getSystemService(InputMethodManager.class).showSoftInput(hardwareImeEditor, 0);
+		}
+	}
+
+	private void endHardwareImeOnUi(long field) {
+		if (hardwareImeEditor == null || hardwareImeField != field) return;
+		HardwareImeEditor editor = hardwareImeEditor;
+		hardwareImeEditor = null;
+		hardwareImeField = 0;
+		getSystemService(InputMethodManager.class).hideSoftInputFromWindow(editor.getWindowToken(), 0);
+		editor.render.getView().requestFocus();
+		if (editor.getParent() instanceof ViewGroup) {
+			((ViewGroup) editor.getParent()).removeView(editor);
+		}
+	}
+
+	private final class HardwareImeEditor extends EditText {
+		private final GodotRenderView render;
+
+		HardwareImeEditor(GodotRenderView render, boolean multiline) {
+			super(GodotApp.this);
+			this.render = render;
+			setAlpha(0f);
+			setFocusableInTouchMode(true);
+			setShowSoftInputOnFocus(false);
+			setInputType(InputType.TYPE_CLASS_TEXT | (multiline ? InputType.TYPE_TEXT_FLAG_MULTI_LINE : 0));
+			setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI
+					| (multiline ? EditorInfo.IME_ACTION_NONE : EditorInfo.IME_ACTION_DONE));
+			setOnEditorActionListener((view, action, event) -> {
+				if (action != EditorInfo.IME_ACTION_DONE || hardwareImeEditor != this) return false;
+				sendKey(KeyEvent.KEYCODE_ENTER, 0);
+				return true;
+			});
+		}
+
+		@Override
+		public boolean onKeyDown(int code, KeyEvent event) {
+			return render.getInputHandler().onKeyDown(code, event);
+		}
+
+		@Override
+		public boolean onKeyUp(int code, KeyEvent event) {
+			return render.getInputHandler().onKeyUp(code, event);
+		}
+
+		private void sendKey(int code, int unicode) {
+			render.queueOnRenderThread(() -> {
+				GodotLib.key(code, unicode, 0, true, false);
+				GodotLib.key(code, unicode, 0, false, false);
+			});
+		}
+
+		@Override
+		public InputConnection onCreateInputConnection(EditorInfo info) {
+			InputConnection connection = super.onCreateInputConnection(info);
+			if (connection == null) return null;
+			return new InputConnectionWrapper(connection, false) {
+				@Override
+				public boolean commitText(CharSequence text, int newCursorPosition) {
+					if (hardwareImeEditor != HardwareImeEditor.this) return false;
+					super.finishComposingText();
+					getText().clear();
+					if (text != null) {
+						text.toString().codePoints().forEach(character -> sendKey(0, character));
+					}
+					return true;
+				}
+
+				@Override
+				public boolean commitText(CharSequence text, int newCursorPosition, TextAttribute attributes) {
+					return commitText(text, newCursorPosition);
+				}
+
+				@Override
+				public boolean deleteSurroundingText(int before, int after) {
+					if (hardwareImeEditor != HardwareImeEditor.this) return false;
+					if (length() != 0) return super.deleteSurroundingText(before, after);
+					for (int i = 0; i < before; i++) sendKey(KeyEvent.KEYCODE_DEL, 0);
+					for (int i = 0; i < after; i++) sendKey(KeyEvent.KEYCODE_FORWARD_DEL, 0);
+					return true;
+				}
+
+				@Override
+				public boolean deleteSurroundingTextInCodePoints(int before, int after) {
+					if (length() == 0) return deleteSurroundingText(before, after);
+					return hardwareImeEditor == HardwareImeEditor.this
+							&& super.deleteSurroundingTextInCodePoints(before, after);
+				}
+			};
+		}
+	}
 
 	static {
 		if (BuildConfig.FLAVOR.equals("mono")) {
@@ -147,6 +287,7 @@ public class GodotApp extends GodotActivity {
 
 	@Override
 	protected void onDestroy() {
+		endHardwareImeOnUi(hardwareImeField);
 		GodotApp activity = currentActivity.get();
 		if (activity == this) {
 			currentActivity.clear();

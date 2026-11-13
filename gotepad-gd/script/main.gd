@@ -359,6 +359,7 @@ var note_preview_page_index_: int = -1
 var note_preview_refresh_pending_: bool = false
 var note_preview_navigation_in_progress_: bool = false
 var update_available_: bool = false
+var last_android_back_request_msec_: int = -1000
 
 
 func _enter_tree() -> void:
@@ -378,6 +379,8 @@ func _ready() -> void:
 		return
 	set_process(false)
 	get_tree().auto_accept_quit = false
+	if OS.get_name() == "Android":
+		get_tree().quit_on_go_back = false
 	export_progress_dialog_.confirmed.connect(request_cancel_pptx_export_)
 	export_progress_dialog_.window_input.connect(on_export_progress_input_)
 	export_progress_dialog_.close_requested.connect(
@@ -4057,8 +4060,27 @@ func on_note_edit_resolution_canceled_() -> void:
 	preset_button_.set_pressed_no_signal(board_.is_preset_mode())
 
 
+func dispatch_android_back_as_escape_() -> void:
+	var now: int = Time.get_ticks_msec()
+	# Android may report a single Back press through both the key and system callbacks.
+	if now - last_android_back_request_msec_ < 80:
+		return
+	last_android_back_request_msec_ = now
+	var escape_event: InputEventKey = InputEventKey.new()
+	escape_event.keycode = KEY_ESCAPE
+	escape_event.physical_keycode = KEY_ESCAPE
+	escape_event.pressed = true
+	Input.parse_input_event(escape_event)
+	var release_event: InputEventKey = escape_event.duplicate() as InputEventKey
+	release_event.pressed = false
+	Input.parse_input_event(release_event)
+
+
 func _notification(what: int) -> void:
 	if not is_node_ready():
+		return
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and OS.get_name() == "Android":
+		call_deferred(&"dispatch_android_back_as_escape_")
 		return
 	if what == NOTIFICATION_APPLICATION_PAUSED:
 		application_paused_ = true

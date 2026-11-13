@@ -1125,8 +1125,6 @@ func _handle_mouse_motion_(event: InputEventMouseMotion) -> void:
 
 
 func _handle_magnify_gesture_(event: InputEventMagnifyGesture) -> void:
-	if OS.get_name() == "iOS":
-		return
 	_zoom_at_(event.position, event.factor)
 	accept_event()
 

@@ -12,6 +12,7 @@
 #endif
 #ifdef GOTEPAD_IOS_FILE_PICKER
 #include "ios_model_file_picker.hpp"
+#include "ios_pointer_input.hpp"
 #include "ios_sgf_file_bridge.hpp"
 #endif
 
@@ -1056,6 +1057,7 @@ void initialize_go_gdext(godot::ModuleInitializationLevel level) {
   if (level != godot::MODULE_INITIALIZATION_LEVEL_SCENE)
     return;
 #ifdef GOTEPAD_IOS_FILE_PICKER
+  install_ios_pointer_input();
   GDREGISTER_CLASS(IOSModelFilePicker)
   GDREGISTER_CLASS(IOSSGFFileBridge)
 #endif
