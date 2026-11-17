@@ -4,6 +4,7 @@ extends Control
 signal create_requested(board_size: int)
 signal sgf_load_requested(path: String, source_writable: bool, ios_source_path: String)
 signal sgf_paste_requested(content: String)
+signal foxwq_sgf_load_requested(content: String, fallback_title: String)
 signal image_create_requested(
 	board_size: int, cells: PackedInt32Array, source_path: String
 )
@@ -30,6 +31,7 @@ var android_image_board_size_: int = 19
 @onready var close_balance_: Control = %CloseBalance
 @onready var load_sgf_button_: Button = %LoadSgfButton
 @onready var paste_sgf_button_: Button = %PasteSgfButton
+@onready var foxwq_dialogs_: FoxwqHistoryDialogs = $FoxwqHistoryDialogs
 @onready var sgf_file_dialog_: FileDialog = %SgfFileDialog
 @onready var load_error_dialog_: AcceptDialog = %LoadErrorDialog
 @onready var image_description_: Label = %ImageDescription
@@ -53,6 +55,9 @@ func _ready() -> void:
 	size_19_.grab_focus()
 	load_sgf_button_.pressed.connect(on_load_sgf_pressed_)
 	paste_sgf_button_.pressed.connect(on_paste_sgf_pressed_)
+	%FoxwqSearchButton.pressed.connect(foxwq_dialogs_.open_search)
+	foxwq_dialogs_.sgf_load_requested.connect(foxwq_sgf_load_requested.emit)
+	visibility_changed.connect(on_visibility_changed_)
 	sgf_file_dialog_.file_selected.connect(on_sgf_file_selected_)
 	sgf_file_dialog_.canceled.connect(on_sgf_file_dialog_canceled_)
 	sgf_file_dialog_.visibility_changed.connect(
@@ -123,7 +128,8 @@ func refresh_localized_texts() -> void:
 func _input(event: InputEvent) -> void:
 	if not visible or sgf_file_dialog_open_ or sgf_file_dialog_.visible \
 			or image_file_dialog_open_ or image_file_dialog_.visible \
-			or image_import_dialog_.visible or load_error_dialog_.visible:
+			or image_import_dialog_.visible or load_error_dialog_.visible \
+			or foxwq_dialogs_.is_open():
 		return
 	if event is not InputEventKey:
 		return
@@ -133,6 +139,15 @@ func _input(event: InputEvent) -> void:
 		return
 	cancel_requested.emit()
 	get_viewport().set_input_as_handled()
+
+
+func on_visibility_changed_() -> void:
+	if not is_visible_in_tree():
+		foxwq_dialogs_.close_dialogs()
+
+
+func show_foxwq_load_error(message: String) -> void:
+	foxwq_dialogs_.show_load_error(message)
 
 
 func show_dialog(can_cancel: bool) -> void:

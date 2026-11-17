@@ -1,0 +1,164 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://script/foxwq_history_dialogs.gd" id="1_dialogs"]
+
+[node name="FoxwqHistoryDialogs" type="Node"]
+script = ExtResource("1_dialogs")
+
+[node name="SearchDialog" type="Window" parent="."]
+visible = false
+title = "搜索野狐棋谱"
+size = Vector2i(420, 196)
+min_size = Vector2i(260, 0)
+unresizable = true
+transient = true
+exclusive = true
+
+[node name="Background" type="Panel" parent="SearchDialog"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="SearchDialog"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Content" type="VBoxContainer" parent="SearchDialog/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Fields" type="GridContainer" parent="SearchDialog/Margin/Content"]
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="IdLabel" type="Label" parent="SearchDialog/Margin/Content/Fields"]
+layout_mode = 2
+text = "ID"
+
+[node name="IdInput" type="LineEdit" parent="SearchDialog/Margin/Content/Fields"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "野狐用户 ID"
+max_length = 20
+clear_button_enabled = true
+virtual_keyboard_type = 2
+
+[node name="NicknameLabel" type="Label" parent="SearchDialog/Margin/Content/Fields"]
+layout_mode = 2
+text = "昵称"
+
+[node name="NicknameInput" type="LineEdit" parent="SearchDialog/Margin/Content/Fields"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "野狐棋手昵称"
+clear_button_enabled = true
+
+[node name="InputHint" type="Label" parent="SearchDialog/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.843137, 0.772549, 0.666667, 1)
+text = "ID 和昵称可任选其一输入。"
+autowrap_mode = 3
+
+[node name="SearchStatus" type="Label" parent="SearchDialog/Margin/Content"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92549, 0.690196, 0.607843, 1)
+autowrap_mode = 3
+
+[node name="QueryButton" type="Button" parent="SearchDialog/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CafePrimaryButton"
+text = "查询"
+
+[node name="ResultsDialog" type="Window" parent="."]
+visible = false
+title = "野狐棋谱搜索结果"
+size = Vector2i(1080, 620)
+min_size = Vector2i(280, 220)
+transient = true
+exclusive = true
+
+[node name="Background" type="Panel" parent="ResultsDialog"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Content" type="VBoxContainer" parent="ResultsDialog"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = -12.0
+theme_override_constants/separation = 8
+
+[node name="Table" type="Tree" parent="ResultsDialog/Content"]
+unique_name_in_owner = true
+auto_translate_mode = 2
+layout_mode = 2
+size_flags_vertical = 3
+columns = 8
+column_titles_visible = true
+hide_root = true
+select_mode = 1
+
+[node name="ResultsStatus" type="Label" parent="ResultsDialog/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="Actions" type="HBoxContainer" parent="ResultsDialog/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PreviousButton" type="Button" parent="ResultsDialog/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+disabled = true
+text = "上一批"
+
+[node name="NextButton" type="Button" parent="ResultsDialog/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+disabled = true
+text = "下一批"
+
+[node name="Spacer" type="Control" parent="ResultsDialog/Content/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="LoadButton" type="Button" parent="ResultsDialog/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CafePrimaryButton"
+disabled = true
+text = "加载"
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]
+body_size_limit = 8388608
+timeout = 15.0

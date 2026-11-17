@@ -408,6 +408,7 @@ func _ready() -> void:
 	board_size_dialog_.create_requested.connect(on_create_requested_)
 	board_size_dialog_.sgf_load_requested.connect(on_sgf_load_requested_)
 	board_size_dialog_.sgf_paste_requested.connect(on_sgf_paste_requested_)
+	board_size_dialog_.foxwq_sgf_load_requested.connect(on_foxwq_sgf_load_requested_)
 	board_size_dialog_.image_create_requested.connect(
 		on_image_create_requested_
 	)
@@ -4578,7 +4579,39 @@ func on_sgf_paste_requested_(content: String) -> void:
 		board_size_dialog_.show_load_error(go_notes_.get_message())
 
 
-func finish_sgf_load_(path: String, source_writable: bool) -> void:
+func on_foxwq_sgf_load_requested_(content: String, fallback_title: String) -> void:
+	var document: DocumentState = DocumentState.new()
+	document.notes = GoNotes.new()
+	if not document.notes.load_sgf_content(content):
+		board_size_dialog_.show_foxwq_load_error(
+			CommandMessages.localize(document.notes.get_message())
+		)
+		return
+
+	var empty_index: int = -1
+	if active_document_index_ >= 0 and not documents_[active_document_index_].initialized:
+		empty_index = active_document_index_
+	document.initialized = true
+	document.interactions_locked = true
+	document.source_writable = false
+	documents_.append(document)
+	var new_index: int = documents_.size() - 1
+	switch_document_(new_index)
+	if active_document_index_ != new_index:
+		documents_.pop_back()
+		refresh_document_tabs_()
+		board_size_dialog_.show_foxwq_load_error(tr("无法切换到所选棋局标签。"))
+		return
+	# 创建面板已占用一个新标签，用导入结果替换它，避免留下空标签。
+	if empty_index >= 0:
+		documents_.remove_at(empty_index)
+		active_document_index_ -= 1
+	finish_sgf_load_("", false, fallback_title)
+
+
+func finish_sgf_load_(
+	path: String, source_writable: bool, fallback_title: String = ""
+) -> void:
 	if active_document_index_ >= 0:
 		var document: DocumentState = documents_[active_document_index_]
 		var file_name: String = DocumentDisplayName.from_path(path)
@@ -4589,6 +4622,8 @@ func finish_sgf_load_(path: String, source_writable: bool) -> void:
 			file_name = DocumentDisplayName.sanitize(
 				str(metadata.get("game_name", ""))
 			)
+		if file_name.is_empty():
+			file_name = DocumentDisplayName.sanitize(fallback_title)
 		if file_name.is_empty():
 			file_name = tr("新建笔记")
 		document.title = unique_document_title_(file_name, active_document_index_)

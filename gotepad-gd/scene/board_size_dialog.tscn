@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://dvunk7schwoer" path="res://assets/ui/radio_unchecked.svg" id="2_radio_unchecked"]
 [ext_resource type="Texture2D" uid="uid://kqo7ncsgneex" path="res://assets/ui/radio_checked.svg" id="3_radio_checked"]
 [ext_resource type="PackedScene" path="res://scene/board_image_import_dialog.tscn" id="4_image_import"]
+[ext_resource type="PackedScene" path="res://scene/foxwq_history_dialogs.tscn" id="5_foxwq_history"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dialog"]
 bg_color = Color(0.129412, 0.113725, 0.098039, 1)
@@ -331,6 +332,18 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "相册"
 
+[node name="FoxwqSeparator" type="HSeparator" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+
+[node name="FoxwqSearchButton" type="Button" parent="Center/Panel/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 16
+text = "搜索野狐棋谱"
+
 [node name="SgfFileDialog" type="FileDialog" parent="." unique_id=1613698296]
 unique_name_in_owner = true
 title = "加载 SGF 棋谱"
@@ -366,3 +379,5 @@ use_native_dialog = true
 [node name="BoardImageImportDialog" parent="." unique_id=1811849125 instance=ExtResource("4_image_import")]
 unique_name_in_owner = true
 layout_mode = 1
+
+[node name="FoxwqHistoryDialogs" parent="." instance=ExtResource("5_foxwq_history")]

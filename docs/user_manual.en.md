@@ -16,6 +16,7 @@ This manual applies to Gotepad 0.1.23. Gotepad is a cross-platform client for Go
 - [Position Notes and Board Marks](#position-notes-and-board-marks)
 - [Game Information](#game-information)
 - [Saving and Loading SGF](#saving-and-loading-sgf)
+- [Search Fox Go Records](#search-fox-go-records)
 - [Checking for Updates](#checking-for-updates)
 - [Exporting PPTX](#exporting-pptx)
 - [KataGo Analysis](#katago-analysis)
@@ -55,6 +56,12 @@ Windows distributions support receiving a `.sgf` file path in the startup parame
 On macOS, right-click an `.sgf` file in Finder and choose Gotepad from “Open With” to load the game record directly. You can also drag an SGF onto the Gotepad application icon. When opening multiple SGFs at once, each opens in its own tab. If Gotepad is already running, files opened through the system are forwarded to the first window and opened in tabs. Files that are already open switch to their existing tabs, preserving unsaved changes. To open a separate window for comparing game records side by side, open Terminal on macOS and run `open -n "/Applications/Gotepad.app"` without adding an SGF path. If Gotepad is not in the Applications folder, replace the path in the command with its actual App path. Double-clicking the same Gotepad App again in Finder usually only activates the existing window; `open -n` launches a new independent window. To make Gotepad the default application for SGF files, select Gotepad in the file’s “Get Info” window and click “Change All”.
 
 When there is an board tag, you can click `✕` in the upper right corner of the new interface or press `Esc` to close and return to the current game; if there is currently no board, the close button will not be displayed, and an board must be created or loaded.
+
+### Search Fox Go Records
+
+At the bottom of the “Create board” panel, click “Search Fox Go Records”. Enter either a Fox Go user ID or the player’s full nickname, then click “Search”. You can browse the player’s public games without signing in.
+
+Gotepad requests 20 games per page and displays however many Fox Go returns. The “Result” column shows “Black wins”, “White wins”, or “Draw”. Use “Previous” and “Next” at the lower left to browse. You can revisit pages you’ve already loaded while the results window is open. Select a game and click “Load” at the lower right to download the record and open it in a new tab. Choose a save location the first time you save the record.
 
 ## Interface Overview
 
