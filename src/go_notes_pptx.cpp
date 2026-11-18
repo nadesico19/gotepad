@@ -683,7 +683,8 @@ BoardDiagram render_board_(const GoNotes &notes, const ExportPage &page,
         states[static_cast<size_t>(row - 1) * board_size + column - 1];
     svg << text_svg_(coordinate(column), coordinate(row),
                      sequential_label_(index),
-                     state == 1 ? "#ffffff" : "#000000", stone_radius * 1.08);
+                     state == 1 ? "#ffffff" : "#000000", stone_radius * 1.5,
+                     false);
   }
 
   for (const auto &[row, column, symbol] : page.note.symbol_marks) {

@@ -1,3 +1,19 @@
+# 0.1.24
+
+- 支持从野狐加载对局棋谱，可指定ID或昵称。
+- 胜率曲线窗口显示对局双方的名字和段位。
+- 移动端（安卓、iPadOS）适配键鼠和触控板。
+- 识图处理中对低置信度点采取默认措施，避免不必要的人工确认。
+- 优化UI细节。
+
+Translation：
+
+- Added support for loading game records from Fox Go by user ID or nickname.
+- The win-rate graph window now displays both players' names and ranks.
+- Added keyboard, mouse, and trackpad support on mobile devices (Android and iPadOS).
+- Image recognition now applies default handling to low-confidence points to avoid unnecessary manual confirmation.
+- Improved UI details.
+
 # 0.1.23
 
 - 终局数目功能采用中国规则最新的2027试行版。
