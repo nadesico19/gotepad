@@ -8,6 +8,7 @@ const kInstalledModelPath: String = "user://katago/embedded/v1/g170e-b10c128-s11
 const kOpenCLDataDirectory: String = "user://katago/opencl"
 const kModelSize: int = 11138361
 const kCopyChunkSize: int = 1024 * 1024
+const kReadyQueryId: String = "gotepad-transport-ready"
 const kStateStopped: int = 0
 const kStateStarting: int = 1
 const kStateRunning: int = 2
@@ -15,6 +16,7 @@ const kStateFailed: int = 4
 
 var host_class_: Variant
 var stopped_emitted_: bool = false
+var ready_: bool = false
 var stop_requested_: bool = false
 var session_id_: int = -1
 
@@ -92,7 +94,12 @@ func start_custom_transport(
 	session_id_ = started_session_id
 	stop_requested_ = false
 	stopped_emitted_ = false
+	ready_ = false
 	set_process(true)
+	if not send_line(JSON.stringify({"id": kReadyQueryId, "action": "query_version"})):
+		stop_transport()
+		transport_error.emit(tr("无法向KataGo发送初始化确认请求。"))
+		return false
 	return true
 
 
@@ -120,6 +127,22 @@ func is_transport_running() -> bool:
 	return state == kStateStarting or state == kStateRunning
 
 
+func is_transport_initializing() -> bool:
+	return is_transport_running() and not ready_
+
+
+func handle_response_line_(line: String) -> void:
+	var response: Variant = JSON.parse_string(line)
+	if response is Dictionary:
+		# 原生 Running 只代表线程启动；收到响应才代表模型加载和调优结束。
+		if not ready_:
+			ready_ = true
+			transport_ready.emit()
+		if str(response.get("id", "")) == kReadyQueryId:
+			return
+	line_received.emit(line)
+
+
 func _process(_delta: float) -> void:
 	if host_class_ == null:
 		return
@@ -128,7 +151,7 @@ func _process(_delta: float) -> void:
 		for value: Variant in response_values:
 			var line: String = str(value)
 			if not line.is_empty():
-				line_received.emit(line)
+				handle_response_line_(line)
 	var log_values: Variant = host_class_.pollKataGoOpenCLLogs(session_id_)
 	if log_values != null:
 		for value: Variant in log_values:

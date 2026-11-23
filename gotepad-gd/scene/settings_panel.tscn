@@ -238,7 +238,6 @@ theme_override_constants/separation = 14
 
 [node name="OneMove" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberOptions"]
 layout_mode = 2
-button_pressed = true
 button_group = SubResource("ButtonGroupMoveNumbers")
 theme_override_colors/font_color = Color(0.964706, 0.917647, 0.835294, 1)
 theme_override_colors/font_hover_color = Color(0.964706, 0.917647, 0.835294, 1)
@@ -254,6 +253,7 @@ text = "1手"
 
 [node name="TenMoves" type="CheckBox" parent="SettingsPanel/Margin/Options/MoveNumberOptions"]
 layout_mode = 2
+button_pressed = true
 button_group = SubResource("ButtonGroupMoveNumbers")
 theme_override_colors/font_color = Color(0.964706, 0.917647, 0.835294, 1)
 theme_override_colors/font_hover_color = Color(0.964706, 0.917647, 0.835294, 1)
@@ -511,6 +511,32 @@ value = 5000.0
 allow_greater = true
 suffix = " visits"
 
+[node name="KatagoGameAnalysisVisitsRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.843137, 0.772549, 0.666667, 1)
+text = "整局快速分析计算量"
+tooltip_text = "每个局面的 visits；1 最快，仅用于观察胜率和目差趋势"
+
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Visits" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+min_value = 1.0
+max_value = 100000.0
+step = 1.0
+custom_arrow_step = 10.0
+value = 1.0
+allow_greater = true
+suffix = " visits"
+
 [node name="KatagoTerritoryVisitsRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 theme_override_constants/separation = 8
@@ -651,7 +677,7 @@ suffix = " %"
 
 [node name="KatagoScoreLeadRow" type="VBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 10
 
 [node name="ShowScoreLead" type="CheckBox" parent="SettingsPanel/Margin/Options/KatagoScoreLeadRow"]
 layout_mode = 2
@@ -666,31 +692,32 @@ mouse_default_cursor_shape = 2
 disabled = true
 text = "盘面候选显示目差"
 
-[node name="KatagoGameAnalysisVisitsRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
+[node name="KatagoHoverPreview" type="CheckBox" parent="SettingsPanel/Margin/Options"]
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "悬停显示变化图"
+
+[node name="KatagoHoverIntervalRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+[node name="Label" type="Label" parent="SettingsPanel/Margin/Options/KatagoHoverIntervalRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.843137, 0.772549, 0.666667, 1)
-text = "整局快速分析计算量"
-tooltip_text = "每个局面的 visits；1 最快，仅用于观察胜率和目差趋势"
+text = "悬停播放间隔（秒）"
 
-[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+[node name="Spacer" type="Control" parent="SettingsPanel/Margin/Options/KatagoHoverIntervalRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 
-[node name="Visits" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoGameAnalysisVisitsRow"]
+[node name="Seconds" type="SpinBox" parent="SettingsPanel/Margin/Options/KatagoHoverIntervalRow"]
 custom_minimum_size = Vector2(140, 36)
 layout_mode = 2
-min_value = 1.0
-max_value = 100000.0
-step = 1.0
-custom_arrow_step = 10.0
-value = 1.0
-allow_greater = true
-suffix = " visits"
+min_value = 0.0
+max_value = 3.0
+step = 0.1
+value = 0.5
 
 [node name="KatagoTestRow" type="HBoxContainer" parent="SettingsPanel/Margin/Options"]
 layout_mode = 2

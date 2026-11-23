@@ -136,6 +136,16 @@ var note_preview_page_count_: int = 0
 var note_preview_page_index_: int = 0
 var interactions_locked_: bool = false
 var analysis_candidate_pvs_: Dictionary = {}
+# 预览仅替换显示快照，绝不把临时棋谱绑定给编辑、保存或分析逻辑。
+var analysis_preview_notes_: GoNotes
+var analysis_preview_snapshot_: Dictionary = {}
+var analysis_preview_pv_: Array = []
+var analysis_preview_index_: int = 0
+var analysis_preview_color_: int = 0
+var analysis_preview_elapsed_: float = 0.0
+var analysis_preview_pending_: bool = false
+var analysis_preview_generation_: int = 0
+var analysis_hover_intersection_: Vector2i = Vector2i.ZERO
 var preset_mode_: bool = false
 var preset_erase_mode_: bool = false
 var preset_editing_current_: bool = false
@@ -177,6 +187,8 @@ var territory_confidence_: PackedFloat32Array = PackedFloat32Array()
 
 
 func _ready() -> void:
+	get_window().mouse_exited.connect(on_analysis_mouse_exited_)
+	get_window().focus_exited.connect(reset_analysis_hover_)
 	connect_settings_signal_()
 	apply_configured_textures_()
 	set_process_unhandled_input(true)
@@ -225,6 +237,7 @@ func initialize_board(board_size: int) -> bool:
 
 
 func bind_go_notes(notes: GoNotes, view_uid: int = -1) -> bool:
+	stop_analysis_preview()
 	if notes == null:
 		push_error("Cannot bind a null GoNotes document.")
 		return false
@@ -240,6 +253,7 @@ func bind_go_notes(notes: GoNotes, view_uid: int = -1) -> bool:
 
 
 func set_view_uid(view_uid: int) -> bool:
+	stop_analysis_preview()
 	if view_uid < 0 or go_notes_ == null:
 		return false
 	follow_current_ = false
@@ -248,6 +262,7 @@ func set_view_uid(view_uid: int) -> bool:
 
 
 func follow_current_position() -> bool:
+	stop_analysis_preview()
 	if go_notes_ == null:
 		return false
 	follow_current_ = true
@@ -409,6 +424,7 @@ func has_pending_move() -> bool:
 
 
 func accept_pending_move() -> bool:
+	stop_analysis_preview()
 	if not has_pending_move() or go_notes_ == null:
 		return false
 	var color: int = pending_move_color_
@@ -430,6 +446,7 @@ func accept_pending_move() -> bool:
 
 
 func cancel_pending_move() -> void:
+	stop_analysis_preview()
 	if not has_pending_move():
 		return
 	pending_move_row_ = 0
@@ -611,6 +628,8 @@ func set_analysis_candidates(
 	analysis_candidates_overlay_.configure(
 		candidates, played_move_loss, board_size_, cell_size_()
 	)
+	if analysis_preview_notes_ != null:
+		analysis_candidates_overlay_.hide()
 
 
 func playback_next_move_() -> Dictionary:
@@ -657,7 +676,157 @@ func build_played_move_loss_(
 	}
 
 
+func on_analysis_mouse_exited_() -> void:
+	# 触摸模拟的指针离开不代表待确认落子被取消。
+	if has_pending_move():
+		return
+	reset_analysis_hover_()
+
+
+func reset_analysis_hover_() -> void:
+	analysis_hover_intersection_ = Vector2i.ZERO
+	stop_analysis_preview()
+
+
+func stop_analysis_preview() -> void:
+	# 同时作废尚未执行的待确认预览请求，避免其他操作后延迟启动。
+	analysis_preview_generation_ += 1
+	if analysis_preview_notes_ == null:
+		return
+	analysis_preview_notes_ = null
+	analysis_preview_snapshot_.clear()
+	analysis_preview_pv_.clear()
+	analysis_candidates_overlay_.show()
+	note_marks_overlay_.show()
+	refresh_stones_()
+	refresh_hover_stone_()
+	queue_redraw()
+
+
+# 在 GUI 和快捷键处理前调用；不吞掉事件，原操作继续使用真实棋谱。
+func guard_analysis_preview_input(event: InputEvent) -> void:
+	# 当前待确认点上的触摸及模拟鼠标事件属于同一次落子交互。
+	# 保留预览直到确认处理执行，避免初次触摸的后续事件立即关闭它。
+	if has_pending_move() and (
+		(event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
+		or event is InputEventScreenTouch or event is InputEventScreenDrag
+	):
+		if intersection_at_screen_position_(event.position) == Vector2i(
+			pending_move_column_, pending_move_row_
+		):
+			return
+	if (event is InputEventMouseButton and event.pressed) \
+			or (event is InputEventKey and event.pressed) \
+			or (event is InputEventScreenTouch and event.pressed) \
+			or event is InputEventScreenDrag \
+			or (event is InputEventJoypadButton and event.pressed):
+		stop_analysis_preview()
+
+
+func can_preview_analysis_() -> bool:
+	return SettingsStore.get_katago_hover_preview() and is_visible_in_tree() \
+		and go_notes_ != null and not variation_mode_ and not human_play_mode_ \
+		and not preset_mode_ and not territory_mode_ and not is_note_mark_mode() \
+		and not note_preview_playback_active_ and setup_preview_uid_ < 0 \
+		and find_direction_ == kFindDisabled and not cut_branch_mode_ \
+		and not playback_playing_ and not takeback_confirmation_.visible \
+		and not cut_branch_confirmation_.visible \
+		and not variation_overwrite_confirmation_.visible
+
+
+func start_analysis_preview_(intersection: Vector2i, pending: bool = false) -> void:
+	stop_analysis_preview()
+	if not can_preview_analysis_() or not analysis_candidate_pvs_.has(intersection):
+		return
+	var pv: Array = Array(analysis_candidate_pvs_[intersection]).duplicate()
+	if pv.is_empty():
+		return
+	var temporary_notes: GoNotes = create_variation_notes_(true)
+	if temporary_notes == null:
+		return
+	analysis_preview_notes_ = temporary_notes
+	analysis_preview_pv_ = pv
+	analysis_preview_index_ = 0
+	analysis_preview_color_ = next_color_
+	analysis_preview_elapsed_ = 0.0
+	analysis_preview_pending_ = pending
+	analysis_candidates_overlay_.hide()
+	note_marks_overlay_.hide()
+	advance_analysis_preview_()
+	if analysis_preview_snapshot_.is_empty():
+		stop_analysis_preview()
+	refresh_hover_stone_()
+	queue_redraw()
+
+
+func advance_analysis_preview_() -> void:
+	if analysis_preview_notes_ == null or analysis_preview_index_ >= analysis_preview_pv_.size():
+		return
+	append_analysis_preview_move_()
+	if SettingsStore.get_katago_hover_interval() == 0.0:
+		# 同步执行完整序列，最终只刷新一次显示，不逐帧播放。
+		while analysis_preview_index_ < analysis_preview_pv_.size():
+			append_analysis_preview_move_()
+	refresh_stones_()
+
+
+func append_analysis_preview_move_() -> void:
+	if analysis_preview_notes_ == null or analysis_preview_index_ >= analysis_preview_pv_.size():
+		return
+	var move: String = str(analysis_preview_pv_[analysis_preview_index_]).strip_edges().to_upper()
+	var intersection: Vector2i = gtp_coordinate_to_intersection_(move)
+	if intersection == Vector2i.ZERO:
+		analysis_preview_index_ = analysis_preview_pv_.size()
+		return
+	if int(analysis_preview_notes_.execute_command("PLACESTONE,%d,%d,%d;" % [
+		analysis_preview_color_, intersection.y, intersection.x
+	])) != 0:
+		analysis_preview_index_ = analysis_preview_pv_.size()
+		return
+	analysis_preview_index_ += 1
+	analysis_preview_color_ = kWhite if analysis_preview_color_ == kBlack else kBlack
+	analysis_preview_snapshot_ = Dictionary(analysis_preview_notes_.call(
+		&"get_position_snapshot_at", int(analysis_preview_notes_.get_current_uid()),
+		move_number_query_count_()
+	))
+	analysis_preview_snapshot_["last_move_index"] = (intersection.y - 1) * board_size_ + intersection.x - 1
+
+
+func _process(delta: float) -> void:
+	if analysis_preview_notes_ == null:
+		return
+	if not can_preview_analysis_() \
+			or (OS.get_name() not in ["Android", "iOS"] and not get_window().has_focus()) \
+			or (analysis_preview_pending_ and not has_pending_move()):
+		stop_analysis_preview()
+		return
+	analysis_preview_elapsed_ += delta
+	if analysis_preview_elapsed_ >= SettingsStore.get_katago_hover_interval():
+		analysis_preview_elapsed_ = 0.0
+		advance_analysis_preview_()
+
+
+func update_analysis_hover_(event: InputEventMouseMotion) -> void:
+	# 触摸生成的模拟鼠标移动不能取消待确认阶段的预览。
+	if event.device == -1:
+		return
+	if analysis_preview_notes_ != null and analysis_preview_pending_:
+		return
+	var intersection: Vector2i = intersection_at_screen_position_(event.position)
+	var hovered_control: Control = get_viewport().gui_get_hovered_control()
+	if hovered_control != null and hovered_control.mouse_filter == Control.MOUSE_FILTER_STOP:
+		intersection = Vector2i.ZERO
+	if intersection == analysis_hover_intersection_:
+		return
+	analysis_hover_intersection_ = intersection
+	stop_analysis_preview()
+	if not has_pending_move():
+		start_analysis_preview_(intersection)
+
+
 func clear_analysis_candidates() -> void:
+	stop_analysis_preview()
+	analysis_hover_intersection_ = Vector2i.ZERO
 	analysis_candidate_pvs_.clear()
 	if analysis_candidates_overlay_ != null:
 		analysis_candidates_overlay_.clear_candidates()
@@ -748,6 +917,7 @@ func takeback_human_play_moves(move_count: int) -> bool:
 
 
 func enter_variation_mode(preserve_history: bool = false) -> bool:
+	stop_analysis_preview()
 	if variation_mode_ or go_notes_ == null \
 			or position_states_.size() != board_size_ * board_size_:
 		return false
@@ -1243,6 +1413,7 @@ func cancel_preset_mode() -> bool:
 
 
 func set_interactions_locked(locked: bool) -> void:
+	stop_analysis_preview()
 	if locked:
 		cancel_pending_move()
 	if locked and preset_mode_:
@@ -1346,9 +1517,11 @@ func on_move_confirmation_changed_(_enabled: bool) -> void:
 	cancel_pending_move()
 
 func _input(event: InputEvent) -> void:
+	guard_analysis_preview_input(event)
 	if event is InputEventMouseMotion:
 		var mouse_event: InputEventMouseMotion = \
 			event as InputEventMouseMotion
+		update_analysis_hover_(mouse_event)
 		hover_screen_position_ = mouse_event.position
 		has_hover_position_ = not OS.has_feature("mobile") \
 			and is_screen_position_on_board_(mouse_event.position)
@@ -1482,6 +1655,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if mouse_event.button_index == MOUSE_BUTTON_LEFT:
+		# 确认原局面的待确认落子优先于候选、分支和预览中的棋子显示。
+		if not interactions_locked_ and has_pending_move() \
+				and SettingsStore.get_move_confirmation_method() \
+					== SettingsStore.kMoveConfirmationMethodSecondClick \
+				and intersection_at_screen_position_(mouse_event.position) == Vector2i(
+					pending_move_column_, pending_move_row_
+				):
+			request_edit_sensitive_action_(Callable(self, "accept_pending_move"))
+			get_viewport().set_input_as_handled()
+			return
 		if find_direction_ != kFindDisabled:
 			if try_find_at_(mouse_event.position):
 				get_viewport().set_input_as_handled()
@@ -1583,6 +1766,9 @@ func refresh_hover_stone_() -> void:
 	hover_stone_.hide()
 	find_hover_.hide()
 	cut_branch_hover_.hide()
+	if analysis_preview_notes_ != null:
+		pending_stone_.hide()
+		return
 	refresh_pending_stone_()
 	if territory_mode_:
 		return
@@ -1644,6 +1830,9 @@ func refresh_hover_stone_() -> void:
 
 
 func refresh_pending_stone_() -> void:
+	if analysis_preview_notes_ != null:
+		pending_stone_.hide()
+		return
 	if pending_stone_ == null:
 		return
 	pending_stone_.hide()
@@ -1707,6 +1896,7 @@ func show_cut_branch_hover_(intersection: Vector2i) -> void:
 
 
 func set_find_mode_(direction: int) -> void:
+	stop_analysis_preview()
 	if direction != kFindDisabled:
 		cancel_pending_move()
 	if find_direction_ == direction:
@@ -1724,6 +1914,7 @@ func set_find_mode_(direction: int) -> void:
 
 
 func set_cut_branch_mode_(enabled: bool) -> void:
+	stop_analysis_preview()
 	if enabled:
 		cancel_pending_move()
 	if cut_branch_mode_ == enabled:
@@ -1750,6 +1941,7 @@ func set_next_color_(color: int) -> void:
 
 
 func set_preset_mode_(enabled: bool) -> void:
+	stop_analysis_preview()
 	if preset_mode_ == enabled:
 		return
 	if not enabled and preset_mode_ and not commit_preset_draft_():
@@ -1946,7 +2138,7 @@ func _draw() -> void:
 
 
 	draw_coordinates_(cell_size)
-	if not territory_mode_ \
+	if analysis_preview_notes_ == null and not territory_mode_ \
 			and (is_note_mark_mode() or not note_preview_playback_active_):
 		draw_branch_markers_(canvas_scale, cell_size)
 	if note_marks_overlay_ != null:
@@ -2216,8 +2408,7 @@ func try_activate_branch_at_(screen_position: Vector2) -> bool:
 	if row < 1 or row > board_size_ \
 			or column < 1 or column > board_size_:
 		return false
-	if SettingsStore.get_move_confirmation_enabled() \
-			and not has_move_branch_(next_color_, row, column):
+	if SettingsStore.get_move_confirmation_enabled():
 		request_confirm_or_stage_pending_move_(next_color_, row, column)
 	else:
 		cancel_pending_move()
@@ -2408,12 +2599,12 @@ func request_variation_middle_move_(
 		go_notes_.call(&"can_place_stone", color, row, column)
 	):
 		return
+	if not move_confirmed and SettingsStore.get_move_confirmation_enabled():
+		request_confirm_or_stage_pending_move_(color, row, column)
+		return
 	if variation_next_move_matches_(row, column):
 		cancel_pending_move()
 		var _placed_or_roamed: bool = execute_place_stone_(color, row, column)
-		return
-	if not move_confirmed and SettingsStore.get_move_confirmation_enabled():
-		request_confirm_or_stage_pending_move_(color, row, column)
 		return
 	cancel_pending_move()
 	request_edit_sensitive_action_(
@@ -2559,6 +2750,21 @@ func stage_pending_move_(color: int, row: int, column: int) -> void:
 	if not was_pending:
 		pending_move_changed.emit(true)
 	refresh_hover_stone_()
+	if OS.get_name() in ["Android", "iOS"]:
+		# 在触摸及其模拟鼠标事件处理完毕后启动，并验证待确认状态未变化。
+		call_deferred(&"start_pending_analysis_preview_", analysis_preview_generation_,
+			pending_move_origin_uid_, color, row, column)
+
+
+func start_pending_analysis_preview_(
+		generation: int, origin_uid: int, color: int, row: int, column: int
+) -> void:
+	if generation != analysis_preview_generation_ or not has_pending_move() \
+			or pending_move_origin_uid_ != origin_uid or pending_move_color_ != color \
+			or pending_move_row_ != row or pending_move_column_ != column \
+			or go_notes_ == null or int(go_notes_.get_current_uid()) != origin_uid:
+		return
+	start_analysis_preview_(Vector2i(column, row), true)
 
 
 func execute_place_stone_(color: int, row: int, column: int) -> bool:
@@ -2586,15 +2792,6 @@ func execute_place_stone_now_(
 		return
 	outcome.success = true
 	play_stone_sound_()
-
-
-func has_move_branch_(color: int, row: int, column: int) -> bool:
-	for branch: Dictionary in branch_moves_:
-		if int(branch.get("color", 0)) == color \
-				and int(branch.get("row", 0)) == row \
-				and int(branch.get("column", 0)) == column:
-			return true
-	return false
 
 
 func play_stone_sound_() -> void:
@@ -2697,6 +2894,7 @@ func disconnect_go_notes_signal_() -> void:
 
 
 func on_go_notes_changed_() -> void:
+	stop_analysis_preview()
 	var previous_view_uid: int = view_uid_
 	if has_pending_move() and (
 		go_notes_ == null \
@@ -3135,6 +3333,7 @@ func update_note_preview_hover_bubble_(mouse_x: float) -> void:
 
 
 func request_edit_sensitive_action_(action: Callable) -> void:
+	stop_analysis_preview()
 	if edit_sensitive_action_gate_.is_valid():
 		edit_sensitive_action_gate_.call(action)
 	elif action.is_valid():
@@ -3142,6 +3341,7 @@ func request_edit_sensitive_action_(action: Callable) -> void:
 
 
 func refresh_position_() -> bool:
+	stop_analysis_preview()
 	branch_moves_.clear()
 	setup_branches_.clear()
 	if setup_preview_uid_ >= 0:
@@ -3240,9 +3440,18 @@ func refresh_branch_moves_(node_data: Dictionary) -> void:
 func refresh_stones_() -> void:
 	if not ensure_stone_pool_():
 		return
+	var display_states: PackedInt32Array = PackedInt32Array(
+		analysis_preview_snapshot_.get("states", position_states_)
+	)
+	var display_numbers: PackedInt32Array = PackedInt32Array(
+		analysis_preview_snapshot_.get("move_numbers", move_numbers_)
+	)
+	var display_last_move: int = int(analysis_preview_snapshot_.get(
+		"last_move_index", last_move_position_index_
+	))
 	var position_count: int = board_size_ * board_size_
-	if position_states_.size() != position_count \
-			or move_numbers_.size() != position_count:
+	if display_states.size() != position_count \
+			or display_numbers.size() != position_count:
 		return
 
 	var cell_size: float = cell_size_()
@@ -3253,9 +3462,9 @@ func refresh_stones_() -> void:
 		var displayed_move_count: int = displayed_move_count_()
 		if displayed_move_count > 0:
 			var latest_move_number: int = 0
-			for number_index in range(move_numbers_.size()):
+			for number_index in range(display_numbers.size()):
 				latest_move_number = maxi(
-					latest_move_number, move_numbers_[number_index]
+					latest_move_number, display_numbers[number_index]
 				)
 			first_displayed_move = maxi(
 				latest_move_number - displayed_move_count + 1, 1
@@ -3263,7 +3472,7 @@ func refresh_stones_() -> void:
 	for index in range(position_count):
 		var row: int = floori(float(index) / float(board_size_)) + 1
 		var column: int = index % board_size_ + 1
-		var state: int = position_states_[index]
+		var state: int = display_states[index]
 		var stone: Sprite2D = stone_nodes_[index]
 		var label: Label = move_number_labels_[index]
 		if state != kBlack and state != kWhite:
@@ -3272,12 +3481,12 @@ func refresh_stones_() -> void:
 			continue
 
 		update_stone_(stone, state, row, column, cell_size)
-		var move_number: int = move_numbers_[index]
+		var move_number: int = display_numbers[index]
 		if not territory_mode_ \
 				and move_number >= first_displayed_move and move_number > 0:
 			update_move_number_label_(
 				label, state, move_number, row, column, cell_size,
-				index == last_move_position_index_
+				index == display_last_move
 			)
 		else:
 			label.visible = false

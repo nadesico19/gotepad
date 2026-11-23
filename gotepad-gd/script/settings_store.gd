@@ -30,7 +30,7 @@ const kMoveNumberModeOne: int = 0
 const kMoveNumberModeTen: int = 1
 const kMoveNumberModeAll: int = 2
 const kMoveNumberModeCustom: int = 3
-const kDefaultMoveNumberMode: int = kMoveNumberModeOne
+const kDefaultMoveNumberMode: int = kMoveNumberModeTen
 const kDefaultMoveNumberCount: int = 20
 const kDefaultAbsoluteMoveNumbers: bool = false
 const kDefaultPlaybackIntervalSeconds: float = 1.0
@@ -128,6 +128,8 @@ var katago_human_resign_suggestion_: bool = \
 	kDefaultKatagoHumanResignSuggestion
 var katago_report_interval_seconds_: float = \
 	kDefaultKatagoReportIntervalSeconds
+var katago_hover_preview_: bool = true
+var katago_hover_interval_: float = 0.5
 var katago_analysis_pv_length_: int = kDefaultKatagoAnalysisPvLength
 var katago_extra_board_candidates_: int = kDefaultKatagoExtraBoardCandidates
 var katago_primary_candidate_opacity_: int = \
@@ -334,6 +336,14 @@ func get_katago_human_resign_suggestion() -> bool:
 
 func get_katago_report_interval_seconds() -> float:
 	return katago_report_interval_seconds_
+
+
+func get_katago_hover_preview() -> bool:
+	return katago_hover_preview_
+
+
+func get_katago_hover_interval() -> float:
+	return katago_hover_interval_
 
 
 func get_katago_analysis_pv_length() -> int:
@@ -562,7 +572,9 @@ func set_settings(
 		katago_human_max_visits: int,
 		katago_human_resign_suggestion: bool,
 		katago_o3_profile: bool = false,
-		katago_o3_optimize: bool = false
+		katago_o3_optimize: bool = false,
+		katago_hover_preview: bool = true,
+		katago_hover_interval: float = 0.5
 ) -> Error:
 	if not is_finite(large_ui_multiplier) \
 			or large_ui_multiplier < kLargeUiMultiplierMinimum \
@@ -597,6 +609,8 @@ func set_settings(
 		katago_human_resign_suggestion_
 	var previous_katago_report_interval: float = \
 		katago_report_interval_seconds_
+	var previous_katago_hover_preview: bool = katago_hover_preview_
+	var previous_katago_hover_interval: float = katago_hover_interval_
 	var previous_katago_analysis_pv_length: int = \
 		katago_analysis_pv_length_
 	var previous_katago_extra_board_candidates: int = \
@@ -657,6 +671,8 @@ func set_settings(
 	katago_report_interval_seconds_ = clampf(
 		katago_report_interval_seconds, 0.1, 60.0
 	)
+	katago_hover_preview_ = katago_hover_preview
+	katago_hover_interval_ = snappedf(clampf(katago_hover_interval, 0.0, 3.0), 0.1)
 	katago_analysis_pv_length_ = maxi(katago_analysis_pv_length, 1)
 	katago_extra_board_candidates_ = clampi(
 		katago_extra_board_candidates, 0, kKatagoExtraBoardCandidatesMaximum
@@ -710,6 +726,8 @@ func set_settings(
 		katago_human_resign_suggestion_ = \
 			previous_katago_human_resign_suggestion
 		katago_report_interval_seconds_ = previous_katago_report_interval
+		katago_hover_preview_ = previous_katago_hover_preview
+		katago_hover_interval_ = previous_katago_hover_interval
 		katago_analysis_pv_length_ = previous_katago_analysis_pv_length
 		katago_extra_board_candidates_ = \
 			previous_katago_extra_board_candidates
@@ -760,7 +778,9 @@ func set_settings(
 		katago_paths_changed.emit()
 	if katago_human_model_path_ != previous_katago_human_model_path:
 		katago_human_paths_changed.emit()
-	if katago_max_visits_ != previous_katago_max_visits \
+	if katago_hover_preview_ != previous_katago_hover_preview \
+			or not is_equal_approx(katago_hover_interval_, previous_katago_hover_interval) \
+			or katago_max_visits_ != previous_katago_max_visits \
 			or not is_equal_approx(
 				katago_report_interval_seconds_, previous_katago_report_interval
 			) or katago_analysis_pv_length_ \
@@ -996,6 +1016,10 @@ func load_config_() -> void:
 		"report_interval_seconds",
 		kDefaultKatagoReportIntervalSeconds
 	)), 0.1, 60.0)
+	katago_hover_preview_ = bool(config.get_value("katago", "hover_preview", true))
+	katago_hover_interval_ = snappedf(clampf(float(config.get_value(
+		"katago", "hover_interval", 0.5
+	)), 0.0, 3.0), 0.1)
 	katago_analysis_pv_length_ = maxi(int(config.get_value(
 		"katago",
 		"analysis_pv_length",
@@ -1158,6 +1182,8 @@ func save_config_() -> Error:
 	)
 	config.set_value("katago", "o3_optimize", katago_o3_optimize_)
 	config.set_value("katago", "o3_profile", katago_o3_profile_)
+	config.set_value("katago", "hover_preview", katago_hover_preview_)
+	config.set_value("katago", "hover_interval", katago_hover_interval_)
 	config.set_value("katago", "show_score_lead", katago_show_score_lead_)
 	config.set_value(
 		"katago", "show_score_lead_on_board", katago_show_score_lead_on_board_
@@ -1197,6 +1223,8 @@ func reset_settings_() -> void:
 	katago_human_max_visits_ = kDefaultKatagoHumanMaxVisits
 	katago_human_resign_suggestion_ = kDefaultKatagoHumanResignSuggestion
 	katago_report_interval_seconds_ = kDefaultKatagoReportIntervalSeconds
+	katago_hover_preview_ = true
+	katago_hover_interval_ = 0.5
 	katago_analysis_pv_length_ = kDefaultKatagoAnalysisPvLength
 	katago_extra_board_candidates_ = kDefaultKatagoExtraBoardCandidates
 	katago_primary_candidate_opacity_ = kDefaultKatagoPrimaryCandidateOpacity

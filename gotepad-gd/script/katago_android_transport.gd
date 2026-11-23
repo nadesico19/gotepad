@@ -74,6 +74,10 @@ func is_transport_running() -> bool:
 	return backend_ != null and backend_.is_transport_running()
 
 
+func is_transport_initializing() -> bool:
+	return backend_ != null and backend_.is_transport_initializing()
+
+
 func prepare_for_user_analysis() -> bool:
 	user_analysis_recovery_enabled_ = true
 	if using_fallback_:
@@ -118,6 +122,7 @@ func start_backend_(candidate: KataGoTransport, allow_fallback: bool) -> bool:
 	backend_.log_received.connect(on_backend_log_.bind(candidate))
 	backend_.transport_error.connect(on_backend_error_.bind(candidate))
 	backend_.transport_stopped.connect(on_backend_stopped_.bind(candidate))
+	backend_.transport_ready.connect(on_backend_ready_.bind(candidate))
 	var started: bool = false
 	if backend_.has_method("start_custom_transport"):
 		started = bool(backend_.call(
@@ -191,6 +196,11 @@ func on_backend_line_(line: String, source: KataGoTransport) -> void:
 			if active_queries_.is_empty():
 				user_analysis_recovery_enabled_ = false
 	line_received.emit(line)
+
+
+func on_backend_ready_(source: KataGoTransport) -> void:
+	if source == backend_:
+		transport_ready.emit()
 
 
 func on_backend_log_(line: String, source: KataGoTransport) -> void:

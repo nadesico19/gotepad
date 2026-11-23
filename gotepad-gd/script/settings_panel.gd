@@ -48,6 +48,7 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoConfigLabel",
 	"KatagoConfigRow",
 	"KatagoMaxVisitsRow",
+	"KatagoGameAnalysisVisitsRow",
 	"KatagoTerritoryVisitsRow",
 	"KatagoReportIntervalRow",
 	"KatagoAnalysisPvLengthRow",
@@ -55,7 +56,8 @@ const kKatagoOptionNodeNames: Array[String] = [
 	"KatagoPrimaryCandidateOpacityRow",
 	"KatagoExtraCandidateOpacityRow",
 	"KatagoScoreLeadRow",
-	"KatagoGameAnalysisVisitsRow",
+	"KatagoHoverPreview",
+	"KatagoHoverIntervalRow",
 	"KatagoTestRow",
 	"KatagoStatus",
 	"KatagoHumanSeparator",
@@ -153,6 +155,8 @@ const kStoneWhitePaths: Array[String] = [
 	$SettingsPanel/Margin/Options/KatagoTerritoryVisitsRow/Visits
 @onready var katago_report_interval_seconds_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoReportIntervalRow/Seconds
+@onready var katago_hover_preview_: CheckBox = $SettingsPanel/Margin/Options/KatagoHoverPreview
+@onready var katago_hover_interval_: SpinBox = $SettingsPanel/Margin/Options/KatagoHoverIntervalRow/Seconds
 @onready var katago_analysis_pv_length_: SpinBox = \
 	$SettingsPanel/Margin/Options/KatagoAnalysisPvLengthRow/Moves
 @onready var katago_extra_board_candidates_: SpinBox = \
@@ -250,6 +254,8 @@ var opening_katago_analysis_config_path_: String
 var opening_katago_max_visits_: int
 var opening_katago_territory_visits_: int
 var opening_katago_report_interval_seconds_: float
+var opening_katago_hover_preview_: bool
+var opening_katago_hover_interval_: float
 var opening_katago_analysis_pv_length_: int
 var opening_katago_extra_board_candidates_: int
 var opening_katago_primary_candidate_opacity_: int
@@ -357,6 +363,8 @@ func _ready() -> void:
 	katago_report_interval_seconds_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
+	katago_hover_preview_.toggled.connect(on_katago_boolean_option_changed_)
+	katago_hover_interval_.value_changed.connect(on_katago_analysis_option_changed_)
 	katago_analysis_pv_length_.value_changed.connect(
 		on_katago_analysis_option_changed_
 	)
@@ -1023,6 +1031,8 @@ func open_panel_() -> void:
 		SettingsStore.get_katago_territory_visits()
 	opening_katago_report_interval_seconds_ = \
 		SettingsStore.get_katago_report_interval_seconds()
+	opening_katago_hover_preview_ = SettingsStore.get_katago_hover_preview()
+	opening_katago_hover_interval_ = SettingsStore.get_katago_hover_interval()
 	opening_katago_analysis_pv_length_ = \
 		SettingsStore.get_katago_analysis_pv_length()
 	opening_katago_extra_board_candidates_ = \
@@ -1110,6 +1120,8 @@ func open_panel_() -> void:
 	katago_report_interval_seconds_.set_value_no_signal(
 		opening_katago_report_interval_seconds_
 	)
+	katago_hover_preview_.set_pressed_no_signal(opening_katago_hover_preview_)
+	katago_hover_interval_.set_value_no_signal(opening_katago_hover_interval_)
 	katago_analysis_pv_length_.set_value_no_signal(
 		opening_katago_analysis_pv_length_
 	)
@@ -1399,6 +1411,8 @@ func has_staged_changes_() -> bool:
 			opening_katago_report_interval_seconds_
 		) or selected_katago_analysis_pv_length_() \
 			!= opening_katago_analysis_pv_length_ \
+		or katago_hover_preview_.button_pressed != opening_katago_hover_preview_ \
+		or not is_equal_approx(katago_hover_interval_.value, opening_katago_hover_interval_) \
 		or selected_katago_extra_board_candidates_() \
 			!= opening_katago_extra_board_candidates_ \
 		or selected_katago_primary_candidate_opacity_() \
@@ -1673,7 +1687,9 @@ func on_confirm_pressed_() -> void:
 		selected_katago_human_max_visits_(),
 		selected_katago_human_resign_suggestion_(),
 		katago_o3_profile_.button_pressed,
-		katago_o3_optimize_.button_pressed
+		katago_o3_optimize_.button_pressed,
+		katago_hover_preview_.button_pressed,
+		katago_hover_interval_.value
 	)
 	if error != OK:
 		error_label_.text = tr("保存设置失败：%s") % error_string(error)
@@ -1717,6 +1733,8 @@ func on_confirm_pressed_() -> void:
 	opening_katago_territory_visits_ = selected_katago_territory_visits_()
 	opening_katago_report_interval_seconds_ = \
 		selected_katago_report_interval_seconds_()
+	opening_katago_hover_preview_ = katago_hover_preview_.button_pressed
+	opening_katago_hover_interval_ = katago_hover_interval_.value
 	opening_katago_analysis_pv_length_ = selected_katago_analysis_pv_length_()
 	opening_katago_extra_board_candidates_ = \
 		selected_katago_extra_board_candidates_()
@@ -1810,6 +1828,8 @@ func on_restore_pressed_() -> void:
 	katago_report_interval_seconds_.set_value_no_signal(
 		opening_katago_report_interval_seconds_
 	)
+	katago_hover_preview_.set_pressed_no_signal(opening_katago_hover_preview_)
+	katago_hover_interval_.set_value_no_signal(opening_katago_hover_interval_)
 	katago_analysis_pv_length_.set_value_no_signal(
 		opening_katago_analysis_pv_length_
 	)
@@ -2877,6 +2897,8 @@ func set_katago_controls_enabled_(enabled: bool) -> void:
 	katago_max_visits_.editable = enabled
 	katago_territory_visits_.editable = enabled
 	katago_report_interval_seconds_.editable = enabled
+	katago_hover_preview_.disabled = not enabled
+	katago_hover_interval_.editable = enabled
 	katago_analysis_pv_length_.editable = enabled
 	katago_extra_board_candidates_.editable = enabled
 	katago_primary_candidate_opacity_.editable = enabled

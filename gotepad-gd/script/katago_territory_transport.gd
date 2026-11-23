@@ -20,6 +20,7 @@ func start_transport() -> bool:
 	backend_.log_received.connect(log_received.emit)
 	backend_.transport_error.connect(transport_error.emit)
 	backend_.transport_stopped.connect(transport_stopped.emit)
+	backend_.transport_ready.connect(transport_ready.emit)
 	return bool(backend_.call(
 		"start_custom_transport", KataGoEmbeddedTransport.kInstalledModelPath,
 		"", SettingsStore.get_managed_katago_territory_config_path(), ""
@@ -40,6 +41,10 @@ func stop_transport() -> void:
 
 func is_transport_running() -> bool:
 	return backend_ != null and backend_.is_transport_running()
+
+
+func is_transport_initializing() -> bool:
+	return backend_ != null and backend_.is_transport_initializing()
 
 
 func _exit_tree() -> void:

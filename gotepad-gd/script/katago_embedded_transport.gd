@@ -9,6 +9,7 @@ const kInstalledModelPath: String = \
 	"user://katago/embedded/v1/g170e-b10c128-s1141046784-d204142634.bin.gz"
 const kModelSize: int = 11138361
 const kCopyChunkSize: int = 1024 * 1024
+const kReadyQueryId: String = "gotepad-transport-ready"
 const kStateStopped: int = 0
 const kStateStarting: int = 1
 const kStateRunning: int = 2
@@ -16,6 +17,7 @@ const kStateFailed: int = 4
 
 var engine_: Object
 var stopped_emitted_: bool = false
+var ready_: bool = false
 
 
 func start_transport() -> bool:
@@ -89,7 +91,12 @@ func start_custom_transport(
 		transport_error.emit(native_error_())
 		return false
 	stopped_emitted_ = false
+	ready_ = false
 	set_process(true)
+	if not send_line(JSON.stringify({"id": kReadyQueryId, "action": "query_version"})):
+		stop_transport()
+		transport_error.emit(tr("无法向KataGo发送初始化确认请求。"))
+		return false
 	return true
 
 
@@ -126,6 +133,22 @@ func _notification(what: int) -> void:
 		stop_transport()
 
 
+func is_transport_initializing() -> bool:
+	return is_transport_running() and not ready_
+
+
+func handle_response_line_(line: String) -> void:
+	var response: Variant = JSON.parse_string(line)
+	if response is Dictionary:
+		# 原生 Running 只代表线程启动；收到响应才代表模型加载和调优结束。
+		if not ready_:
+			ready_ = true
+			transport_ready.emit()
+		if str(response.get("id", "")) == kReadyQueryId:
+			return
+	line_received.emit(line)
+
+
 func _process(_delta: float) -> void:
 	if engine_ == null:
 		return
@@ -133,7 +156,7 @@ func _process(_delta: float) -> void:
 		PackedStringArray(engine_.call("poll_lines"))
 	for line: String in response_lines:
 		if not line.is_empty():
-			line_received.emit(line)
+			handle_response_line_(line)
 	var log_lines: PackedStringArray = \
 		PackedStringArray(engine_.call("poll_logs"))
 	for line: String in log_lines:

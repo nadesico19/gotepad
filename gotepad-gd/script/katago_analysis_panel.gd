@@ -9,6 +9,8 @@ const kStateAnalyzing: int = 1
 const kStatePaused: int = 2
 const kStateStopping: int = 3
 const kStateContinuous: int = 4
+# 首次 OpenCL 编译、调优单独计时，不能按普通搜索无响应处理。
+const kWatchdogInitializationTimeoutSeconds: float = 1800.0
 const kWatchdogFirstResultTimeoutSeconds: float = 180.0
 const kWatchdogMinimumProgressTimeoutSeconds: float = 60.0
 const kWatchdogReportIntervalMultiplier: float = 4.0
@@ -478,6 +480,8 @@ func on_analyze_game_pressed_() -> void:
 
 
 func on_transport_ready_() -> void:
+	if watchdog_active_:
+		watchdog_elapsed_seconds_ = 0.0
 	if state_ == kStatePaused and not current_query_id_.is_empty():
 		status_label_.text = tr("已暂停界面刷新，KataGo仍在分析")
 	else:
@@ -915,6 +919,8 @@ func disarm_watchdog_() -> void:
 
 
 func watchdog_timeout_seconds_() -> float:
+	if service_ != null and service_.is_initializing():
+		return kWatchdogInitializationTimeoutSeconds
 	if watchdog_waiting_for_first_result_:
 		return kWatchdogFirstResultTimeoutSeconds
 	return maxf(
@@ -927,6 +933,8 @@ func watchdog_timeout_seconds_() -> float:
 func handle_watchdog_timeout_() -> void:
 	watchdog_restart_scheduled_ = false
 	if not watchdog_active_ or application_paused_:
+		return
+	if watchdog_elapsed_seconds_ < watchdog_timeout_seconds_():
 		return
 	if current_query_id_.is_empty() and batch_query_id_.is_empty():
 		disarm_watchdog_()

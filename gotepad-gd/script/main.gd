@@ -1192,6 +1192,7 @@ func handle_macos_fullscreen_shortcut_(event: InputEvent) -> bool:
 
 
 func _input(event: InputEvent) -> void:
+	board_.guard_analysis_preview_input(event)
 	if handle_macos_fullscreen_shortcut_(event):
 		get_viewport().set_input_as_handled()
 		return
@@ -4060,6 +4061,7 @@ func request_document_switch_(index: int) -> void:
 
 
 func request_after_note_edit_resolution_(action: Callable) -> void:
+	board_.stop_analysis_preview()
 	notes_panel_.request_action_after_edit_resolution(action)
 
 
@@ -4109,6 +4111,7 @@ func _notification(what: int) -> void:
 		call_deferred(&"dispatch_android_back_as_escape_")
 		return
 	if what == NOTIFICATION_APPLICATION_PAUSED:
+		board_.stop_analysis_preview()
 		application_paused_ = true
 		if OS.get_name() in ["Android", "iOS"] and territory_mode_active_:
 			exit_territory_scoring_mode_()
