@@ -701,6 +701,31 @@ func _ready() -> void:
 	call_deferred(&"open_startup_sgf_files_")
 	call_deferred(&"poll_android_open_intents_")
 	call_deferred(&"check_for_updates_on_startup_")
+	call_deferred(&"show_mobile_ui_scale_prompt_")
+
+
+func show_mobile_ui_scale_prompt_() -> void:
+	if not SettingsStore.needs_mobile_ui_scale_prompt():
+		return
+	var dialog: ConfirmationDialog = ConfirmationDialog.new()
+	dialog.title = tr("界面UI缩放")
+	dialog.dialog_text = tr("DIALOG_FIRST_LAUNCH_UI_SCALE")
+	dialog.ok_button_text = tr("是")
+	dialog.cancel_button_text = tr("否")
+	dialog.exclusive = true
+	dialog.confirmed.connect(on_mobile_ui_scale_chosen_.bind(true, dialog))
+	dialog.canceled.connect(on_mobile_ui_scale_chosen_.bind(false, dialog))
+	interface_safe_area_.add_child(dialog)
+	DialogLayoutManager.popup_centered(dialog, Vector2i(560, 220))
+
+
+func on_mobile_ui_scale_chosen_(enlarge: bool, dialog: ConfirmationDialog) -> void:
+	dialog.hide()
+	dialog.queue_free()
+	var error: Error = SettingsStore.complete_mobile_ui_scale_prompt(enlarge)
+	if error != OK:
+		tool_error_dialog_.dialog_text = tr("保存设置失败：%s") % error_string(error)
+		DialogLayoutManager.popup_centered(tool_error_dialog_)
 
 
 func configure_ios_open_files_() -> void:

@@ -774,3 +774,6 @@ keys,zh_CN,ja,ko,en
 "未找到公开对局。","未找到公开对局。","公開対局が見つかりませんでした。","공개 대국을 찾을 수 없습니다.","No public games found."
 "没有更多棋谱。","没有更多棋谱。","これ以上棋譜はありません。","더 이상 기보가 없습니다.","No more records."
 "无法加载野狐棋谱：%s","无法加载野狐棋谱：%s","野狐の棋譜を読み込めませんでした：%s","폭스 바둑 기보를 불러올 수 없습니다: %s","Could not load the Fox Go record: %s"
+"DIALOG_FIRST_LAUNCH_UI_SCALE","手机用户设置指南：\n\n1. 手机平台可能需要放大界面UI以获得最佳视觉体验，是否放大？（后续可在设置中通过“界面UI缩放”手动调整）\n\n2. 手机屏幕有挖孔、圆角遮挡界面时，可手动设置“屏幕左边边距”。","スマートフォンの設定ガイド：\n\n1. スマートフォンでは、見やすくするためにUIの拡大が必要な場合があります。拡大しますか？（後から設定の「UI の拡大縮小」で手動調整できます）\n\n2. 画面のカメラ穴や角の丸みによってUIが隠れる場合は、「画面左右余白（モバイル用）」を手動で調整できます。","휴대전화 사용자 설정 안내:\n\n1. 휴대전화에서는 최적의 시각적 경험을 위해 UI를 확대해야 할 수 있습니다. 확대하시겠습니까? (나중에 설정의 “UI 배율”에서 수동으로 조절할 수 있습니다.)\n\n2. 화면의 카메라 구멍이나 둥근 모서리가 UI를 가리는 경우 “화면 좌우 여백(모바일용)”을 수동으로 조절할 수 있습니다.","Setup guide for phone users:\n\n1. On phones, enlarging the UI may improve readability. Would you like to enlarge it? (You can manually adjust this later using “UI scaling” in Settings.)\n\n2. If the camera cutout or rounded screen corners obscure the UI, you can manually adjust “Screen side margins (mobile)”."
+"是","是","はい","예","Yes"
+"否","否","いいえ","아니요","No"

@@ -46,7 +46,8 @@ func draw_sequential_marks_() -> void:
 	var font: Font = ThemeDB.fallback_font
 	if font == null:
 		return
-	var font_size: int = maxi(roundi(cell_size_ * 0.48), 1)
+	# Match PPTX: stone diameter (0.98 cells) * 0.5 * 1.5.
+	var font_size: int = maxi(roundi(cell_size_ * 0.735), 1)
 	var outline_size: int = maxi(roundi(cell_size_ * 0.09), 1)
 	for index in range(mini(sequential_marks_.size(), kSequentialMarkLetters.length())):
 		draw_centered_text_(

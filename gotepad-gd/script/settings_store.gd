@@ -64,7 +64,7 @@ const kDefaultKatagoHumanMaxVisits: int = 200
 const kDefaultKatagoHumanResignSuggestion: bool = false
 const kDefaultKatagoReportIntervalSeconds: float = 1.0
 const kDefaultKatagoAnalysisPvLength: int = 10
-const kDefaultKatagoExtraBoardCandidates: int = 0
+const kDefaultKatagoExtraBoardCandidates: int = 7
 const kKatagoExtraBoardCandidatesMaximum: int = 99
 const kKatagoCandidateOpacityMinimum: int = 0
 const kKatagoCandidateOpacityMaximum: int = 100
@@ -110,6 +110,7 @@ var playback_interval_seconds_: float = kDefaultPlaybackIntervalSeconds
 var stone_sound_volume_: int = kDefaultStoneSoundVolume
 var horizontal_safe_margin_: int = kDefaultHorizontalSafeMargin
 var board_width_percentage_: int = kDefaultBoardWidthPercentage
+var mobile_ui_scale_prompt_pending_: bool = false
 var large_ui_enabled_: bool = kDefaultLargeUiEnabled
 var large_ui_multiplier_: float = kDefaultLargeUiMultiplier
 var move_confirmation_enabled_: bool = kDefaultMobileMoveConfirmation \
@@ -151,6 +152,22 @@ func _ready() -> void:
 	ensure_managed_katago_analysis_config_()
 	ensure_managed_katago_human_analysis_config_()
 	load_textures_()
+
+
+func initialize_first_launch_language_() -> void:
+	if OS.get_name() not in ["Android", "iOS", "Windows", "macOS"]:
+		return
+	match OS.get_locale_language().to_lower():
+		"zh":
+			language_ = kLanguageSimplifiedChinese
+		"ja":
+			language_ = kLanguageJapanese
+		"ko":
+			language_ = kLanguageKorean
+		"en":
+			language_ = kLanguageEnglish
+		_:
+			language_ = kDefaultLanguage
 
 
 func get_board_texture() -> Texture2D:
@@ -221,6 +238,28 @@ func get_horizontal_safe_margin() -> int:
 
 func get_board_width_percentage() -> int:
 	return board_width_percentage_
+
+
+func needs_mobile_ui_scale_prompt() -> bool:
+	return OS.get_name() in ["Android", "iOS"] and mobile_ui_scale_prompt_pending_
+
+
+func complete_mobile_ui_scale_prompt(enlarge: bool) -> Error:
+	var previous_enabled: bool = large_ui_enabled_
+	var previous_multiplier: float = large_ui_multiplier_
+	mobile_ui_scale_prompt_pending_ = false
+	if enlarge:
+		large_ui_enabled_ = true
+		large_ui_multiplier_ = kDefaultLargeUiMultiplier
+	var error: Error = save_config_()
+	if error != OK:
+		mobile_ui_scale_prompt_pending_ = true
+		large_ui_enabled_ = previous_enabled
+		large_ui_multiplier_ = previous_multiplier
+		return error
+	if enlarge:
+		large_ui_changed.emit(large_ui_enabled_, large_ui_multiplier_)
+	return OK
 
 
 func get_large_ui_enabled() -> bool:
@@ -797,6 +836,8 @@ func load_config_() -> void:
 	var error: Error = config.load(kConfigPath)
 	if error == ERR_FILE_NOT_FOUND:
 		reset_settings_()
+		initialize_first_launch_language_()
+		mobile_ui_scale_prompt_pending_ = OS.get_name() in ["Android", "iOS"]
 		error = save_config_()
 		if error != OK:
 			push_warning("Failed to create settings file: %s" % error_string(error))
@@ -805,6 +846,10 @@ func load_config_() -> void:
 		push_warning("Failed to load settings file: %s" % error_string(error))
 		reset_settings_()
 		return
+	# Existing installations without this key have already completed first launch.
+	mobile_ui_scale_prompt_pending_ = bool(config.get_value(
+		"general", "mobile_ui_scale_prompt_pending", false
+	))
 	var schema_version: int = int(config.get_value(
 		"general",
 		"schema_version",
@@ -1044,6 +1089,9 @@ func save_config_() -> Error:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value("general", "schema_version", kSchemaVersion)
 	config.set_value("general", "language", language_)
+	config.set_value(
+		"general", "mobile_ui_scale_prompt_pending", mobile_ui_scale_prompt_pending_
+	)
 	config.set_value("board", "path", board_texture_path_)
 	config.set_value("stones", "black_path", black_texture_path_)
 	config.set_value("stones", "white_path", white_texture_path_)
