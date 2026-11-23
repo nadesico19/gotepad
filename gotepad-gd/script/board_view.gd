@@ -820,6 +820,10 @@ func update_analysis_hover_(event: InputEventMouseMotion) -> void:
 		return
 	analysis_hover_intersection_ = intersection
 	stop_analysis_preview()
+	# 安卓解锁并启用落子防误触时，只由待确认落子启动预览。
+	if OS.get_name() == "Android" and not interactions_locked_ \
+			and SettingsStore.get_move_confirmation_enabled():
+		return
 	if not has_pending_move():
 		start_analysis_preview_(intersection)
 

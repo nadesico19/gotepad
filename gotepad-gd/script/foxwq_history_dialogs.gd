@@ -23,6 +23,7 @@ var page_index_: int = -1
 var reached_end_: bool = false
 var request_: Request = Request.NONE
 var search_layout_version_: int = 0
+var mobile_text_edit_long_press_: MobileTextEditLongPressController
 var pages_: Array[Array] = []
 var requested_game_: Dictionary = {}
 var sgf_root_: RegEx = RegEx.create_from_string(kSgfRoot)
@@ -43,9 +44,11 @@ var sgf_property_: RegEx = RegEx.create_from_string(kSgfProperty)
 
 
 func _ready() -> void:
+	configure_mobile_text_edit_long_press_()
 	for dialog: Window in [search_dialog_, results_dialog_]:
 		dialog.close_requested.connect(dialog.hide)
 		dialog.window_input.connect(on_dialog_input_.bind(dialog))
+	search_dialog_.visibility_changed.connect(on_search_visibility_changed_)
 	results_dialog_.visibility_changed.connect(on_results_visibility_changed_)
 	%QueryButton.pressed.connect(on_query_pressed_)
 	id_input_.text_submitted.connect(on_query_text_submitted_)
@@ -60,6 +63,20 @@ func _ready() -> void:
 		table_.set_column_custom_minimum_width(column, kColumnWidths[column])
 		table_.set_column_clip_content(column, true)
 		table_.set_column_expand(column, column in [1, 2, 7])
+
+
+func configure_mobile_text_edit_long_press_() -> void:
+	if not OS.has_feature("mobile"):
+		return
+	mobile_text_edit_long_press_ = MobileTextEditLongPressController.new()
+	# 焦点导航和输入事件必须使用输入框所在的窗口视口。
+	search_dialog_.add_child(mobile_text_edit_long_press_)
+	mobile_text_edit_long_press_.configure([id_input_, nickname_input_])
+
+
+func on_search_visibility_changed_() -> void:
+	if not search_dialog_.visible and mobile_text_edit_long_press_ != null:
+		mobile_text_edit_long_press_.reset()
 
 
 func open_search() -> void:

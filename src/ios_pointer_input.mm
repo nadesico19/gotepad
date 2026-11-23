@@ -18,6 +18,11 @@
 - (void)forward_pinch:(UIPinchGestureRecognizer*)sender;
 @end
 
+@interface GotepadPointerHover : UIHoverGestureRecognizer
+@property(nonatomic) CGPoint previous_position;
+- (void)forward_hover:(UIHoverGestureRecognizer*)sender;
+@end
+
 namespace nd::go::gdext {
 namespace {
 
@@ -92,6 +97,13 @@ void attach_pointer_gestures(UIView* view) {
   pinch.allowedTouchTypes = @[];
   pinch.cancelsTouchesInView = NO;
   [view addGestureRecognizer:pinch];
+
+  GotepadPointerHover* hover = [[GotepadPointerHover alloc] initWithTarget:nil action:nil];
+  [hover addTarget:hover action:@selector(forward_hover:)];
+  // Only external mice/trackpads should drive mouse hover, not Pencil hover.
+  hover.allowedTouchTypes = @[@(UITouchTypeIndirectPointer)];
+  hover.cancelsTouchesInView = NO;
+  [view addGestureRecognizer:hover];
 }
 
 void attach_pointer_gestures_to_existing_views(UIView* view, Class view_class) {
@@ -234,6 +246,35 @@ void install_ios_pointer_input() {
     nd::go::gdext::send_mouse_button(position, button, {}, true);
     nd::go::gdext::send_mouse_button(position, button, {}, false);
   }
+}
+
+@end
+
+
+@implementation GotepadPointerHover
+
+- (void)forward_hover:(UIHoverGestureRecognizer*)sender {
+  const bool hovering = sender.state == UIGestureRecognizerStateBegan ||
+                        sender.state == UIGestureRecognizerStateChanged;
+  if (!hovering && sender.state != UIGestureRecognizerStateEnded &&
+      sender.state != UIGestureRecognizerStateCancelled) return;
+
+  godot::Input* input = godot::Input::get_singleton();
+  if (input == nullptr) return;
+  UIView* view = sender.view;
+  const CGPoint location = [sender locationInView:view];
+  const auto position = nd::go::gdext::pointer_position(view, location);
+  godot::Ref<godot::InputEventMouseMotion> motion;
+  motion.instantiate();
+  // Moving outside the viewport clears GUI hover and restores board previews.
+  motion->set_position(hovering ? position : godot::Vector2(-1, -1));
+  motion->set_global_position(motion->get_position());
+  if (sender.state == UIGestureRecognizerStateChanged) {
+    motion->set_relative(position - nd::go::gdext::pointer_position(view, self.previous_position));
+  }
+  motion->set_button_mask(input->get_mouse_button_mask());
+  self.previous_position = location;
+  input->parse_input_event(motion);
 }
 
 @end
