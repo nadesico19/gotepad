@@ -350,7 +350,7 @@ func accept_sgf_(response: Dictionary) -> void:
 		return
 	var title: String = str(game.get("title", "")).strip_edges()
 	if title.is_empty():
-		title = "%s - %s" % [game.get("blacknick", ""), game.get("whitenick", "")]
+		title = "%s - %s" % [player_name_(game, "black"), player_name_(game, "white")]
 	sgf_load_requested.emit(normalize_sgf_komi_(content, game), title)
 
 
@@ -376,8 +376,14 @@ func normalize_sgf_komi_(content: String, game: Dictionary) -> String:
 	return content.insert(root.get_end(), "KM[%s]" % komi)
 
 
+func player_name_(game: Dictionary, color: String) -> String:
+	var suffix: String = "nick" if TranslationServer.get_locale().get_slice("_", 0) == "ko" \
+		else "enname"
+	return optional_text_(game.get(color + suffix))
+
+
 func player_text_(game: Dictionary, color: String) -> String:
-	var name: String = optional_text_(game.get(color + "nick"))
+	var name: String = player_name_(game, color)
 	var rank: int = int_field_(game.get(color + "dan"))
 	if rank >= 100 and rank <= 109:
 		return "%s (%s)" % [name, tr("职业 %d 段") % (rank - 99)]

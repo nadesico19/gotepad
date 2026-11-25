@@ -1,6 +1,7 @@
 extends Camera2D
 
 const kBoardTop: float = 50.0
+const kReferenceViewportSize: Vector2 = Vector2(1600.0, 900.0)
 
 @export var target_path: NodePath
 @export_range(0.0, 256.0, 1.0) var margin: float = 0.0
@@ -30,6 +31,33 @@ func _ready() -> void:
 			&"board_texture_changed", Callable(self, "update_zoom_")
 		)
 	update_zoom_()
+
+
+# Reference board scale at the default window size with UI scaling disabled.
+# Use the same layout reserves as the current board.
+func get_reference_board_scale() -> float:
+	if target_ == null:
+		return 1.0
+	var target_scale: Vector2 = target_.global_scale.abs()
+	var target_size: Vector2 = target_.get_rect().size * target_scale
+	var content_size: Vector2 = Vector2(
+		target_size.x, target_size.y + bottom_extension * target_scale.y
+	)
+	if target_size.x <= 0.0 or target_size.y <= 0.0:
+		return 1.0
+	var available_size: Vector2 = kReferenceViewportSize - Vector2(
+		margin * 2.0 + horizontal_safe_margin * 2.0 + right_ui_reserve,
+		margin * 2.0 + top_ui_reserve
+	)
+	var width_fit_zoom: float = maxf(available_size.x, 1.0) * clampf(
+		board_width_percentage / 100.0, 0.5, 1.0
+	) / content_size.x
+	var height_fit_zoom: float = maxf(available_size.y, 1.0) / content_size.y
+	var fit_zoom: float = minf(
+		width_fit_zoom,
+		height_fit_zoom + (margin + top_ui_reserve - kBoardTop) / target_size.y
+	)
+	return maxf(fit_zoom * target_scale.x, 0.001)
 
 
 func update_zoom_() -> void:

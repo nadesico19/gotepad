@@ -27,11 +27,20 @@ func configure(
 func _draw() -> void:
 	if board_size_ <= 0 or cell_size_ <= 0.0:
 		return
-	var canvas_scale: float = maxf(
-		absf(get_global_transform_with_canvas().get_scale().x), 0.001
-	)
-	var outline_width: float = 4.0 / canvas_scale
-	var mark_width: float = 2.0 / canvas_scale
+	# Include final window scaling so the widths below are physical pixels.
+	var screen_transform: Transform2D = get_viewport().get_screen_transform() \
+		* get_global_transform_with_canvas()
+	var screen_scale: float = maxf(screen_transform.x.length(), 0.001)
+	var reference_scale: float = screen_scale
+	var camera: Camera2D = get_viewport().get_camera_2d()
+	if camera != null and camera.has_method(&"get_reference_board_scale"):
+		reference_scale = maxf(float(camera.call(&"get_reference_board_scale")), 0.001)
+	var board_scale_ratio: float = screen_scale / reference_scale
+	# Shrink linearly; grow by the square root above the reference board size.
+	var symbol_scale: float = sqrt(board_scale_ratio) \
+		if board_scale_ratio > 1.0 else board_scale_ratio
+	var outline_width: float = 5.0 * symbol_scale / screen_scale
+	var mark_width: float = 3.0 * symbol_scale / screen_scale
 	for mark: Dictionary in symbol_marks_:
 		draw_symbol_(
 			str(mark.get("symbol", "")),
