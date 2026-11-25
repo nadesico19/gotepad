@@ -36,8 +36,8 @@ func _draw() -> void:
 	if camera != null and camera.has_method(&"get_reference_board_scale"):
 		reference_scale = maxf(float(camera.call(&"get_reference_board_scale")), 0.001)
 	var board_scale_ratio: float = screen_scale / reference_scale
-	# Shrink linearly; grow by the square root above the reference board size.
-	var symbol_scale: float = sqrt(board_scale_ratio) \
+	# Scale linearly, with slightly thinner strokes above the reference size.
+	var symbol_scale: float = board_scale_ratio * 0.82 \
 		if board_scale_ratio > 1.0 else board_scale_ratio
 	var outline_width: float = 5.0 * symbol_scale / screen_scale
 	var mark_width: float = 3.0 * symbol_scale / screen_scale
