@@ -1,3 +1,17 @@
+# 0.1.25
+
+- 支持鼠标悬停在候选点时自动播放AI变化图。
+- 野狐棋谱检索表格显示日韩棋手的中文名称。
+- 软件安卓后首次启动时根据系统语言设置软件语言。
+- 优化UI细节。
+
+Translation：
+
+- Hovering over a candidate move now automatically plays the AI variation.
+- The Fox Go game record search results now show Chinese names for Japanese and Korean players.
+- On the first launch after installation, the app now sets its display language based on the system language.
+- Improved UI details.
+
 # 0.1.24
 
 - 支持从野狐加载对局棋谱，可指定ID或昵称。
